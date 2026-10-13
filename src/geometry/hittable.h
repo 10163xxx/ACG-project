@@ -2,6 +2,7 @@
 
 #include "core/ray.h"
 #include "core/interval.h"
+#include "geometry/aabb.h"
 #include "geometry/hit_record.h"
 
 class Hittable {
@@ -13,4 +14,6 @@ public:
         const Interval& ray_t,
         HitRecord& record
     ) const = 0;
+
+    virtual AABB bounding_box() const = 0;
 };

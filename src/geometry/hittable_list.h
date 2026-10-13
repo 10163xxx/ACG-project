@@ -29,6 +29,11 @@ public:
         return objects_.size();
     }
 
+    const std::vector<std::shared_ptr<const Hittable>>&
+    objects() const {
+        return objects_;
+    }
+
     bool hit(
         const Ray& ray,
         const Interval& ray_t,
@@ -57,6 +62,24 @@ public:
         }
 
         return hit_anything;
+    }
+
+    
+    AABB bounding_box() const override {
+        if (objects_.empty()) {
+            return AABB();
+        }
+
+        AABB box = objects_.front()->bounding_box();
+
+        for (std::size_t i = 1; i < objects_.size(); ++i) {
+            box = surrounding_box(
+                box,
+                objects_[i]->bounding_box()
+            );
+        }
+
+        return box;
     }
 
 private:

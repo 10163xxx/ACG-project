@@ -2,7 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <chrono>
 
+#include "acceleration/bvh.h"
 #include "core/random.h"
 #include "camera/camera.h"
 #include "integrator/path_tracer.h"
@@ -31,7 +33,9 @@ int main() {
         aspect_ratio
     );
 
-    HittableList world = make_material_test_scene();
+    HittableList scene = make_material_test_scene();
+    BVHNode world(scene.objects());
+
     PathTracer tracer(max_depth);
 
     for (int y = 0; y < image_height; ++y) {

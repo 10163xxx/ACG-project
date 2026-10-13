@@ -70,6 +70,20 @@ public:
         return true;
     }
 
+    
+    AABB bounding_box() const override {
+        const Vec3 radius_vec(
+            radius_,
+            radius_,
+            radius_
+        );
+
+        return AABB(
+            center_ - radius_vec,
+            center_ + radius_vec
+        );
+    }
+
 private:
     Vec3 center_;
     double radius_;

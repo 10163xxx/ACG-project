@@ -28,3 +28,30 @@ add_test(
     NAME MaterialTests
     COMMAND test_materials
 )
+
+
+add_executable(test_geometry
+    tests/test_geometry.cpp
+)
+
+target_include_directories(test_geometry PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME GeometryTests
+    COMMAND test_geometry
+)
+
+add_executable(test_bvh
+    tests/test_bvh.cpp
+)
+
+target_include_directories(test_bvh PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME BVHTests
+    COMMAND test_bvh
+)
