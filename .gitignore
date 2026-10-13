@@ -1,0 +1,25 @@
+﻿# CMake build outputs
+build/
+cmake-build-*/
+
+# Visual Studio generated files
+.vs/
+out/
+Debug/
+Release/
+x64/
+
+# Compiled binaries and object files
+*.exe
+*.dll
+*.obj
+*.o
+*.lib
+*.pdb
+
+# IDE settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
