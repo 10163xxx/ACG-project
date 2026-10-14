@@ -2,143 +2,84 @@
 
 A CPU-based path tracer developed in **C++17** for the Advanced Computer Graphics (ACG) 2026 course.
 
-The project focuses on building a modular rendering framework from the ground up, covering ray tracing fundamentals, physically based light transport, material models, geometric intersections, and acceleration structures.
+The project is built from scratch as a modular Monte Carlo path tracer. Its goal is to produce a static image using ray-based light transport rather than rasterization.
 
-## Overview
-
-This project implements a foundation for a Monte Carlo path tracer. The codebase is organized into independent modules to make the renderer easier to test, extend, and maintain.
-
-The current implementation focuses on ray generation, sphere intersections, material scattering, recursive light transport, and PPM image output.
-
-## Features
+## Implemented Features
 
 ### Rendering Core
 - C++17 rendering framework
-- Ray and vector mathematics
-- Camera model with configurable field of view and aspect ratio
+- Ray, vector, interval, and camera utilities
 - Sphere intersection and surface hit records
-- Sky gradient background
-- Iterative path tracing with configurable maximum depth
-- Monte Carlo sampling utilities
+- Sky-gradient background
+- Iterative path tracing with configurable maximum depth in the integrator
+- Stochastic subpixel sampling (anti-aliasing)
+- PPM image output with display gamma correction
 
-### Materials
-- **Lambertian** diffuse reflection
-- **Metal** reflection
-- **Dielectric** transmission and refraction
+### Materials and Scene
+- Lambertian diffuse reflection
+- Metal reflection
+- Dielectric transmission and refraction
+- Procedural material-test scene
 
-### Scene and Output
-- Procedural material test scene
-- PPM image output
-- Configurable image resolution and samples per pixel
-- Organized output directories for renders and debugging
+### Acceleration
+- Axis-aligned bounding boxes (AABBs)
+- **Binned Surface Area Heuristic (SAH) BVH**
+- Small multi-primitive leaves selected using an SAH cost estimate
+- Balanced median-split fallback for degenerate centroid distributions
 
-### Testing and Build System
+### Testing and Build
 - CMake-based build configuration
-- Unit tests for material behavior
-- Modular source layout designed for further development
-
-## Tech Stack
-
-- **Language:** C++17
-- **Build System:** CMake 3.20+
-- **Output Format:** PPM
-- **Target Platform:** Windows (development environment)
+- Unit tests for materials, geometry, and BVH hit-result consistency
 
 ## Project Structure
 
 ```text
-ACG-PathTracer/
+ACG-project/
 ├── CMakeLists.txt
 ├── README.md
 ├── src/
 │   ├── core/           # Vectors, rays, intervals, random sampling
-│   ├── geometry/       # Geometric primitives and intersection logic
+│   ├── geometry/       # AABBs, hittable interface, primitives
 │   ├── camera/         # Camera and ray generation
 │   ├── materials/      # Surface scattering models
 │   ├── sampling/       # Sampling and PDF utilities
-│   ├── acceleration/   # Acceleration structures
+│   ├── acceleration/   # Acceleration structures (SAH BVH)
 │   ├── integrator/     # Path tracing integrator
-│   ├── scene/          # Test scene definitions
+│   ├── scene/          # Scene definitions
 │   └── output/         # Image output and output paths
 ├── tests/              # Unit tests
-├── results/
-│   ├── debug/          # Debug images
-│   ├── tests/          # Test outputs
-│   └── renders/        # Rendered images
+├── results/            # Rendered images and test outputs
 └── assets/             # Additional project assets
 ```
 
-Some modules are still under development; the structure is intended to support incremental implementation.
+## Build and Run on Windows
 
-## Build Instructions
-
-### Requirements
-
-- A C++17-compatible compiler
-- CMake 3.20 or later
-- A supported build toolchain, such as Visual Studio on Windows
-
-### Build on Windows
-
-Open PowerShell in the project root directory and run:
+Requirements: CMake 3.20+, a C++17-compatible compiler, and a supported build toolchain such as Visual Studio.
 
 ```powershell
 cmake -S . -B build
 cmake --build build --config Debug
-```
-
-### Run the Renderer
-
-For a Visual Studio multi-configuration build:
-
-```powershell
+ctest --test-dir build -C Debug --output-on-failure
 .\build\Debug\path_tracer.exe
 ```
 
-The renderer writes its output to the path configured in `src/main.cpp`, currently:
+The renderer currently writes a PPM image to the output path configured in `src/main.cpp` (currently `results/renders/material_test.ppm`). Use an image viewer that supports PPM, or convert the file to PNG for easier viewing.
 
-```text
-results/renders/material_test.ppm
-```
+## Course Requirements and Roadmap
 
-The PPM image can be opened with an image viewer that supports the PPM format.
+The course requires a path-tracing renderer that produces a static image. The current implementation covers the path-tracing foundation, diffuse/specular/transmissive materials, procedural scene creation, AABB/BVH acceleration, and stochastic anti-aliasing. The following are planned extensions and are **not yet claimed as implemented**:
 
-### Run Tests
+- Benchmark linear traversal against SAH BVH and record build/render time and primitive-test counts
+- Aesthetic final scene with clearly documented original or externally sourced assets
+- Advanced sampling: importance sampling, Russian Roulette, and multiple importance sampling (MIS)
+- A non-trivial custom material, such as Principled BSDF or a layered material
+- Procedural color texture with explicit texture-coordinate mapping; potentially normal mapping
+- Area-light sampling and HDR environment lighting
+- Optional effects such as depth of field, motion blur, or volume rendering, depending on time
 
-Build the project first, then run:
+## Validation Notes
 
-```powershell
-ctest --test-dir build -C Debug --output-on-failure
-```
-
-## Development Roadmap
-
-Planned extensions include:
-
-- Axis-aligned bounding boxes (AABBs) and a bounding volume hierarchy (BVH)
-- Improved acceleration structures and performance benchmarking
-- Additional geometric primitives and mesh support
-- More advanced sampling strategies, including multiple importance sampling (MIS)
-- Physically based material models and texture mapping
-- Depth of field, motion blur, and additional camera effects
-- Direct illumination and area-light sampling
-- Further validation through unit tests and rendered reference scenes
-
-These items represent development goals and should not be interpreted as completed features.
-
-## Project Goals
-
-The primary goals are to:
-
-1. Build a clear and extensible path tracing architecture.
-2. Understand ray-surface intersection and Monte Carlo light transport.
-3. Implement physically based material scattering.
-4. Improve rendering performance through acceleration structures.
-5. Validate rendering components with tests and reproducible scenes.
-
-## Status
-
-**Early development.** The current focus is on establishing a reliable rendering core and a maintainable project structure before adding more advanced rendering features.
+`tests/test_bvh.cpp` compares hit/miss results and nearest-hit distances between linear `HittableList` traversal and the SAH BVH over hit, miss, overlapping-geometry, and axis-parallel ray cases. Passing unit tests validates correctness for these test cases; performance improvements must be demonstrated separately with a reproducible benchmark.
 
 ## License
 

@@ -55,3 +55,11 @@ add_test(
     NAME BVHTests
     COMMAND test_bvh
 )
+
+add_executable(benchmark_bvh
+    tests/benchmark_bvh.cpp
+)
+
+target_include_directories(benchmark_bvh PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
