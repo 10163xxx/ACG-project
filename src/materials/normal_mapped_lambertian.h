@@ -31,7 +31,6 @@ public:
         }
         t = normalize_or(t, Vec3(1.0, 0.0, 0.0));
 
-        // B = N × T
         const Vec3 b(
             n.y * t.z - n.z * t.y,
             n.z * t.x - n.x * t.z,
@@ -53,7 +52,6 @@ public:
 
         world_normal = normalize_or(world_normal, n);
 
-        // 保证着色法线与入射光线处于正确的半球。
         const double facing =
             incoming.direction.x * world_normal.x +
             incoming.direction.y * world_normal.y +
@@ -74,11 +72,23 @@ public:
         const HitRecord& hit,
         Vec3& attenuation,
         Ray& scattered) const override {
-        const Vec3 n = mapped_normal(incoming, hit);
+        const Vec3 geometric_normal = hit.normal;
+        const Vec3 shading_normal = mapped_normal(incoming, hit);
 
-        Vec3 scatter_direction = n + Random::random_unit_vector();
+        Vec3 scatter_direction =
+            shading_normal + Random::random_unit_vector();
+
         if (scatter_direction.length_squared() < 1e-12) {
-            scatter_direction = n;
+            scatter_direction = shading_normal;
+        }
+
+        const double side = dot(scatter_direction, geometric_normal);
+
+        if (side <= 1e-8) {
+            scatter_direction =
+                scatter_direction
+                - side * geometric_normal
+                + 1e-6 * geometric_normal;
         }
 
         scattered = Ray(hit.point, scatter_direction);
