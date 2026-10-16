@@ -1,12 +1,19 @@
 #pragma once
 
+#include <memory>
+#include <utility>
+
 #include "materials/material.h"
+#include "materials/texture.h"
 #include "core/random.h"
 
 class Lambertian : public Material {
 public:
     explicit Lambertian(const Vec3& albedo)
-        : albedo_(albedo) {}
+        : texture_(std::make_shared<SolidColor>(albedo)) {}
+
+    explicit Lambertian(std::shared_ptr<const Texture> texture)
+        : texture_(std::move(texture)) {}
 
     bool scatter(
         const Ray& incoming,
@@ -22,11 +29,12 @@ public:
         }
 
         scattered = Ray(hit.point, scatter_direction);
-        attenuation = albedo_;
+
+        attenuation = texture_->value(hit.u, hit.v, hit.point);
 
         return true;
     }
 
 private:
-    Vec3 albedo_;
+    std::shared_ptr<const Texture> texture_;
 };

@@ -13,6 +13,8 @@ struct HitRecord {
     Vec3 normal;
     double t = 0.0;
     bool front_face = true;
+    double u = 0.0;
+    double v = 0.0;
 
     std::shared_ptr<const Material> material;
 

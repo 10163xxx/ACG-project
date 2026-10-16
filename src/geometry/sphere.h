@@ -65,6 +65,7 @@ public:
             (record.point - center_) / radius_;
 
         record.set_face_normal(ray, outward_normal);
+        get_sphere_uv(outward_normal, record.u, record.v);
         record.material = material_;
 
         return true;
@@ -88,4 +89,18 @@ private:
     Vec3 center_;
     double radius_;
     std::shared_ptr<const Material> material_;
+
+    static void get_sphere_uv(
+        const Vec3& p,
+        double& u,
+        double& v
+    ) {
+        constexpr double PI = 3.14159265358979323846;
+        const double theta = std::acos(-p.y);
+        const double phi = std::atan2(-p.z, p.x)
+                        + PI;
+        
+        u = phi / (2.0 * PI);
+        v = theta / PI;
+    }
 };

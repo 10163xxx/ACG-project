@@ -8,15 +8,21 @@
 #include "materials/lambertian.h"
 #include "materials/metal.h"
 #include "materials/dielectric.h"
+#include "materials/texture.h"
 
 inline HittableList make_material_test_scene() {
     HittableList world;
 
-    auto ground_material =
-        std::make_shared<Lambertian>(
-            Vec3(0.7, 0.7, 0.7)
+    auto ground_texture =
+        std::make_shared<UVCheckerTexture>(
+            16.0,
+            Vec3(0.85, 0.85, 0.85),
+            Vec3(0.12, 0.12, 0.12)
         );
 
+    auto ground_material =
+        std::make_shared<Lambertian>(ground_texture);
+        
     world.add(std::make_shared<Sphere>(
         Vec3(0.0, -100.5, -1.0),
         100.0,
