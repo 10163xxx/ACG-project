@@ -39,10 +39,15 @@ inline HittableList make_material_test_scene() {
         glass_material
     ));
 
-    auto diffuse_material =
-        std::make_shared<Lambertian>(
-            Vec3(0.8, 0.2, 0.2)
+    auto sphere_texture =
+        std::make_shared<UVCheckerTexture>(
+            12.0,
+            Vec3(0.95, 0.75, 0.25),
+            Vec3(0.12, 0.25, 0.75)
         );
+
+    auto diffuse_material =
+        std::make_shared<Lambertian>(sphere_texture);
 
     world.add(std::make_shared<Sphere>(
         Vec3(0.0, 0.0, -1.0),
