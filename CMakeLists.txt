@@ -63,3 +63,16 @@ add_executable(benchmark_bvh
 target_include_directories(benchmark_bvh PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+add_executable(test_textures
+    tests/test_textures.cpp
+)
+
+target_include_directories(test_textures PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME TextureTests
+    COMMAND test_textures
+)

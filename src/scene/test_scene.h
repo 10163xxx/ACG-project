@@ -9,6 +9,7 @@
 #include "materials/metal.h"
 #include "materials/dielectric.h"
 #include "materials/texture.h"
+#include "materials/normal_mapped_lambertian.h"
 
 inline HittableList make_material_test_scene() {
     HittableList world;
@@ -47,6 +48,21 @@ inline HittableList make_material_test_scene() {
         Vec3(0.0, 0.0, -1.0),
         0.5,
         diffuse_material
+    ));
+
+    auto normal_texture =
+        std::make_shared<UVNormalTexture>(8.0);
+
+    auto normal_mapped_material =
+        std::make_shared<NormalMappedLambertian>(
+            Vec3(0.8, 0.7, 0.3),
+            normal_texture
+        );
+
+    world.add(std::make_shared<Sphere>(
+        Vec3(0.0, 0.85, -1.0),
+        0.35,
+        normal_mapped_material
     ));
 
     auto metal_material =

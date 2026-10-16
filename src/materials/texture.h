@@ -1,10 +1,10 @@
 #pragma once
 
 #include <cmath>
+#include <algorithm>
 
 #include "../core/vec3.h"
 
-// Base interface for procedural textures.
 class Texture {
 public:
     virtual ~Texture() = default;
@@ -16,7 +16,6 @@ public:
     ) const = 0;
 };
 
-// Constant-color texture.
 class SolidColor final : public Texture {
 public:
     explicit SolidColor(const Vec3& color)
@@ -37,7 +36,6 @@ private:
     Vec3 color_;
 };
 
-// Checker pattern evaluated in UV space.
 class UVCheckerTexture final : public Texture {
 public:
     UVCheckerTexture(
@@ -73,7 +71,6 @@ private:
     Vec3 color_b_;
 };
 
-// Gradient interpolated along the v coordinate.
 class UVGradientTexture final : public Texture {
 public:
     UVGradientTexture(
@@ -110,7 +107,6 @@ private:
     Vec3 top_;
 };
 
-// Checker pattern evaluated in world-space coordinates.
 class CheckerTexture final : public Texture {
 public:
     CheckerTexture(
@@ -141,4 +137,42 @@ private:
     double frequency_;
     Vec3 color_a_;
     Vec3 color_b_;
+};
+
+class UVNormalTexture final : public Texture {
+public:
+    explicit UVNormalTexture(double frequency)
+        : frequency_(frequency) {}
+
+    Vec3 value(
+        double u,
+        double v,
+        const Vec3&
+    ) const override {
+        constexpr double PI = 3.14159265358979323846;
+
+        const double nx =
+            0.35 * std::sin(2.0 * PI * frequency_ * u);
+
+        const double ny =
+            0.35 * std::sin(2.0 * PI * frequency_ * v);
+
+        Vec3 n(2.0 * nx, 2.0 * ny, 1.0);
+
+        const double length = n.length();
+        if (length > 1e-12) {
+            n = n / length;
+        } else {
+            n = Vec3(0.0, 0.0, 1.0);
+        }
+
+        return Vec3(
+            0.5 * n.x + 0.5,
+            0.5 * n.y + 0.5,
+            0.5 * n.z + 0.5
+        );
+    }
+
+private:
+    double frequency_;
 };
