@@ -27,6 +27,16 @@ public:
     ) const {
         return Vec3(0.0, 0.0, 0.0);
     }
+    
+    // Returns the shading normal used for light transport.
+    // By default, materials use the geometric surface normal.
+    virtual Vec3 shading_normal(
+        const Ray& incoming,
+        const HitRecord& hit
+    ) const {
+        (void)incoming;
+        return hit.normal;
+    }
 
     virtual bool supports_direct_lighting() const {
         return false;

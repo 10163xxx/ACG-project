@@ -258,8 +258,25 @@ private:
         const double distance = std::sqrt(distance_squared);
         const Vec3 wi = to_light / distance;
 
-        const double cos_surface =
+        // Keep the geometric normal check to prevent light
+        // arriving from below the actual surface.
+        const double cos_geometric =
             dot(hit.normal, wi);
+
+        if (cos_geometric <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // Use the material's shading normal for the
+        // direct-light cosine term.
+        const Vec3 wo =
+            normalize(-incoming_ray.direction);
+
+        const Vec3 shading_normal =
+            material.shading_normal(incoming_ray, hit);
+
+        const double cos_surface =
+            dot(shading_normal, wi);
 
         if (cos_surface <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
@@ -299,8 +316,6 @@ private:
         if (world.hit(shadow_ray, shadow_interval, blocker)) {
             return Vec3(0.0, 0.0, 0.0);
         }
-
-        const Vec3 wo = normalize(-incoming_ray.direction);
 
         const Vec3 bsdf =
             material.evaluate_bsdf(hit, wo, wi);

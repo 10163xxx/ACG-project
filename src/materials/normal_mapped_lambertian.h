@@ -66,6 +66,13 @@ public:
 
         return world_normal;
     }
+    
+    Vec3 shading_normal(
+        const Ray& incoming,
+        const HitRecord& hit
+    ) const override {
+        return mapped_normal(incoming, hit);
+    }
 
     bool scatter(
         const Ray& incoming,

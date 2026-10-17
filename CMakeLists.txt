@@ -115,3 +115,15 @@ add_test(
     NAME NEETests
     COMMAND test_nee
 )
+add_executable(test_normal_mapping
+    tests/test_normal_mapping.cpp
+)
+
+target_include_directories(test_normal_mapping PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME NormalMappingTests
+    COMMAND test_normal_mapping
+)
