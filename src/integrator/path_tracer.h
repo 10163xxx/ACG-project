@@ -4,6 +4,8 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <memory>
+#include <vector>
 
 #include "core/ray.h"
 #include "core/interval.h"
@@ -169,29 +171,62 @@ private:
         constexpr double MIN_DISTANCE = 2.0 * EPSILON;
 
         const auto& objects = scene_objects.objects();
-        const std::size_t object_count = objects.size();
 
-        if (object_count == 0) {
+        // First collect objects that can be sampled and whose
+        // sampled surface belongs to an emissive material.
+        std::vector<std::size_t> light_indices;
+        light_indices.reserve(objects.size());
+
+        for (std::size_t i = 0; i < objects.size(); ++i) {
+            if (!objects[i]) {
+                continue;
+            }
+
+            HitRecord probe;
+            double probe_pdf_area = 0.0;
+
+            if (!objects[i]->sample_surface(
+                0.5,
+                0.5,
+                probe,
+                probe_pdf_area)) {
+                continue;
+            }
+
+            if (!probe.material ||
+                !probe.material->is_emissive() ||
+                probe_pdf_area <= 0.0) {
+                continue;
+            }
+
+            light_indices.push_back(i);
+        }
+
+        // No sampleable emissive objects: no direct-light contribution.
+        if (light_indices.empty()) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        // Select uniformly among all scene objects.
+        // Choose uniformly among emissive objects only.
         const double selection_pdf =
-            1.0 / static_cast<double>(object_count);
+            1.0 / static_cast<double>(light_indices.size());
 
-        std::size_t index = static_cast<std::size_t>(
+        std::size_t light_choice = static_cast<std::size_t>(
             Random::random_double() *
-            static_cast<double>(object_count)
+            static_cast<double>(light_indices.size())
         );
 
-        if (index >= object_count) {
-            index = object_count - 1;
+        if (light_choice >= light_indices.size()) {
+            light_choice = light_indices.size() - 1;
         }
+
+        const std::size_t selected_index =
+            light_indices[light_choice];
 
         HitRecord light_sample;
         double pdf_area = 0.0;
 
-        if (!objects[index]->sample_surface(
+        if (!objects[selected_index]->sample_surface(
                 Random::random_double(),
                 Random::random_double(),
                 light_sample,
@@ -199,7 +234,9 @@ private:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        if (!light_sample.material || pdf_area <= 0.0) {
+        if (!light_sample.material ||
+            !light_sample.material->is_emissive() ||
+            pdf_area <= 0.0) {  
             return Vec3(0.0, 0.0, 0.0);
         }
 

@@ -102,3 +102,16 @@ add_test(
     NAME SphereSamplingTests
     COMMAND test_sphere_sampling
 )
+
+add_executable(test_nee
+    tests/test_nee.cpp
+)
+
+target_include_directories(test_nee PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME NEETests
+    COMMAND test_nee
+)

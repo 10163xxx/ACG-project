@@ -14,6 +14,10 @@ public:
         return Vec3(0.0, 0.0, 0.0);
     }
 
+    virtual bool is_emissive() const {
+        return false;
+    }
+
     // Evaluate the BSDF for directions pointing away from the surface.
     // Non-BSDF materials return black by default.
     virtual Vec3 evaluate_bsdf(

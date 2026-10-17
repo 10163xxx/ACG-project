@@ -25,6 +25,10 @@ public:
         return intensity_;
     }
 
+    bool is_emissive() const override {
+        return true;
+    }
+
     bool scatter(
         const Ray&,
         const HitRecord&,
