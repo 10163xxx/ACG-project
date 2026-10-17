@@ -21,16 +21,43 @@ public:
         Vec3& attenuation,
         Ray& scattered
     ) const override {
-        Vec3 scatter_direction =
-            hit.normal + Random::random_unit_vector();
+        (void)incoming;
 
-        if (scatter_direction.near_zero()) {
-            scatter_direction = hit.normal;
-        }
+        const Vec3 normal = normalize(hit.normal);
 
-        scattered = Ray(hit.point, scatter_direction);
+        // Construct an orthonormal basis around the normal.
+        const Vec3 helper =
+            std::abs(normal.x) > 0.9
+                ? Vec3(0.0, 1.0, 0.0)
+                : Vec3(1.0, 0.0, 0.0);
 
-        attenuation = texture_->value(hit.u, hit.v, hit.point);
+        const Vec3 tangent =
+            normalize(cross(helper, normal));
+
+        const Vec3 bitangent =
+            cross(normal, tangent);
+
+        // Cosine-weighted hemisphere sampling.
+        const double r1 = Random::random_double();
+        const double r2 = Random::random_double();
+
+        constexpr double PI = 3.14159265358979323846;
+
+        const double phi = 2.0 * PI * r1;
+        const double radius = std::sqrt(r2);
+        const double local_x = radius * std::cos(phi);
+        const double local_y = radius * std::sin(phi);
+        const double local_z = std::sqrt(1.0 - r2);
+
+        const Vec3 scatter_direction =
+            local_x * tangent
+            + local_y * bitangent
+            + local_z * normal;
+
+        scattered = Ray(hit.point, normalize(scatter_direction));
+
+        attenuation =
+            texture_->value(hit.u, hit.v, hit.point);
 
         return true;
     }
@@ -56,6 +83,27 @@ public:
             texture_->value(hit.u, hit.v, hit.point);
 
         return albedo / PI;
+    }
+
+    double scattering_pdf(
+        const HitRecord& hit,
+        const Vec3& outgoing_direction,
+        const Vec3& incoming_direction
+    ) const override {
+        const Vec3 normal = normalize(hit.normal);
+        const Vec3 outgoing = normalize(outgoing_direction);
+        const Vec3 incoming = normalize(incoming_direction);
+
+        const double cos_outgoing = dot(normal, outgoing);
+        const double cos_incoming = dot(normal, incoming);
+
+        if (cos_outgoing <= 0.0 || cos_incoming <= 0.0) {
+            return 0.0;
+        }
+
+        constexpr double PI = 3.14159265358979323846;
+
+        return cos_incoming / PI;
     }
 
     bool supports_direct_lighting() const override {

@@ -14,6 +14,7 @@
 #include "geometry/hittable.h"
 #include "geometry/hittable_list.h"
 #include "materials/material.h"
+#include "integrator/mis.h"
 
 class PathTracer {
 public:
@@ -77,9 +78,9 @@ private:
             std::numeric_limits<double>::infinity()
         );
 
-        // True when the previous scattering event was a
-        // non-delta event whose direct light is estimated by NEE.
-        bool suppress_next_emission = false;
+        bool previous_scatter_used_nee = false;
+        double previous_bsdf_pdf = 0.0;
+        Vec3 previous_scatter_point;
 
         for (int depth = 0; depth < max_depth_; ++depth) {
             HitRecord hit;
@@ -96,16 +97,31 @@ private:
 
             const Vec3 emitted = hit.material->emitted(hit);
 
-            // Prevent double counting: NEE handles the direct
-            // contribution after Lambertian scattering.
-            if (!suppress_next_emission) {
-                radiance =
-                    radiance + throughput * emitted;
+            double emission_weight = 1.0;
+
+            if (scene_objects != nullptr
+                && previous_scatter_used_nee
+                && !emitted.near_zero()) {
+                const double light_pdf =
+                    light_solid_angle_pdf_for_hit(
+                        ray,
+                        hit,
+                        previous_scatter_point,
+                        world,
+                        *scene_objects
+                    );
+
+                emission_weight = mis::power_heuristic(
+                    previous_bsdf_pdf,
+                    light_pdf
+                );
             }
 
-            // Estimate direct illumination at this surface.
-            if (scene_objects != nullptr &&
-                hit.material->supports_direct_lighting()) {
+            radiance = radiance
+                + throughput * emitted * emission_weight;
+
+            if (scene_objects != nullptr
+                && hit.material->supports_direct_lighting()) {
                 const Vec3 direct = estimate_direct_lighting(
                     hit,
                     *hit.material,
@@ -128,9 +144,28 @@ private:
                 break;
             }
 
-            suppress_next_emission =
-                scene_objects != nullptr &&
-                hit.material->supports_direct_lighting();
+            previous_scatter_used_nee =
+                scene_objects != nullptr
+                && hit.material->supports_direct_lighting();
+
+            previous_scatter_point = hit.point;
+
+            if (previous_scatter_used_nee) {
+                const Vec3 wo =
+                    normalize(-ray.direction);
+
+                const Vec3 wi =
+                    normalize(scattered.direction);
+
+                previous_bsdf_pdf =
+                    hit.material->scattering_pdf(
+                        hit,
+                        wo,
+                        wi
+                    );
+            } else {
+                previous_bsdf_pdf = 0.0;
+            }
 
             throughput = throughput * attenuation;
             ray = scattered;
@@ -158,6 +193,122 @@ private:
         }
 
         return radiance;
+    }
+
+    static double light_solid_angle_pdf_for_hit(
+        const Ray& ray,
+        const HitRecord& light_hit,
+        const Vec3& previous_point,
+        const Hittable& world,
+        const HittableList& scene_objects
+    ) {
+        (void)world;
+
+        const auto& objects = scene_objects.objects();
+
+        std::vector<std::size_t> light_indices;
+        light_indices.reserve(objects.size());
+
+        for (std::size_t i = 0; i < objects.size(); ++i) {
+            if (!objects[i]) {
+                continue;
+            }
+
+            HitRecord probe;
+            double probe_pdf_area = 0.0;
+
+            if (!objects[i]->sample_surface(
+                    0.5,
+                    0.5,
+                    probe,
+                    probe_pdf_area)) {
+                continue;
+            }
+
+            if (!probe.material
+                || !probe.material->is_emissive()
+                || probe_pdf_area <= 0.0) {
+                continue;
+            }
+
+            light_indices.push_back(i);
+        }
+
+        if (light_indices.empty()) {
+            return 0.0;
+        }
+
+        const double selection_pdf =
+            1.0 / static_cast<double>(light_indices.size());
+
+        const double distance_squared =
+            (light_hit.point - previous_point).length_squared();
+
+        if (distance_squared <= 0.0) {
+            return 0.0;
+        }
+
+        const Vec3 direction = normalize(ray.direction);
+
+        double total_pdf = 0.0;
+
+        const Interval hit_interval(
+            0.001,
+            std::numeric_limits<double>::infinity()
+        );
+
+        for (const std::size_t index : light_indices) {
+            HitRecord candidate;
+
+            if (!objects[index]->hit(
+                    ray,
+                    hit_interval,
+                    candidate)) {
+                continue;
+            }
+
+            if (!candidate.material
+                || !candidate.material->is_emissive()) {
+                continue;
+            }
+
+            const double hit_tolerance =
+                1e-6 * std::max(1.0, std::abs(light_hit.t));
+
+            if (std::abs(candidate.t - light_hit.t)
+                > hit_tolerance) {
+                continue;
+            }
+
+            HitRecord probe;
+            double pdf_area = 0.0;
+
+            if (!objects[index]->sample_surface(
+                    0.5,
+                    0.5,
+                    probe,
+                    pdf_area)) {
+                continue;
+            }
+
+            const double cos_light =
+                dot(candidate.normal, -direction);
+
+            if (cos_light <= 0.0 || pdf_area <= 0.0) {
+                continue;
+            }
+
+            const double pdf =
+                mis::area_to_solid_angle_pdf(
+                    pdf_area * selection_pdf,
+                    distance_squared,
+                    cos_light
+                );
+
+            total_pdf += pdf;
+        }
+
+        return total_pdf;
     }
 
     static Vec3 estimate_direct_lighting(
@@ -320,14 +471,32 @@ private:
         const Vec3 bsdf =
             material.evaluate_bsdf(hit, wo, wi);
 
-        // Area-measure estimator, including object-selection PDF:
-        //
-        // Le * f * cos_surface * cos_light
-        // -----------------------------------------------
-        // distance^2 * pdf_area * selection_pdf
+        const double light_pdf =
+            mis::area_to_solid_angle_pdf(
+                pdf_area * selection_pdf,
+                distance_squared,
+                cos_light
+            );
+
+        if (light_pdf <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double bsdf_pdf =
+            material.scattering_pdf(
+                hit,
+                wo,
+                wi
+            );
+
+        const double mis_weight =
+            mis::power_heuristic(
+                light_pdf,
+                bsdf_pdf
+            );
+
         const double weight =
-            cos_surface * cos_light /
-            (distance_squared * pdf_area * selection_pdf);
+            cos_surface * mis_weight / light_pdf;
 
         return light_emission * bsdf * weight;
     }

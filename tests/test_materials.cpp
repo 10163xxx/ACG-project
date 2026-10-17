@@ -1,11 +1,13 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 #include "core/random.h"
 #include "materials/lambertian.h"
 #include "materials/metal.h"
 #include "materials/dielectric.h"
+#include "integrator/mis.h"
 
 int main() {
     Random::seed(12345);
@@ -87,6 +89,68 @@ int main() {
     assert(std::abs(attenuation.y - 1.0) < 1e-9);
     assert(std::abs(attenuation.z - 1.0) < 1e-9);
     assert(scattered.direction.length_squared() > 0.0);
+
+    // MIS: area PDF to solid-angle PDF conversion.
+    assert(std::abs(
+        mis::area_to_solid_angle_pdf(0.5, 4.0, 0.5)
+        - 4.0
+    ) < 1e-12);
+
+    assert(std::abs(
+        mis::area_to_solid_angle_pdf(0.25, 9.0, 0.75)
+        - 3.0
+    ) < 1e-12);
+
+    assert(mis::area_to_solid_angle_pdf(
+        0.0, 4.0, 0.5
+    ) == 0.0);
+
+    assert(mis::area_to_solid_angle_pdf(
+        0.5, 0.0, 0.5
+    ) == 0.0);
+
+    assert(mis::area_to_solid_angle_pdf(
+        0.5, 4.0, 0.0
+    ) == 0.0);
+
+    // MIS: Power Heuristic.
+    assert(std::abs(
+        mis::power_heuristic(1.0, 1.0) - 0.5
+    ) < 1e-12);
+
+    assert(std::abs(
+        mis::power_heuristic(2.0, 1.0) - 0.8
+    ) < 1e-12);
+
+    assert(std::abs(
+        mis::power_heuristic(1.0, 2.0) - 0.2
+    ) < 1e-12);
+
+    assert(std::abs(
+        mis::power_heuristic(0.0, 1.0)
+    ) < 1e-12);
+
+    assert(std::abs(
+        mis::power_heuristic(1.0, 0.0) - 1.0
+    ) < 1e-12);
+
+    assert(mis::power_heuristic(0.0, 0.0) == 0.0);
+
+    // Invalid PDFs must not produce NaN or infinity.
+    assert(std::isfinite(
+        mis::power_heuristic(
+            std::numeric_limits<double>::infinity(),
+            1.0
+        )
+    ));
+
+    assert(std::isfinite(
+        mis::area_to_solid_angle_pdf(
+            std::numeric_limits<double>::infinity(),
+            1.0,
+            1.0
+        )
+    ));
 
     std::cout << "All material tests passed.\n";
     return 0;
