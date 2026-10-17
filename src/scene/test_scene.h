@@ -10,6 +10,7 @@
 #include "materials/dielectric.h"
 #include "materials/texture.h"
 #include "materials/normal_mapped_lambertian.h"
+#include "materials/diffuse_light.h"
 
 inline HittableList make_material_test_scene() {
     HittableList world;
@@ -80,6 +81,17 @@ inline HittableList make_material_test_scene() {
         Vec3(1.0, 0.0, -1.0),
         0.5,
         metal_material
+    ));
+    
+    auto light_material =
+        std::make_shared<DiffuseLight>(
+            Vec3(4.0, 3.5, 2.5)
+        );
+
+    world.add(std::make_shared<Sphere>(
+        Vec3(0.0, 2.0, -1.0),
+        0.4,
+        light_material
     ));
 
     return world;

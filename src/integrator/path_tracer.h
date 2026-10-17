@@ -60,6 +60,8 @@ public:
             if (!hit.material) {
                 break;
             }
+            
+            radiance = radiance + throughput * hit.material->emitted(hit);
 
             Vec3 attenuation;
             Ray scattered;
