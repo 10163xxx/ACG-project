@@ -7,16 +7,29 @@
 #include "core/ray.h"
 #include "core/interval.h"
 #include "core/vec3.h"
+#include "core/random.h"
 #include "geometry/hittable.h"
 #include "materials/material.h"
 
 class PathTracer {
 public:
-    explicit PathTracer(int max_depth = 20)
-        : max_depth_(max_depth) {
+    explicit PathTracer(
+        int max_depth = 20,
+        int russian_roulette_start_depth = 5
+    )
+        : max_depth_(max_depth),
+          russian_roulette_start_depth_(
+              russian_roulette_start_depth
+          ) {
         if (max_depth_ <= 0) {
             throw std::invalid_argument(
                 "PathTracer max_depth must be positive."
+            );
+        }
+
+        if (russian_roulette_start_depth_ <= 0) {
+            throw std::invalid_argument(
+                "Russian Roulette start depth must be positive."
             );
         }
     }
@@ -39,7 +52,8 @@ public:
             HitRecord hit;
 
             if (!world.hit(ray, ray_interval, hit)) {
-                radiance = radiance + throughput * background(ray);
+                radiance =
+                    radiance + throughput * background(ray);
                 break;
             }
 
@@ -64,6 +78,23 @@ public:
             if (throughput.near_zero()) {
                 break;
             }
+
+            const int bounce_count = depth + 1;
+
+            if (bounce_count >= russian_roulette_start_depth_
+                && bounce_count < max_depth_) {
+
+                const double survival_probability =
+                    russian_roulette_probability(throughput);
+
+                if (Random::random_double()
+                    >= survival_probability) {
+                    break;
+                }
+
+                throughput =
+                    throughput / survival_probability;
+            }
         }
 
         return radiance;
@@ -71,6 +102,26 @@ public:
 
 private:
     int max_depth_;
+    int russian_roulette_start_depth_;
+
+    static double russian_roulette_probability(
+        const Vec3& throughput
+    ) {
+        const double max_component = std::max({
+            throughput.x,
+            throughput.y,
+            throughput.z
+        });
+
+        constexpr double min_survival_probability = 0.05;
+        constexpr double max_survival_probability = 0.95;
+
+        return std::clamp(
+            max_component,
+            min_survival_probability,
+            max_survival_probability
+        );
+    }
 
     static Vec3 background(const Ray& ray) {
         const Vec3 unit_direction =

@@ -76,3 +76,17 @@ add_test(
     NAME TextureTests
     COMMAND test_textures
 )
+
+add_executable(test_path_tracer
+    tests/test_path_tracer.cpp
+)
+
+target_include_directories(test_path_tracer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME PathTracerTests
+    COMMAND test_path_tracer
+)
+

@@ -2,34 +2,43 @@
 
 A CPU-based path tracer developed in **C++17** for the Advanced Computer Graphics (ACG) 2026 course.
 
-The project is built from scratch as a modular Monte Carlo path tracer. Its goal is to produce a static image using ray-based light transport rather than rasterization.
+The project implements a modular Monte Carlo path tracer with ray-based light transport, procedural textures, normal mapping, and a BVH acceleration structure using the binned Surface Area Heuristic (SAH).
 
 ## Implemented Features
 
 ### Rendering Core
 - C++17 rendering framework
-- Ray, vector, interval, and camera utilities
-- Sphere intersection and surface hit records
-- Sky-gradient background
-- Iterative path tracing with configurable maximum depth in the integrator
-- Stochastic subpixel sampling (anti-aliasing)
-- PPM image output with display gamma correction
+- Rays, vectors, camera utilities, and surface intersection records
+- Sphere geometry and sky-gradient background
+- Iterative path tracing with configurable maximum path depth
+- Stochastic subpixel sampling for anti-aliasing
+- Gamma correction and PPM image output
 
-### Materials and Scene
+### Materials and Texture Mapping
 - Lambertian diffuse reflection
 - Metal reflection
 - Dielectric transmission and refraction
-- Procedural material-test scene
+- Solid-color textures
+- UV-coordinate checker textures
+- UV-coordinate gradient textures
+- Procedural 3D checker textures
+- Procedural UV-based normal textures
+- Normal-mapped Lambertian material with tangent-space to world-space normal transformation
+- A material-test scene demonstrating diffuse, reflective, transmissive, textured, and normal-mapped surfaces
 
-### Acceleration
+### Acceleration Structure
 - Axis-aligned bounding boxes (AABBs)
-- **Binned Surface Area Heuristic (SAH) BVH**
+- **Binned SAH BVH**
 - Small multi-primitive leaves selected using an SAH cost estimate
-- Balanced median-split fallback for degenerate centroid distributions
+- Median-split fallback for degenerate centroid distributions
+- BVH correctness tests and a benchmark comparing linear traversal with BVH traversal
 
-### Testing and Build
-- CMake-based build configuration
-- Unit tests for materials, geometry, and BVH hit-result consistency
+### Testing
+The project includes CMake-based test targets for:
+- Material behavior
+- Geometry intersections
+- BVH hit-result consistency
+- Texture evaluation and normal-mapping behavior
 
 ## Project Structure
 
@@ -39,48 +48,42 @@ ACG-project/
 ├── README.md
 ├── src/
 │   ├── core/           # Vectors, rays, intervals, random sampling
-│   ├── geometry/       # AABBs, hittable interface, primitives
+│   ├── geometry/       # Geometry, AABBs, hittable interfaces
 │   ├── camera/         # Camera and ray generation
-│   ├── materials/      # Surface scattering models
+│   ├── materials/      # Materials, procedural textures, normal mapping
 │   ├── sampling/       # Sampling and PDF utilities
-│   ├── acceleration/   # Acceleration structures (SAH BVH)
+│   ├── acceleration/   # BVH and SAH acceleration
 │   ├── integrator/     # Path tracing integrator
-│   ├── scene/          # Scene definitions
+│   ├── scene/          # Test scene definitions
 │   └── output/         # Image output and output paths
-├── tests/              # Unit tests
-├── results/            # Rendered images and test outputs
+├── tests/              # Unit tests and BVH benchmark
+├── scripts/            # PPM-to-JPG conversion and render automation
+├── results/
+│   └── renders/        # Rendered image outputs
 └── assets/             # Additional project assets
 ```
 
-## Build and Run on Windows
+## Build and Test on Windows
 
-Requirements: CMake 3.20+, a C++17-compatible compiler, and a supported build toolchain such as Visual Studio.
+### Requirements
+- CMake 3.20 or later
+- A C++17-compatible compiler
+- A supported build toolchain, such as Visual Studio
+- Python 3 and Pillow for automatic JPG conversion
+
+### Configure and Build
+
+Run these commands from the project root in PowerShell:
 
 ```powershell
 cmake -S . -B build
 cmake --build build --config Debug
-ctest --test-dir build -C Debug --output-on-failure
-.\build\Debug\path_tracer.exe
 ```
 
-The renderer currently writes a PPM image to the output path configured in `src/main.cpp` (currently `results/renders/material_test.ppm`). Use an image viewer that supports PPM, or convert the file to PNG for easier viewing.
+### Run Unit Tests
 
-## Course Requirements and Roadmap
+```powershell
+ctest --test-dir build -C Debug --output-on-failure
+```
 
-The course requires a path-tracing renderer that produces a static image. The current implementation covers the path-tracing foundation, diffuse/specular/transmissive materials, procedural scene creation, AABB/BVH acceleration, and stochastic anti-aliasing. The following are planned extensions and are **not yet claimed as implemented**:
-
-- Benchmark linear traversal against SAH BVH and record build/render time and primitive-test counts
-- Aesthetic final scene with clearly documented original or externally sourced assets
-- Advanced sampling: importance sampling, Russian Roulette, and multiple importance sampling (MIS)
-- A non-trivial custom material, such as Principled BSDF or a layered material
-- Procedural color texture with explicit texture-coordinate mapping; potentially normal mapping
-- Area-light sampling and HDR environment lighting
-- Optional effects such as depth of field, motion blur, or volume rendering, depending on time
-
-## Validation Notes
-
-`tests/test_bvh.cpp` compares hit/miss results and nearest-hit distances between linear `HittableList` traversal and the SAH BVH over hit, miss, overlapping-geometry, and axis-parallel ray cases. Passing unit tests validates correctness for these test cases; performance improvements must be demonstrated separately with a reproducible benchmark.
-
-## License
-
-No license has been specified yet. Unless a license is added to this repository, all rights remain with the copyright holder.
+A successful test run should report that
