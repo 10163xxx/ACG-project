@@ -127,3 +127,15 @@ add_test(
     NAME NormalMappingTests
     COMMAND test_normal_mapping
 )
+add_executable(test_mesh
+    tests/test_mesh.cpp
+)
+
+target_include_directories(test_mesh PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME MeshTests
+    COMMAND test_mesh
+)
