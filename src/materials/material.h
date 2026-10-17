@@ -24,6 +24,10 @@ public:
         return Vec3(0.0, 0.0, 0.0);
     }
 
+    virtual bool supports_direct_lighting() const {
+        return false;
+    }
+
     // Returns true if the incoming ray scatters.
     // attenuation stores the throughput color multiplier.
     // scattered stores the outgoing ray.

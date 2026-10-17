@@ -62,7 +62,7 @@ int main() {
                 const Ray ray = camera.get_ray(u, v);
 
                 pixel_color =
-                    pixel_color + tracer.trace(ray, world);
+                    pixel_color + tracer.trace(ray, world, scene);
             }
 
             pixel_color =

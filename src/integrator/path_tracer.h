@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 
@@ -9,6 +10,7 @@
 #include "core/vec3.h"
 #include "core/random.h"
 #include "geometry/hittable.h"
+#include "geometry/hittable_list.h"
 #include "materials/material.h"
 
 class PathTracer {
@@ -34,9 +36,34 @@ public:
         }
     }
 
+    // Existing API: path tracing without explicit NEE lights.
     Vec3 trace(
         const Ray& initial_ray,
         const Hittable& world
+    ) const {
+        return trace_impl(initial_ray, world, nullptr);
+    }
+
+    // NEE API: world is used for intersections and visibility;
+    // scene_objects provides the objects available for sampling.
+    Vec3 trace(
+        const Ray& initial_ray,
+        const Hittable& world,
+        const HittableList& scene_objects
+    ) const {
+        return trace_impl(
+            initial_ray, world, &scene_objects
+        );
+    }
+
+private:
+    int max_depth_;
+    int russian_roulette_start_depth_;
+
+    Vec3 trace_impl(
+        const Ray& initial_ray,
+        const Hittable& world,
+        const HittableList* scene_objects
     ) const {
         Ray ray = initial_ray;
 
@@ -47,6 +74,10 @@ public:
             0.001,
             std::numeric_limits<double>::infinity()
         );
+
+        // True when the previous scattering event was a
+        // non-delta event whose direct light is estimated by NEE.
+        bool suppress_next_emission = false;
 
         for (int depth = 0; depth < max_depth_; ++depth) {
             HitRecord hit;
@@ -60,8 +91,29 @@ public:
             if (!hit.material) {
                 break;
             }
-            
-            radiance = radiance + throughput * hit.material->emitted(hit);
+
+            const Vec3 emitted = hit.material->emitted(hit);
+
+            // Prevent double counting: NEE handles the direct
+            // contribution after Lambertian scattering.
+            if (!suppress_next_emission) {
+                radiance =
+                    radiance + throughput * emitted;
+            }
+
+            // Estimate direct illumination at this surface.
+            if (scene_objects != nullptr &&
+                hit.material->supports_direct_lighting()) {
+                const Vec3 direct = estimate_direct_lighting(
+                    hit,
+                    *hit.material,
+                    ray,
+                    world,
+                    *scene_objects
+                );
+
+                radiance = radiance + throughput * direct;
+            }
 
             Vec3 attenuation;
             Ray scattered;
@@ -73,6 +125,10 @@ public:
                     scattered)) {
                 break;
             }
+
+            suppress_next_emission =
+                scene_objects != nullptr &&
+                hit.material->supports_direct_lighting();
 
             throughput = throughput * attenuation;
             ray = scattered;
@@ -102,9 +158,127 @@ public:
         return radiance;
     }
 
-private:
-    int max_depth_;
-    int russian_roulette_start_depth_;
+    static Vec3 estimate_direct_lighting(
+        const HitRecord& hit,
+        const Material& material,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const HittableList& scene_objects
+    ) {
+        constexpr double EPSILON = 0.001;
+        constexpr double MIN_DISTANCE = 2.0 * EPSILON;
+
+        const auto& objects = scene_objects.objects();
+        const std::size_t object_count = objects.size();
+
+        if (object_count == 0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // Select uniformly among all scene objects.
+        const double selection_pdf =
+            1.0 / static_cast<double>(object_count);
+
+        std::size_t index = static_cast<std::size_t>(
+            Random::random_double() *
+            static_cast<double>(object_count)
+        );
+
+        if (index >= object_count) {
+            index = object_count - 1;
+        }
+
+        HitRecord light_sample;
+        double pdf_area = 0.0;
+
+        if (!objects[index]->sample_surface(
+                Random::random_double(),
+                Random::random_double(),
+                light_sample,
+                pdf_area)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        if (!light_sample.material || pdf_area <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // Offset the shadow ray to reduce self-intersections.
+        const Vec3 shadow_origin =
+            hit.point + EPSILON * hit.normal;
+
+        const Vec3 to_light =
+            light_sample.point - shadow_origin;
+
+        const double distance_squared =
+            to_light.length_squared();
+
+        if (distance_squared <=
+            MIN_DISTANCE * MIN_DISTANCE) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double distance = std::sqrt(distance_squared);
+        const Vec3 wi = to_light / distance;
+
+        const double cos_surface =
+            dot(hit.normal, wi);
+
+        if (cos_surface <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // The light emits only from its outward-facing side.
+        const double cos_light =
+            dot(light_sample.normal, -wi);
+
+        if (cos_light <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        light_sample.front_face = true;
+
+        const Vec3 light_emission =
+            light_sample.material->emitted(light_sample);
+
+        if (light_emission.near_zero()) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // Shadow ray: reject samples blocked before reaching
+        // the sampled point on the light.
+        HitRecord blocker;
+        const Interval shadow_interval(
+            EPSILON,
+            distance - EPSILON
+        );
+
+        if (shadow_interval.max <= shadow_interval.min) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Ray shadow_ray(shadow_origin, wi);
+
+        if (world.hit(shadow_ray, shadow_interval, blocker)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 wo = normalize(-incoming_ray.direction);
+
+        const Vec3 bsdf =
+            material.evaluate_bsdf(hit, wo, wi);
+
+        // Area-measure estimator, including object-selection PDF:
+        //
+        // Le * f * cos_surface * cos_light
+        // -----------------------------------------------
+        // distance^2 * pdf_area * selection_pdf
+        const double weight =
+            cos_surface * cos_light /
+            (distance_squared * pdf_area * selection_pdf);
+
+        return light_emission * bsdf * weight;
+    }
 
     static double russian_roulette_probability(
         const Vec3& throughput
