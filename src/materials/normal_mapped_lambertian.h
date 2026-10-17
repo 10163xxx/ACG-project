@@ -95,6 +95,52 @@ public:
         attenuation = albedo_;
         return true;
     }
+    
+    Vec3 evaluate_bsdf(
+        const HitRecord& hit,
+        const Vec3& outgoing_direction,
+        const Vec3& incoming_direction
+    ) const override {
+        // Reconstruct the incoming ray direction from the
+        // outgoing direction used by the BSDF evaluation.
+        const Ray incoming_ray(
+            hit.point,
+            -outgoing_direction
+        );
+
+        const Vec3 shading_normal =
+            mapped_normal(incoming_ray, hit);
+
+        // Both directions must lie above the shading normal.
+        const double cos_outgoing =
+            dot(shading_normal, outgoing_direction);
+
+        const double cos_incoming =
+            dot(shading_normal, incoming_direction);
+
+        // Reject directions that lie below the geometric
+        // surface, even if the normal map points toward them.
+        const double geometric_outgoing =
+            dot(hit.normal, outgoing_direction);
+
+        const double geometric_incoming =
+            dot(hit.normal, incoming_direction);
+
+        if (cos_outgoing <= 0.0 ||
+            cos_incoming <= 0.0 ||
+            geometric_outgoing <= 0.0 ||
+            geometric_incoming <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        constexpr double PI = 3.14159265358979323846;
+
+        return albedo_ / PI;
+    }
+
+    bool supports_direct_lighting() const override {
+        return true;
+    }
 
 private:
     static Vec3 normalize_or(const Vec3& v, const Vec3& fallback) {

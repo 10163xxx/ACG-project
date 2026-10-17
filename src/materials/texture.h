@@ -152,10 +152,10 @@ public:
         constexpr double PI = 3.14159265358979323846;
 
         const double nx =
-            0.35 * std::sin(2.0 * PI * frequency_ * u);
+            0.75 * std::sin(2.0 * PI * frequency_ * u);
 
         const double ny =
-            0.35 * std::sin(2.0 * PI * frequency_ * v);
+            0.75 * std::sin(2.0 * PI * frequency_ * v);
 
         Vec3 n(2.0 * nx, 2.0 * ny, 1.0);
 

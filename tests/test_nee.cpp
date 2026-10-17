@@ -99,6 +99,51 @@ int main() {
     }
 
     assert(found_positive_direct_light);
+    
+    // 4. A blocker between the diffuse surface and the light
+    // should eliminate the direct-light contribution.
+    HittableList blocked_scene;
+
+    blocked_scene.add(
+        std::make_shared<Sphere>(
+            Vec3(0.0, 0.0, 0.0),
+            1.0,
+            diffuse_material
+        )
+    );
+
+    // The blocker is placed along the line from the visible
+    // point on the diffuse sphere to the center of the light.
+    // Its projected size is larger than the light's.
+    blocked_scene.add(
+        std::make_shared<Sphere>(
+            Vec3(1.0, 1.0, 1.25),
+            0.6,
+            diffuse_material
+        )
+    );
+
+    blocked_scene.add(
+        std::make_shared<Sphere>(
+            Vec3(2.0, 2.0, 1.5),
+            0.5,
+            light_material
+        )
+    );
+
+    for (std::uint64_t seed = 0; seed < 100; ++seed) {
+        Random::seed(seed);
+
+        const Vec3 blocked_result = tracer.trace(
+            camera_ray,
+            blocked_scene,
+            blocked_scene
+        );
+
+        assert(std::abs(blocked_result.x) < 1e-12);
+        assert(std::abs(blocked_result.y) < 1e-12);
+        assert(std::abs(blocked_result.z) < 1e-12);
+    }
 
     std::cout << "All NEE tests passed.\n";
     return 0;
