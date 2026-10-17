@@ -139,3 +139,16 @@ add_test(
     NAME MeshTests
     COMMAND test_mesh
 )
+
+add_executable(test_mis
+    tests/test_mis.cpp
+)
+
+target_include_directories(test_mis PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME MISTests
+    COMMAND test_mis
+)

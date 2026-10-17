@@ -391,12 +391,10 @@ private:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        // Offset the shadow ray to reduce self-intersections.
-        const Vec3 shadow_origin =
-            hit.point + EPSILON * hit.normal;
-
+        // Compute lighting geometry from the actual shading point.
+        // The BSDF and MIS PDFs must use this same reference point.
         const Vec3 to_light =
-            light_sample.point - shadow_origin;
+            light_sample.point - hit.point;
 
         const double distance_squared =
             to_light.length_squared();
@@ -409,8 +407,7 @@ private:
         const double distance = std::sqrt(distance_squared);
         const Vec3 wi = to_light / distance;
 
-        // Keep the geometric normal check to prevent light
-        // arriving from below the actual surface.
+        // Reject light arriving from below the geometric surface.
         const double cos_geometric =
             dot(hit.normal, wi);
 
@@ -418,11 +415,10 @@ private:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        // Use the material's shading normal for the
-        // direct-light cosine term.
         const Vec3 wo =
             normalize(-incoming_ray.direction);
 
+        // Use the material's shading normal for the BSDF cosine.
         const Vec3 shading_normal =
             material.shading_normal(incoming_ray, hit);
 
@@ -450,19 +446,39 @@ private:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        // Shadow ray: reject samples blocked before reaching
-        // the sampled point on the light.
+        // Offset only the visibility ray to reduce self-intersections.
+        // Do not use this offset origin to calculate the MIS PDFs.
+        const Vec3 shadow_origin =
+            hit.point + EPSILON * hit.normal;
+
+        const Vec3 shadow_to_light =
+            light_sample.point - shadow_origin;
+
+        const double shadow_distance =
+            shadow_to_light.length();
+
+        if (shadow_distance <= EPSILON) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 shadow_direction =
+            shadow_to_light / shadow_distance;
+
         HitRecord blocker;
+
         const Interval shadow_interval(
             EPSILON,
-            distance - EPSILON
+            shadow_distance - EPSILON
         );
 
         if (shadow_interval.max <= shadow_interval.min) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        const Ray shadow_ray(shadow_origin, wi);
+        const Ray shadow_ray(
+            shadow_origin,
+            shadow_direction
+        );
 
         if (world.hit(shadow_ray, shadow_interval, blocker)) {
             return Vec3(0.0, 0.0, 0.0);
