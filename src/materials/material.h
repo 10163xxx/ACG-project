@@ -14,6 +14,16 @@ public:
         return Vec3(0.0, 0.0, 0.0);
     }
 
+    // Evaluate the BSDF for directions pointing away from the surface.
+    // Non-BSDF materials return black by default.
+    virtual Vec3 evaluate_bsdf(
+        const HitRecord&,
+        const Vec3&,
+        const Vec3&
+    ) const {
+        return Vec3(0.0, 0.0, 0.0);
+    }
+
     // Returns true if the incoming ray scatters.
     // attenuation stores the throughput color multiplier.
     // scattered stores the outgoing ray.

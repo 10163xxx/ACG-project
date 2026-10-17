@@ -35,6 +35,29 @@ public:
         return true;
     }
 
+    Vec3 evaluate_bsdf(
+        const HitRecord& hit,
+        const Vec3& outgoing_direction,
+        const Vec3& incoming_direction
+    ) const override {
+        const double cos_outgoing =
+            dot(hit.normal, outgoing_direction);
+
+        const double cos_incoming =
+            dot(hit.normal, incoming_direction);
+
+        if (cos_outgoing <= 0.0 || cos_incoming <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        constexpr double PI = 3.14159265358979323846;
+
+        const Vec3 albedo =
+            texture_->value(hit.u, hit.v, hit.point);
+
+        return albedo / PI;
+    }
+
 private:
     std::shared_ptr<const Texture> texture_;
 };

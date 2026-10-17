@@ -90,3 +90,15 @@ add_test(
     COMMAND test_path_tracer
 )
 
+add_executable(test_sphere_sampling
+    tests/test_sphere_sampling.cpp
+)
+
+target_include_directories(test_sphere_sampling PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME SphereSamplingTests
+    COMMAND test_sphere_sampling
+)

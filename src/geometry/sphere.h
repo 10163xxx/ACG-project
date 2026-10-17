@@ -1,9 +1,10 @@
-
 #pragma once
 
 #include <cmath>
 #include <memory>
 #include <stdexcept>
+#include <utility>
+#include <algorithm>
 
 #include "geometry/hittable.h"
 
@@ -37,7 +38,8 @@ public:
         }
 
         const double half_b = dot(oc, ray.direction);
-        const double c = dot(oc, oc) - radius_ * radius_;
+        const double c =
+            dot(oc, oc) - radius_ * radius_;
 
         const double discriminant =
             half_b * half_b - a * c;
@@ -71,7 +73,42 @@ public:
         return true;
     }
 
-    
+    // Uniformly sample the sphere surface using two values
+    // in [0, 1). The resulting area PDF is 1 / (4 * pi * r^2).
+    bool sample_surface(
+        double u1,
+        double u2,
+        HitRecord& sample,
+        double& pdf_area
+    ) const override {
+        constexpr double PI = 3.14159265358979323846;
+
+        if (u1 < 0.0 || u1 >= 1.0 ||
+            u2 < 0.0 || u2 >= 1.0) {
+            return false;
+        }
+
+        const double y = 1.0 - 2.0 * u1;
+        const double phi = 2.0 * PI * u2;
+        const double radial =
+            std::sqrt(std::max(0.0, 1.0 - y * y));
+
+        const Vec3 outward_normal(
+            radial * std::cos(phi),
+            y,
+            radial * std::sin(phi)
+        );
+
+        sample.point = center_ + radius_ * outward_normal;
+        sample.normal = outward_normal;
+        sample.front_face = true;
+        sample.material = material_;
+
+        pdf_area = 1.0 / (4.0 * PI * radius_ * radius_);
+
+        return true;
+    }
+
     AABB bounding_box() const override {
         const Vec3 radius_vec(
             radius_,
@@ -96,10 +133,11 @@ private:
         double& v
     ) {
         constexpr double PI = 3.14159265358979323846;
+
         const double theta = std::acos(-p.y);
-        const double phi = std::atan2(-p.z, p.x)
-                        + PI;
-        
+        const double phi =
+            std::atan2(-p.z, p.x) + PI;
+
         u = phi / (2.0 * PI);
         v = theta / PI;
     }

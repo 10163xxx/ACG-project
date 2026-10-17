@@ -16,4 +16,17 @@ public:
     ) const = 0;
 
     virtual AABB bounding_box() const = 0;
+
+    virtual bool sample_surface(
+        double u,
+        double v,
+        HitRecord& record,
+        double& pdf_area
+    ) const {
+        (void)u;
+        (void)v;
+        (void)record;
+        pdf_area = 0.0;
+        return false;
+    }
 };
