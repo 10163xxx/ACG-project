@@ -15,6 +15,7 @@
 #include "scene/obj_scene.h"
 #include "scene/showcase_scene.h"
 #include "materials/point_light.h"
+#include "materials/environment_map.h"
 
 int main() {
     constexpr int image_width = 480;
@@ -34,7 +35,9 @@ int main() {
         Vec3(0.0, 1.45, -1.7),
         Vec3(0.0, 1.0, 0.0),
         42.0,
-        aspect_ratio
+        aspect_ratio,
+        0.10,   // Aperture radius
+        8.6     // Focus distance
     );
 
     HittableList scene = make_showcase_scene();
@@ -42,6 +45,10 @@ int main() {
     BVHNode world(scene.objects());
 
     PathTracer tracer(max_depth);
+
+    EnvironmentMap environment(
+        "assets/studio_test.hdr"
+    );
 
     const std::vector<PointLight> point_lights = {
         PointLight(
@@ -79,7 +86,8 @@ int main() {
                         ray,
                         world,
                         scene,
-                        point_lights
+                        point_lights,
+                        environment
                     );
             }
 

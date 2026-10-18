@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <cmath>
@@ -6,6 +5,7 @@
 
 #include "core/ray.h"
 #include "core/vec3.h"
+#include "core/random.h"
 
 class Camera {
 public:
@@ -14,8 +14,12 @@ public:
         const Vec3& look_at,
         const Vec3& vup,
         double vertical_fov_degrees,
-        double aspect_ratio
-    ) {
+        double aspect_ratio,
+        double aperture_radius = 0.0,
+        double focus_distance = 1.0
+    )
+        : aperture_radius_(aperture_radius) {
+
         if (aspect_ratio <= 0.0) {
             throw std::invalid_argument(
                 "Camera aspect ratio must be positive."
@@ -29,8 +33,20 @@ public:
             );
         }
 
-        // Camera coordinate system.
-        const Vec3 view_direction = look_from - look_at;
+        if (aperture_radius < 0.0) {
+            throw std::invalid_argument(
+                "Camera aperture radius cannot be negative."
+            );
+        }
+
+        if (focus_distance <= 0.0) {
+            throw std::invalid_argument(
+                "Camera focus distance must be positive."
+            );
+        }
+
+        const Vec3 view_direction =
+            look_from - look_at;
 
         if (view_direction.near_zero()) {
             throw std::invalid_argument(
@@ -50,31 +66,71 @@ public:
         v_ = cross(w_, u_);
 
         const double pi = std::acos(-1.0);
-        const double theta = vertical_fov_degrees * pi / 180.0;
-        const double half_height = std::tan(theta / 2.0);
-        const double half_width = aspect_ratio * half_height;
+        const double theta =
+            vertical_fov_degrees * pi / 180.0;
+
+        const double half_height =
+            std::tan(theta / 2.0);
+
+        const double half_width =
+            aspect_ratio * half_height;
 
         origin_ = look_from;
 
-        horizontal_ = 2.0 * half_width * u_;
-        vertical_ = 2.0 * half_height * v_;
+        // Scale the viewport to the focal plane.
+        horizontal_ =
+            2.0 * focus_distance * half_width * u_;
+
+        vertical_ =
+            2.0 * focus_distance * half_height * v_;
 
         lower_left_corner_ =
             origin_
-            - half_width * u_
-            - half_height * v_
-            - w_;
+            - focus_distance * half_width * u_
+            - focus_distance * half_height * v_
+            - focus_distance * w_;
     }
+
     Ray get_ray(double s, double t) const {
         const Vec3 target =
             lower_left_corner_
             + s * horizontal_
             + t * vertical_;
 
-        return Ray(origin_, target - origin_);
+        // Sample a point on the camera lens.
+        const Vec3 lens_sample =
+            aperture_radius_ * random_in_unit_disk();
+
+        const Vec3 lens_offset =
+            lens_sample.x * u_
+            + lens_sample.y * v_;
+
+        const Vec3 ray_origin =
+            origin_ + lens_offset;
+
+        // All rays through the same pixel aim at the
+        // same focal-plane point, producing depth of field.
+        return Ray(
+            ray_origin,
+            target - ray_origin
+        );
     }
 
 private:
+    static Vec3 random_in_unit_disk() {
+        while (true) {
+            const Vec3 point(
+                Random::random_double(-1.0, 1.0),
+                Random::random_double(-1.0, 1.0),
+                0.0
+            );
+
+            if (point.length_squared() < 1.0) {
+                return point;
+            }
+        }
+    }
+
     Vec3 origin_;
     Vec3 lower_left_corner_;
     Vec3 horizontal_;
@@ -83,4 +139,6 @@ private:
     Vec3 u_;
     Vec3 v_;
     Vec3 w_;
+
+    double aperture_radius_;
 };

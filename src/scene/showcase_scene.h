@@ -10,6 +10,7 @@
 #include "materials/metal.h"
 #include "materials/dielectric.h"
 #include "materials/diffuse_light.h"
+#include "materials/principled.h"
 
 inline void add_showcase_box(
     HittableList& world,
@@ -199,15 +200,16 @@ inline HittableList make_showcase_scene() {
         std::make_shared<Dielectric>(1.5);
 
     world.add(std::make_shared<Sphere>(
-        Vec3(0.0, 0.48, -3.05),
+        Vec3(0.0, 0.44, -2.45),
         0.42,
         glass_material
     ));
 
-    // Small gold-colored diffuse object on the floor.
     auto gold_material =
-        std::make_shared<Lambertian>(
-            Vec3(0.85, 0.58, 0.16)
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.85, 0.58, 0.16),
+            0.65,  // Metallic
+            0.24   // Roughness
         );
 
     world.add(std::make_shared<Sphere>(

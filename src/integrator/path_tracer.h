@@ -15,6 +15,7 @@
 #include "geometry/hittable_list.h"
 #include "materials/point_light.h"
 #include "materials/material.h"
+#include "materials/environment_map.h"
 #include "integrator/mis.h"
 
 class PathTracer {
@@ -80,6 +81,22 @@ public:
         );
     }
 
+    Vec3 trace(
+        const Ray& initial_ray,
+        const Hittable& world,
+        const HittableList& scene_objects,
+        const std::vector<PointLight>& point_lights,
+        const EnvironmentMap& environment
+    ) const {
+        return trace_impl(
+            initial_ray,
+            world,
+            &scene_objects,
+            &point_lights,
+            &environment
+        );
+    }
+
 private:
     int max_depth_;
     int russian_roulette_start_depth_;
@@ -88,7 +105,8 @@ private:
         const Ray& initial_ray,
         const Hittable& world,
         const HittableList* scene_objects,
-        const std::vector<PointLight>* point_lights
+        const std::vector<PointLight>* point_lights,
+        const EnvironmentMap* environment = nullptr
     ) const {
         Ray ray = initial_ray;
 
@@ -113,8 +131,30 @@ private:
             HitRecord hit;
 
             if (!world.hit(ray, ray_interval, hit)) {
-                radiance =
-                    radiance + throughput * background(ray);
+                const Vec3 environment_radiance =
+                    environment != nullptr
+                        ? environment->evaluate(ray.direction)
+                        : background(ray);
+
+                double environment_weight = 1.0;
+
+                if (environment != nullptr
+                    && previous_scatter_used_nee) {
+                    const double environment_pdf =
+                        environment->pdf(ray.direction);
+
+                    environment_weight =
+                        mis::power_heuristic(
+                            previous_bsdf_pdf,
+                            environment_pdf
+                        );
+                }
+
+                radiance = radiance
+                    + throughput
+                    * environment_radiance
+                    * environment_weight;
+
                 break;
             }
 
@@ -176,6 +216,21 @@ private:
 
                     radiance =
                         radiance + throughput * point_direct;
+                }
+
+                                if (environment != nullptr) {
+                    const Vec3 environment_direct =
+                        estimate_environment_lighting(
+                            hit,
+                            *hit.material,
+                            ray,
+                            world,
+                            *environment
+                        );
+
+                    radiance =
+                        radiance
+                        + throughput * environment_direct;
                 }
             }
 
@@ -366,7 +421,78 @@ private:
         return total_pdf;
     }
 
-        static Vec3 estimate_point_lighting(
+    static Vec3 estimate_environment_lighting(
+        const HitRecord& hit,
+        const Material& material,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const EnvironmentMap& environment
+    ) {
+        constexpr double EPSILON = 0.001;
+
+        double light_pdf = 0.0;
+
+        const Vec3 wi =
+            environment.sample_direction(light_pdf);
+
+        if (light_pdf <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 shading_normal =
+            material.shading_normal(incoming_ray, hit);
+
+        const double cos_surface =
+            dot(shading_normal, wi);
+
+        if (cos_surface <= 0.0
+            || dot(hit.normal, wi) <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 shadow_origin =
+            hit.point + EPSILON * hit.normal;
+
+        const Ray shadow_ray(shadow_origin, wi);
+
+        const Interval shadow_interval(
+            EPSILON,
+            std::numeric_limits<double>::infinity()
+        );
+
+        HitRecord blocker;
+
+        if (world.hit(
+                shadow_ray,
+                shadow_interval,
+                blocker)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 wo =
+            normalize(-incoming_ray.direction);
+
+        const Vec3 bsdf =
+            material.evaluate_bsdf(hit, wo, wi);
+
+        const double bsdf_pdf =
+            material.scattering_pdf(hit, wo, wi);
+
+        const double mis_weight =
+            mis::power_heuristic(
+                light_pdf,
+                bsdf_pdf
+            );
+
+        const Vec3 environment_radiance =
+            environment.evaluate(wi);
+
+        return environment_radiance
+            * bsdf
+            * (cos_surface * mis_weight / light_pdf);
+    }
+
+    static Vec3 estimate_point_lighting(
         const HitRecord& hit,
         const Material& material,
         const Ray& incoming_ray,
@@ -485,7 +611,7 @@ private:
         const HittableList& scene_objects,
         const std::vector<std::size_t>& light_indices
     ) {
-        constexpr int LIGHT_SAMPLES = 1;
+        constexpr int LIGHT_SAMPLES = 4;
 
         Vec3 total_radiance(0.0, 0.0, 0.0);
 
