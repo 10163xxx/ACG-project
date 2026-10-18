@@ -1,8 +1,8 @@
-
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <chrono>
+#include <string>
 
 #include "acceleration/bvh.h"
 #include "core/random.h"
@@ -11,6 +11,7 @@
 #include "output/image.h"
 #include "output/output_paths.h"
 #include "scene/test_scene.h"
+#include "scene/obj_scene.h"
 
 int main() {
     constexpr int image_width = 400;
@@ -33,7 +34,12 @@ int main() {
         aspect_ratio
     );
 
-    HittableList scene = make_material_test_scene();
+    const bool render_obj_scene = true;
+
+    HittableList scene = render_obj_scene
+        ? make_obj_scene("assets/models/test_model.obj")
+        : make_material_test_scene();
+
     BVHNode world(scene.objects());
 
     PathTracer tracer(max_depth);
