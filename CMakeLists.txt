@@ -152,3 +152,29 @@ add_test(
     NAME MISTests
     COMMAND test_mis
 )
+
+add_executable(test_obj_loader
+    tests/test_obj_loader.cpp
+)
+
+target_include_directories(test_obj_loader PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME ObjLoaderTests
+    COMMAND test_obj_loader
+)
+
+add_executable(test_obj_integration
+    tests/test_obj_integration.cpp
+)
+
+target_include_directories(test_obj_integration PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(
+    NAME ObjIntegrationTests
+    COMMAND test_obj_integration
+)
