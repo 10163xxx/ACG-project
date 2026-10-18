@@ -188,7 +188,53 @@ private:
             radiance = radiance
                 + throughput * emitted * emission_weight;
 
-            if (!hit.is_volume && hit.material->supports_direct_lighting()) {
+            if (hit.is_volume) {
+                if (scene_objects != nullptr) {
+                    const Vec3 volume_area_direct =
+                        estimate_volume_area_lighting(
+                            hit,
+                            *hit.material,
+                            ray,
+                            world,
+                            *scene_objects,
+                            light_indices
+                        );
+
+                    radiance =
+                        radiance
+                        + throughput * volume_area_direct;
+                }
+
+                if (point_lights != nullptr) {
+                    const Vec3 volume_point_direct =
+                        estimate_volume_point_lighting(
+                            hit,
+                            *hit.material,
+                            ray,
+                            world,
+                            *point_lights
+                        );
+
+                    radiance =
+                        radiance
+                        + throughput * volume_point_direct;
+                }
+
+                if (environment != nullptr) {
+                    const Vec3 volume_environment_direct =
+                        estimate_volume_environment_lighting(
+                            hit,
+                            *hit.material,
+                            ray,
+                            world,
+                            *environment
+                        );
+
+                    radiance =
+                        radiance
+                        + throughput * volume_environment_direct;
+                }
+            } else if (hit.material->supports_direct_lighting()) {
                 if (scene_objects != nullptr) {
                     const Vec3 area_direct =
                         estimate_direct_lighting(
@@ -246,9 +292,15 @@ private:
             }
 
             previous_scatter_used_nee =
-                    !hit.is_volume
-                    && scene_objects != nullptr
-                    && hit.material->supports_direct_lighting();
+                hit.is_volume
+                    ? (
+                        scene_objects != nullptr
+                        || environment != nullptr
+                    )
+                    : (
+                        scene_objects != nullptr
+                        && hit.material->supports_direct_lighting()
+                    );
 
             previous_scatter_point = hit.point;
 
@@ -420,6 +472,331 @@ private:
         }
 
         return total_pdf;
+    }
+
+    static Vec3 estimate_volume_point_lighting(
+        const HitRecord& hit,
+        const Material& phase_function,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const std::vector<PointLight>& point_lights
+    ) {
+        constexpr double EPSILON = 0.001;
+        constexpr double MIN_TRANSMITTANCE = 1e-12;
+
+        Vec3 total_radiance(0.0, 0.0, 0.0);
+
+        const Vec3 wo =
+            normalize(-incoming_ray.direction);
+
+        for (const PointLight& light : point_lights) {
+            const Vec3 to_light =
+                light.position - hit.point;
+
+            const double distance_squared =
+                to_light.length_squared();
+
+            if (distance_squared <= EPSILON * EPSILON) {
+                continue;
+            }
+
+            const double distance =
+                std::sqrt(distance_squared);
+
+            const Vec3 wi =
+                to_light / distance;
+
+            const Ray shadow_ray(
+                hit.point,
+                wi
+            );
+
+            const Interval shadow_interval(
+                EPSILON,
+                distance - EPSILON
+            );
+
+            if (shadow_interval.max <= shadow_interval.min) {
+                continue;
+            }
+
+            HitRecord blocker;
+
+            if (world.hit_surface(
+                    shadow_ray,
+                    shadow_interval,
+                    blocker)) {
+                continue;
+            }
+
+            const double transmittance =
+                world.transmittance(
+                    shadow_ray,
+                    shadow_interval
+                );
+
+            if (transmittance <= MIN_TRANSMITTANCE) {
+                continue;
+            }
+
+            const Vec3 phase =
+                phase_function.evaluate_bsdf(
+                    hit,
+                    wo,
+                    wi
+                );
+
+            total_radiance =
+                total_radiance
+                + light.intensity
+                * phase
+                * (
+                    transmittance
+                    / distance_squared
+                );
+        }
+
+        return total_radiance;
+    }
+
+    static Vec3 estimate_volume_environment_lighting(
+        const HitRecord& hit,
+        const Material& phase_function,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const EnvironmentMap& environment
+    ) {
+        constexpr double EPSILON = 0.001;
+        constexpr double MIN_TRANSMITTANCE = 1e-12;
+
+        double light_pdf = 0.0;
+
+        const Vec3 wi =
+            environment.sample_direction(light_pdf);
+
+        if (light_pdf <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Ray shadow_ray(
+            hit.point,
+            wi
+        );
+
+        const Interval shadow_interval(
+            EPSILON,
+            std::numeric_limits<double>::infinity()
+        );
+
+        HitRecord blocker;
+
+        if (world.hit_surface(
+                shadow_ray,
+                shadow_interval,
+                blocker)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double transmittance =
+            world.transmittance(
+                shadow_ray,
+                shadow_interval
+            );
+
+        if (transmittance <= MIN_TRANSMITTANCE) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 wo =
+            normalize(-incoming_ray.direction);
+
+        const Vec3 phase =
+            phase_function.evaluate_bsdf(
+                hit,
+                wo,
+                wi
+            );
+
+        const double phase_pdf =
+            phase_function.scattering_pdf(
+                hit,
+                wo,
+                wi
+            );
+
+        const double mis_weight =
+            mis::power_heuristic(
+                light_pdf,
+                phase_pdf
+            );
+
+        return environment.evaluate(wi)
+            * phase
+            * (
+                transmittance
+                * mis_weight
+                / light_pdf
+            );
+    }
+
+    static Vec3 estimate_volume_area_lighting(
+        const HitRecord& hit,
+        const Material& phase_function,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const HittableList& scene_objects,
+        const std::vector<std::size_t>& light_indices
+    ) {
+        constexpr double EPSILON = 0.001;
+        constexpr double MIN_DISTANCE = 2.0 * EPSILON;
+        constexpr double MIN_TRANSMITTANCE = 1e-12;
+
+        if (light_indices.empty()) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const auto& objects =
+            scene_objects.objects();
+
+        const double selection_pdf =
+            1.0 / static_cast<double>(light_indices.size());
+
+        std::size_t light_choice =
+            static_cast<std::size_t>(
+                Random::random_double()
+                * static_cast<double>(light_indices.size())
+            );
+
+        if (light_choice >= light_indices.size()) {
+            light_choice = light_indices.size() - 1;
+        }
+
+        const std::size_t selected_index =
+            light_indices[light_choice];
+
+        HitRecord light_sample;
+        double pdf_area = 0.0;
+
+        if (!objects[selected_index]->sample_surface(
+                Random::random_double(),
+                Random::random_double(),
+                light_sample,
+                pdf_area)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        if (!light_sample.material
+            || !light_sample.material->is_emissive()
+            || pdf_area <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 to_light =
+            light_sample.point - hit.point;
+
+        const double distance_squared =
+            to_light.length_squared();
+
+        if (distance_squared <= MIN_DISTANCE * MIN_DISTANCE) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double distance =
+            std::sqrt(distance_squared);
+
+        const Vec3 wi =
+            to_light / distance;
+
+        const double cos_light =
+            dot(light_sample.normal, -wi);
+
+        if (cos_light <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        light_sample.front_face = true;
+
+        const Vec3 emission =
+            light_sample.material->emitted(light_sample);
+
+        if (emission.near_zero()) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Ray shadow_ray(
+            hit.point,
+            wi
+        );
+
+        const Interval shadow_interval(
+            EPSILON,
+            distance - EPSILON
+        );
+
+        if (shadow_interval.max <= shadow_interval.min) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        HitRecord blocker;
+
+        if (world.hit_surface(
+                shadow_ray,
+                shadow_interval,
+                blocker)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double transmittance =
+            world.transmittance(
+                shadow_ray,
+                shadow_interval
+            );
+
+        if (transmittance <= MIN_TRANSMITTANCE) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 wo =
+            normalize(-incoming_ray.direction);
+
+        const Vec3 phase =
+            phase_function.evaluate_bsdf(
+                hit,
+                wo,
+                wi
+            );
+
+        const double light_pdf =
+            mis::area_to_solid_angle_pdf(
+                pdf_area * selection_pdf,
+                distance_squared,
+                cos_light
+            );
+
+        if (light_pdf <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double phase_pdf =
+            phase_function.scattering_pdf(
+                hit,
+                wo,
+                wi
+            );
+
+        const double mis_weight =
+            mis::power_heuristic(
+                light_pdf,
+                phase_pdf
+            );
+
+        return emission
+            * phase
+            * (
+                transmittance
+                * mis_weight
+                / light_pdf
+            );
     }
 
     static Vec3 estimate_environment_lighting(

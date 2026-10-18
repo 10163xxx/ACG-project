@@ -154,6 +154,50 @@ public:
         return bvh_->hit(ray, ray_t, record);
     }
 
+    void all_intersections(
+        const Ray& ray,
+        const Interval& ray_t,
+        std::vector<HitRecord>& intersections
+    ) const override {
+        for (const auto& triangle : triangles_) {
+            HitRecord record;
+
+            if (triangle->hit(ray, ray_t, record)) {
+                intersections.push_back(record);
+            }
+        }
+
+        std::sort(
+            intersections.begin(),
+            intersections.end(),
+            [](const HitRecord& a, const HitRecord& b) {
+                return a.t < b.t;
+            }
+        );
+
+        std::vector<HitRecord> unique_intersections;
+        unique_intersections.reserve(intersections.size());
+
+        for (const HitRecord& record : intersections) {
+            if (unique_intersections.empty()) {
+                unique_intersections.push_back(record);
+                continue;
+            }
+
+            const double previous_t =
+                unique_intersections.back().t;
+
+            const double tolerance =
+                1e-7 * std::max(1.0, std::abs(record.t));
+
+            if (std::abs(record.t - previous_t) > tolerance) {
+                unique_intersections.push_back(record);
+            }
+        }
+
+        intersections = std::move(unique_intersections);
+    }
+
     AABB bounding_box() const override {
         return bvh_->bounding_box();
     }

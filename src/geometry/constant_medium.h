@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 #include "geometry/hittable.h"
 #include "materials/isotropic.h"
@@ -52,58 +53,27 @@ public:
         const Interval& ray_t,
         HitRecord& record
     ) const override {
-        const double infinity =
-            std::numeric_limits<double>::infinity();
+        const std::vector<Interval> intervals =
+            medium_intervals(ray, ray_t);
 
-        HitRecord entry;
-        HitRecord exit;
-
-        // Find the first boundary crossing.
-        if (!boundary_->hit(
-                ray,
-                Interval(-infinity, infinity),
-                entry)) {
+        if (intervals.empty()) {
             return false;
         }
 
-        // Find the second crossing, starting just after entry.
-        if (!boundary_->hit(
-                ray,
-                Interval(entry.t + 1e-6, infinity),
-                exit)) {
+        const double ray_length =
+            ray.direction.length();
+
+        double total_distance = 0.0;
+
+        for (const Interval& interval : intervals) {
+            total_distance +=
+                (interval.max - interval.min) * ray_length;
+        }
+
+        if (total_distance <= 0.0) {
             return false;
         }
 
-        double t_enter = entry.t;
-        double t_exit = exit.t;
-
-        if (t_enter < ray_t.min) {
-            t_enter = ray_t.min;
-        }
-
-        if (t_exit > ray_t.max) {
-            t_exit = ray_t.max;
-        }
-
-        if (t_enter >= t_exit) {
-            return false;
-        }
-
-        if (t_enter < 0.0) {
-            t_enter = 0.0;
-        }
-
-        const double ray_length = ray.direction.length();
-
-        if (ray_length <= 0.0) {
-            return false;
-        }
-
-        const double distance_inside =
-            (t_exit - t_enter) * ray_length;
-
-        // Exponential free-flight sampling:
-        // distance = -ln(1 - xi) / sigma_t.
         const double xi = std::clamp(
             Random::random_double(),
             0.0,
@@ -113,30 +83,37 @@ public:
         const double sampled_distance =
             -std::log1p(-xi) / density_;
 
-        if (sampled_distance >= distance_inside) {
+        if (sampled_distance >= total_distance) {
             return false;
         }
 
-        const double t =
-            t_enter + sampled_distance / ray_length;
+        double remaining_distance = sampled_distance;
 
-        if (!ray_t.contains(t)) {
-            return false;
+        for (const Interval& interval : intervals) {
+            const double interval_distance =
+                (interval.max - interval.min) * ray_length;
+
+            if (remaining_distance < interval_distance) {
+                const double t =
+                    interval.min
+                    + remaining_distance / ray_length;
+
+                record.t = t;
+                record.point = ray.at(t);
+                record.normal = Vec3(1.0, 0.0, 0.0);
+                record.front_face = true;
+                record.u = 0.0;
+                record.v = 0.0;
+                record.is_volume = true;
+                record.material = phase_function_;
+
+                return true;
+            }
+
+            remaining_distance -= interval_distance;
         }
 
-        record.t = t;
-        record.point = ray.at(t);
-
-        // A volume event has no geometric surface normal.
-        // Keep the placeholder only for compatibility with existing interfaces.
-        record.normal = Vec3(1.0, 0.0, 0.0);
-        record.front_face = true;
-        record.u = 0.0;
-        record.v = 0.0;
-        record.is_volume = true;
-        record.material = phase_function_;
-
-        return true;
+        return false;
     }
 
     bool hit_surface(
@@ -148,7 +125,6 @@ public:
         (void)ray_t;
         (void)record;
 
-        // A participating medium is not an opaque surface.
         return false;
     }
 
@@ -156,46 +132,20 @@ public:
         const Ray& ray,
         const Interval& ray_t
     ) const override {
-        const double infinity =
-            std::numeric_limits<double>::infinity();
+        const std::vector<Interval> intervals =
+            medium_intervals(ray, ray_t);
 
-        HitRecord entry;
-        HitRecord exit;
+        const double ray_length =
+            ray.direction.length();
 
-        if (!boundary_->hit(
-                ray,
-                Interval(-infinity, infinity),
-                entry)) {
-            return 1.0;
+        double total_distance = 0.0;
+
+        for (const Interval& interval : intervals) {
+            total_distance +=
+                (interval.max - interval.min) * ray_length;
         }
 
-        if (!boundary_->hit(
-                ray,
-                Interval(
-                    entry.t + 1e-6,
-                    infinity
-                ),
-                exit)) {
-            return 1.0;
-        }
-
-        const double t_enter =
-            std::max(entry.t, ray_t.min);
-
-        const double t_exit =
-            std::min(exit.t, ray_t.max);
-
-        if (t_enter >= t_exit) {
-            return 1.0;
-        }
-
-        const double distance_inside =
-            (t_exit - t_enter)
-            * ray.direction.length();
-
-        return std::exp(
-            -density_ * distance_inside
-        );
+        return std::exp(-density_ * total_distance);
     }
 
     AABB bounding_box() const override {
@@ -206,4 +156,56 @@ private:
     std::shared_ptr<const Hittable> boundary_;
     double density_;
     std::shared_ptr<const Material> phase_function_;
+
+    std::vector<Interval> medium_intervals(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const {
+        const double infinity =
+            std::numeric_limits<double>::infinity();
+
+        std::vector<HitRecord> intersections;
+
+        boundary_->all_intersections(
+            ray,
+            Interval(-infinity, infinity),
+            intersections
+        );
+
+        std::sort(
+            intersections.begin(),
+            intersections.end(),
+            [](const HitRecord& a, const HitRecord& b) {
+                return a.t < b.t;
+            }
+        );
+
+        std::vector<Interval> intervals;
+        intervals.reserve(intersections.size() / 2);
+
+        for (std::size_t i = 0;
+             i + 1 < intersections.size();
+             i += 2) {
+            const double t_enter =
+                std::max(
+                    intersections[i].t,
+                    ray_t.min
+                );
+
+            const double t_exit =
+                std::min(
+                    intersections[i + 1].t,
+                    ray_t.max
+                );
+
+            if (t_enter < t_exit) {
+                intervals.emplace_back(
+                    t_enter,
+                    t_exit
+                );
+            }
+        }
+
+        return intervals;
+    }
 };

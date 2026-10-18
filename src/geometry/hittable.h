@@ -5,6 +5,8 @@
 #include "geometry/aabb.h"
 #include "geometry/hit_record.h"
 
+#include <vector>
+
 class Hittable {
 public:
     virtual ~Hittable() = default;
@@ -14,6 +16,30 @@ public:
         const Interval& ray_t,
         HitRecord& record
     ) const = 0;
+
+    virtual void all_intersections(
+        const Ray& ray,
+        const Interval& ray_t,
+        std::vector<HitRecord>& intersections
+    ) const {
+        constexpr double STEP_EPSILON = 1e-7;
+
+        double t_min = ray_t.min;
+        HitRecord record;
+
+        while (t_min < ray_t.max) {
+            if (!hit(
+                    ray,
+                    Interval(t_min, ray_t.max),
+                    record)) {
+                break;
+            }
+
+            intersections.push_back(record);
+
+            t_min = record.t + STEP_EPSILON;
+        }
+    }
 
     // Find an opaque surface only.
     // Participating-medium scattering events are not occluders.
