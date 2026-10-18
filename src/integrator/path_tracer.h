@@ -189,97 +189,31 @@ private:
             radiance = radiance
                 + throughput * emitted * emission_weight;
 
-            if (hit.is_volume) {
-                if (scene_objects != nullptr) {
-                    const Vec3 volume_area_direct =
-                        DirectLighting::estimate_volume_area_lighting(
-                            hit,
-                            *hit.material,
-                            ray,
-                            world,
-                            *scene_objects,
-                            light_indices
-                        );
 
-                    radiance =
-                        radiance
-                        + throughput * volume_area_direct;
-                }
+            const Vec3 direct_lighting =
+                hit.is_volume
+                    ? DirectLighting::estimate_volume_lighting(
+                        hit,
+                        *hit.material,
+                        ray,
+                        world,
+                        scene_objects,
+                        light_indices,
+                        point_lights,
+                        environment
+                    )
+                    : DirectLighting::estimate_surface_lighting(
+                        hit,
+                        *hit.material,
+                        ray,
+                        world,
+                        scene_objects,
+                        light_indices,
+                        point_lights,
+                        environment
+                    );
 
-                if (point_lights != nullptr) {
-                    const Vec3 volume_point_direct =
-                        DirectLighting::estimate_volume_point_lighting(
-                            hit,
-                            *hit.material,
-                            ray,
-                            world,
-                            *point_lights
-                        );
-
-                    radiance =
-                        radiance
-                        + throughput * volume_point_direct;
-                }
-
-                if (environment != nullptr) {
-                    const Vec3 volume_environment_direct =
-                        DirectLighting::estimate_volume_environment_lighting(
-                            hit,
-                            *hit.material,
-                            ray,
-                            world,
-                            *environment
-                        );
-
-                    radiance =
-                        radiance
-                        + throughput * volume_environment_direct;
-                }
-            } else if (hit.material->supports_direct_lighting()) {
-                if (scene_objects != nullptr) {
-                    const Vec3 area_direct =
-                        DirectLighting::estimate_direct_lighting(
-                            hit,
-                            *hit.material,
-                            ray,
-                            world,
-                            *scene_objects,
-                            light_indices
-                        );
-
-                    radiance =
-                        radiance + throughput * area_direct;
-                }
-
-                if (point_lights != nullptr) {
-                    const Vec3 point_direct =
-                        DirectLighting::estimate_point_lighting(
-                            hit,
-                            *hit.material,
-                            ray,
-                            world,
-                            *point_lights
-                        );
-
-                    radiance =
-                        radiance + throughput * point_direct;
-                }
-
-                if (environment != nullptr) {
-                    const Vec3 environment_direct =
-                        DirectLighting::estimate_environment_lighting(
-                            hit,
-                            *hit.material,
-                            ray,
-                            world,
-                            *environment
-                        );
-
-                    radiance =
-                        radiance
-                        + throughput * environment_direct;
-                }
-            }
+            radiance = radiance + throughput * direct_lighting;
 
             Vec3 attenuation;
             Ray scattered;
@@ -349,16 +283,6 @@ private:
 
         return radiance;
     }
-
-
-
-
-
-
-
-    
-
-
     static double russian_roulette_probability(
         const Vec3& throughput
     ) {

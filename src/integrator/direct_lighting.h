@@ -18,6 +18,106 @@
 
 class DirectLighting {
 public:
+
+
+    static Vec3 estimate_surface_lighting(
+        const HitRecord& hit,
+        const Material& material,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const HittableList* scene_objects,
+        const std::vector<std::size_t>& light_indices,
+        const std::vector<PointLight>* point_lights,
+        const EnvironmentMap* environment
+    ) {
+        if (!material.supports_direct_lighting()) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        Vec3 result(0.0, 0.0, 0.0);
+
+        if (scene_objects != nullptr) {
+            result = result + estimate_direct_lighting(
+                hit,
+                material,
+                incoming_ray,
+                world,
+                *scene_objects,
+                light_indices
+            );
+        }
+
+        if (point_lights != nullptr) {
+            result = result + estimate_point_lighting(
+                hit,
+                material,
+                incoming_ray,
+                world,
+                *point_lights
+            );
+        }
+
+        if (environment != nullptr) {
+            result = result + estimate_environment_lighting(
+                hit,
+                material,
+                incoming_ray,
+                world,
+                *environment
+            );
+        }
+
+        return result;
+    }
+
+    static Vec3 estimate_volume_lighting(
+        const HitRecord& hit,
+        const Material& phase_function,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const HittableList* scene_objects,
+        const std::vector<std::size_t>& light_indices,
+        const std::vector<PointLight>* point_lights,
+        const EnvironmentMap* environment
+    ) {
+        Vec3 result(0.0, 0.0, 0.0);
+
+        if (scene_objects != nullptr) {
+            result = result + estimate_volume_area_lighting(
+                hit,
+                phase_function,
+                incoming_ray,
+                world,
+                *scene_objects,
+                light_indices
+            );
+        }
+
+        if (point_lights != nullptr) {
+            result = result + estimate_volume_point_lighting(
+                hit,
+                phase_function,
+                incoming_ray,
+                world,
+                *point_lights
+            );
+        }
+
+        if (environment != nullptr) {
+            result = result + estimate_volume_environment_lighting(
+                hit,
+                phase_function,
+                incoming_ray,
+                world,
+                *environment
+            );
+        }
+
+        return result;
+    }
+
+
+
 static std::vector<std::size_t> collect_light_indices(
         const HittableList& scene_objects
     ) {
