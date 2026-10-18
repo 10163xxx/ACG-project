@@ -17,7 +17,7 @@
 int main() {
     constexpr int image_width = 480;
     constexpr int image_height = 270;
-    constexpr int samples_per_pixel = 64;
+    constexpr int samples_per_pixel = 256;
     constexpr int max_depth = 24;
 
     Random::seed(2026);
