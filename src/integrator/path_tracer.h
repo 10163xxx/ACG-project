@@ -43,87 +43,9 @@ public:
 
     Vec3 trace(
         const Ray& initial_ray,
-        const Hittable& world
-    ) const {
-        return trace_impl(
-            initial_ray,
-            world,
-            nullptr,
-            nullptr
-        );
-    }
-
-    Vec3 trace(
-        const Ray& initial_ray,
-        const Hittable& world,
-        const HittableList& scene_objects
-    ) const {
-        return trace_impl(
-            initial_ray,
-            world,
-            &scene_objects,
-            nullptr
-        );
-    }
-
-    Vec3 trace(
-        const Ray& initial_ray,
         const Hittable& world,
         const HittableList& scene_objects,
-        const std::vector<PointLight>& point_lights
-    ) const {
-        return trace_impl(
-            initial_ray,
-            world,
-            &scene_objects,
-            &point_lights
-        );
-    }
-
-    Vec3 trace(
-        const Ray& initial_ray,
-        const Hittable& world,
-        const HittableList& scene_objects,
-        const std::vector<PointLight>& point_lights,
-        const EnvironmentMap& environment
-    ) const {
-        return trace_impl(
-            initial_ray,
-            world,
-            &scene_objects,
-            &point_lights,
-            &environment
-        );
-    }
-
-    // Render-time API: reuse light indices prepared once per scene.
-    Vec3 trace(
-        const Ray& initial_ray,
-        const Hittable& world,
-        const HittableList& scene_objects,
-        const std::vector<PointLight>& point_lights,
-        const EnvironmentMap& environment,
-        const std::vector<std::size_t>& light_indices
-    ) const {
-        return trace_impl(
-            initial_ray,
-            world,
-            &scene_objects,
-            &point_lights,
-            &environment,
-            &light_indices
-        );
-    }
-
-private:
-    int max_depth_;
-    int russian_roulette_start_depth_;
-
-    Vec3 trace_impl(
-        const Ray& initial_ray,
-        const Hittable& world,
-        const HittableList* scene_objects,
-        const std::vector<PointLight>* point_lights,
+        const std::vector<PointLight>* point_lights = nullptr,
         const EnvironmentMap* environment = nullptr,
         const std::vector<std::size_t>* precomputed_light_indices = nullptr
     ) const {
@@ -143,8 +65,7 @@ private:
 
         const std::vector<std::size_t> owned_light_indices =
             precomputed_light_indices == nullptr
-                && scene_objects != nullptr
-                ? DirectLighting::collect_light_indices(*scene_objects)
+                ? DirectLighting::collect_light_indices(scene_objects)
                 : std::vector<std::size_t>{};
 
         const std::vector<std::size_t>& light_indices =
@@ -191,8 +112,7 @@ private:
 
             double emission_weight = 1.0;
 
-            if (scene_objects != nullptr
-                && previous_scatter_used_nee
+            if (previous_scatter_used_nee
                 && !emitted.near_zero()) {
                 const double light_pdf =
                     DirectLighting::light_solid_angle_pdf_for_hit(
@@ -200,7 +120,7 @@ private:
                         hit,
                         previous_scatter_point,
                         world,
-                        *scene_objects,
+                        scene_objects,
                         light_indices
                     );
 
@@ -220,7 +140,7 @@ private:
                         *hit.material,
                         ray,
                         world,
-                        scene_objects,
+                        &scene_objects,
                         light_indices,
                         point_lights,
                         environment
@@ -230,7 +150,7 @@ private:
                         *hit.material,
                         ray,
                         world,
-                        scene_objects,
+                        &scene_objects,
                         light_indices,
                         point_lights,
                         environment
@@ -251,14 +171,8 @@ private:
 
             previous_scatter_used_nee =
                 hit.is_volume
-                    ? (
-                        scene_objects != nullptr
-                        || environment != nullptr
-                    )
-                    : (
-                        scene_objects != nullptr
-                        && hit.material->supports_direct_lighting()
-                    );
+                    ? true
+                    : hit.material->supports_direct_lighting();
 
             previous_scatter_point = hit.point;
 
@@ -305,6 +219,10 @@ private:
 
         return radiance;
     }
+
+private:
+    int max_depth_;
+    int russian_roulette_start_depth_;
 
     static double russian_roulette_probability(
         const Vec3& throughput

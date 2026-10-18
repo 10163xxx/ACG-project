@@ -148,16 +148,18 @@ int main(int argc, char* argv[]) {
 
                 const Ray ray = camera.get_ray(u, v);
 
+
                 pixel_color =
                     pixel_color
                     + tracer.trace(
                         ray,
                         world,
                         scene,
-                        point_lights,
-                        environment,
-                        light_indices
+                        &point_lights,
+                        &environment,
+                        &light_indices
                     );
+
             }
 
             pixel_color =
