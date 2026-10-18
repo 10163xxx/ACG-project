@@ -12,12 +12,13 @@
 #include "output/output_paths.h"
 #include "scene/test_scene.h"
 #include "scene/obj_scene.h"
+#include "scene/showcase_scene.h"
 
 int main() {
-    constexpr int image_width = 400;
-    constexpr int image_height = 225;
-    constexpr int samples_per_pixel = 32;
-    constexpr int max_depth = 20;
+    constexpr int image_width = 480;
+    constexpr int image_height = 270;
+    constexpr int samples_per_pixel = 64;
+    constexpr int max_depth = 24;
 
     Random::seed(2026);
 
@@ -27,18 +28,14 @@ int main() {
         static_cast<double>(image_width) / image_height;
 
     Camera camera(
-        Vec3(3.0, 1.5, 2.0),
-        Vec3(0.0, 0.0, -1.0),
+        Vec3(3.8, 2.2, 5.5),
+        Vec3(0.0, 1.35, -1.7),
         Vec3(0.0, 1.0, 0.0),
         40.0,
         aspect_ratio
     );
 
-    const bool render_obj_scene = true;
-
-    HittableList scene = render_obj_scene
-        ? make_obj_scene("assets/models/test_model.obj")
-        : make_material_test_scene();
+    HittableList scene = make_showcase_scene();
 
     BVHNode world(scene.objects());
 
@@ -86,7 +83,7 @@ int main() {
     }
 
     const std::string output_file =
-        OutputPaths::RenderDirectory + "material_test.ppm";
+        OutputPaths::RenderDirectory + "showcase_scene.ppm";
 
     image.write_ppm(output_file);
 

@@ -8,8 +8,8 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Renderer = Join-Path $ProjectRoot "build\$Config\path_tracer.exe"
 $Converter = Join-Path $PSScriptRoot "convert_ppm_to_jpg.py"
-$Ppm = Join-Path $ProjectRoot "results\renders\material_test.ppm"
-$Jpg = Join-Path $ProjectRoot "results\renders\material_test.jpg"
+$Ppm = Join-Path $ProjectRoot "results\renders\showcase_scene.ppm"
+$Jpg = Join-Path $ProjectRoot "results\renders\showcase_scene.jpg"
 
 if (-not (Test-Path $Renderer)) {
     throw "Renderer not found: $Renderer. Build the project first."
