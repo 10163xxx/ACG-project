@@ -47,7 +47,7 @@ int main() {
     PathTracer tracer(max_depth);
 
     EnvironmentMap environment(
-        "assets/studio_test.hdr"
+        "assets/studio_small_01_2k.hdr"
     );
 
     const std::vector<PointLight> point_lights = {
