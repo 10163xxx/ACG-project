@@ -310,8 +310,35 @@ private:
 
         return total_pdf;
     }
-
+    
     static Vec3 estimate_direct_lighting(
+        const HitRecord& hit,
+        const Material& material,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const HittableList& scene_objects
+    ) {
+        constexpr int LIGHT_SAMPLES = 4;
+
+        Vec3 total_radiance(0.0, 0.0, 0.0);
+
+        for (int i = 0; i < LIGHT_SAMPLES; ++i) {
+            total_radiance =
+                total_radiance
+                + estimate_direct_lighting_single(
+                    hit,
+                    material,
+                    incoming_ray,
+                    world,
+                    scene_objects
+                );
+        }
+
+        return total_radiance
+            / static_cast<double>(LIGHT_SAMPLES);
+    }
+
+    static Vec3 estimate_direct_lighting_single(
         const HitRecord& hit,
         const Material& material,
         const Ray& incoming_ray,
