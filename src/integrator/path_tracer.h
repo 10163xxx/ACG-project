@@ -82,6 +82,11 @@ private:
         double previous_bsdf_pdf = 0.0;
         Vec3 previous_scatter_point;
 
+        const std::vector<std::size_t> light_indices =
+            scene_objects != nullptr
+                ? collect_light_indices(*scene_objects)
+                : std::vector<std::size_t>{};
+
         for (int depth = 0; depth < max_depth_; ++depth) {
             HitRecord hit;
 
@@ -108,7 +113,8 @@ private:
                         hit,
                         previous_scatter_point,
                         world,
-                        *scene_objects
+                        *scene_objects,
+                        light_indices
                     );
 
                 emission_weight = mis::power_heuristic(
@@ -127,7 +133,8 @@ private:
                     *hit.material,
                     ray,
                     world,
-                    *scene_objects
+                    *scene_objects,
+                    light_indices
                 );
 
                 radiance = radiance + throughput * direct;
@@ -195,15 +202,9 @@ private:
         return radiance;
     }
 
-    static double light_solid_angle_pdf_for_hit(
-        const Ray& ray,
-        const HitRecord& light_hit,
-        const Vec3& previous_point,
-        const Hittable& world,
+    static std::vector<std::size_t> collect_light_indices(
         const HittableList& scene_objects
     ) {
-        (void)world;
-
         const auto& objects = scene_objects.objects();
 
         std::vector<std::size_t> light_indices;
@@ -233,6 +234,21 @@ private:
 
             light_indices.push_back(i);
         }
+
+        return light_indices;
+    }
+
+    static double light_solid_angle_pdf_for_hit(
+        const Ray& ray,
+        const HitRecord& light_hit,
+        const Vec3& previous_point,
+        const Hittable& world,
+        const HittableList& scene_objects,
+        const std::vector<std::size_t>& light_indices
+    ) {
+        (void)world;
+
+        const auto& objects = scene_objects.objects();
 
         if (light_indices.empty()) {
             return 0.0;
@@ -316,7 +332,8 @@ private:
         const Material& material,
         const Ray& incoming_ray,
         const Hittable& world,
-        const HittableList& scene_objects
+        const HittableList& scene_objects,
+        const std::vector<std::size_t>& light_indices
     ) {
         constexpr int LIGHT_SAMPLES = 4;
 
@@ -330,7 +347,8 @@ private:
                     material,
                     incoming_ray,
                     world,
-                    scene_objects
+                    scene_objects,
+                    light_indices
                 );
         }
 
@@ -343,42 +361,13 @@ private:
         const Material& material,
         const Ray& incoming_ray,
         const Hittable& world,
-        const HittableList& scene_objects
+        const HittableList& scene_objects,
+        const std::vector<std::size_t>& light_indices
     ) {
         constexpr double EPSILON = 0.001;
         constexpr double MIN_DISTANCE = 2.0 * EPSILON;
 
         const auto& objects = scene_objects.objects();
-
-        // First collect objects that can be sampled and whose
-        // sampled surface belongs to an emissive material.
-        std::vector<std::size_t> light_indices;
-        light_indices.reserve(objects.size());
-
-        for (std::size_t i = 0; i < objects.size(); ++i) {
-            if (!objects[i]) {
-                continue;
-            }
-
-            HitRecord probe;
-            double probe_pdf_area = 0.0;
-
-            if (!objects[i]->sample_surface(
-                0.5,
-                0.5,
-                probe,
-                probe_pdf_area)) {
-                continue;
-            }
-
-            if (!probe.material ||
-                !probe.material->is_emissive() ||
-                probe_pdf_area <= 0.0) {
-                continue;
-            }
-
-            light_indices.push_back(i);
-        }
 
         // No sampleable emissive objects: no direct-light contribution.
         if (light_indices.empty()) {
