@@ -96,6 +96,98 @@ public:
         return false;
     }
 
+    bool hit_surface(
+        const Ray& ray,
+        const Interval& ray_t,
+        HitRecord& record
+    ) const override {
+        if (!box_.hit(ray, ray_t)) {
+            return false;
+        }
+
+        if (is_leaf_) {
+            bool hit_anything = false;
+            double closest_so_far = ray_t.max;
+            HitRecord candidate;
+
+            for (const auto& object : leaf_objects_) {
+                const Interval current_interval(
+                    ray_t.min,
+                    closest_so_far
+                );
+
+                if (object->hit_surface(
+                        ray,
+                        current_interval,
+                        candidate)) {
+                    hit_anything = true;
+                    closest_so_far = candidate.t;
+                    record = candidate;
+                }
+            }
+
+            return hit_anything;
+        }
+
+        HitRecord left_record;
+        const bool hit_left =
+            left_->hit_surface(ray, ray_t, left_record);
+
+        const Interval right_interval(
+            ray_t.min,
+            hit_left ? left_record.t : ray_t.max
+        );
+
+        HitRecord right_record;
+        const bool hit_right =
+            right_->hit_surface(
+                ray,
+                right_interval,
+                right_record
+            );
+
+        if (hit_right) {
+            record = right_record;
+            return true;
+        }
+
+        if (hit_left) {
+            record = left_record;
+            return true;
+        }
+
+        return false;
+    }
+
+    double transmittance(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const override {
+        if (!box_.hit(ray, ray_t)) {
+            return 1.0;
+        }
+
+        if (is_leaf_) {
+            double result = 1.0;
+
+            for (const auto& object : leaf_objects_) {
+                result *= object->transmittance(
+                    ray,
+                    ray_t
+                );
+
+                if (result <= 1e-12) {
+                    return 0.0;
+                }
+            }
+
+            return result;
+        }
+
+        return left_->transmittance(ray, ray_t)
+            * right_->transmittance(ray, ray_t);
+    }
+
     AABB bounding_box() const override {
         return box_;
     }

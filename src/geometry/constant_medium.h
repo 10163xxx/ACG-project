@@ -127,15 +127,75 @@ public:
         record.t = t;
         record.point = ray.at(t);
 
-        // Volume events have no geometric surface normal.
-        // Isotropic scattering does not use this normal.
+        // A volume event has no geometric surface normal.
+        // Keep the placeholder only for compatibility with existing interfaces.
         record.normal = Vec3(1.0, 0.0, 0.0);
         record.front_face = true;
         record.u = 0.0;
         record.v = 0.0;
+        record.is_volume = true;
         record.material = phase_function_;
 
         return true;
+    }
+
+    bool hit_surface(
+        const Ray& ray,
+        const Interval& ray_t,
+        HitRecord& record
+    ) const override {
+        (void)ray;
+        (void)ray_t;
+        (void)record;
+
+        // A participating medium is not an opaque surface.
+        return false;
+    }
+
+    double transmittance(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const override {
+        const double infinity =
+            std::numeric_limits<double>::infinity();
+
+        HitRecord entry;
+        HitRecord exit;
+
+        if (!boundary_->hit(
+                ray,
+                Interval(-infinity, infinity),
+                entry)) {
+            return 1.0;
+        }
+
+        if (!boundary_->hit(
+                ray,
+                Interval(
+                    entry.t + 1e-6,
+                    infinity
+                ),
+                exit)) {
+            return 1.0;
+        }
+
+        const double t_enter =
+            std::max(entry.t, ray_t.min);
+
+        const double t_exit =
+            std::min(exit.t, ray_t.max);
+
+        if (t_enter >= t_exit) {
+            return 1.0;
+        }
+
+        const double distance_inside =
+            (t_exit - t_enter)
+            * ray.direction.length();
+
+        return std::exp(
+            -density_ * distance_inside
+        );
     }
 
     AABB bounding_box() const override {

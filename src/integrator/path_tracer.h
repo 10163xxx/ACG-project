@@ -188,7 +188,7 @@ private:
             radiance = radiance
                 + throughput * emitted * emission_weight;
 
-            if (hit.material->supports_direct_lighting()) {
+            if (!hit.is_volume && hit.material->supports_direct_lighting()) {
                 if (scene_objects != nullptr) {
                     const Vec3 area_direct =
                         estimate_direct_lighting(
@@ -218,7 +218,7 @@ private:
                         radiance + throughput * point_direct;
                 }
 
-                                if (environment != nullptr) {
+                if (environment != nullptr) {
                     const Vec3 environment_direct =
                         estimate_environment_lighting(
                             hit,
@@ -246,8 +246,9 @@ private:
             }
 
             previous_scatter_used_nee =
-                scene_objects != nullptr
-                && hit.material->supports_direct_lighting();
+                    !hit.is_volume
+                    && scene_objects != nullptr
+                    && hit.material->supports_direct_lighting();
 
             previous_scatter_point = hit.point;
 
@@ -429,6 +430,7 @@ private:
         const EnvironmentMap& environment
     ) {
         constexpr double EPSILON = 0.001;
+        constexpr double MIN_TRANSMITTANCE = 1e-12;
 
         double light_pdf = 0.0;
 
@@ -462,10 +464,23 @@ private:
 
         HitRecord blocker;
 
-        if (world.hit(
+        // Only opaque surfaces block the environment light.
+        if (world.hit_surface(
                 shadow_ray,
                 shadow_interval,
                 blocker)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // Volumes attenuate the shadow ray instead of acting
+        // as opaque blockers.
+        const double shadow_transmittance =
+            world.transmittance(
+                shadow_ray,
+                shadow_interval
+            );
+
+        if (shadow_transmittance <= MIN_TRANSMITTANCE) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -489,7 +504,12 @@ private:
 
         return environment_radiance
             * bsdf
-            * (cos_surface * mis_weight / light_pdf);
+            * (
+                cos_surface
+                * mis_weight
+                * shadow_transmittance
+                / light_pdf
+            );
     }
 
     static Vec3 estimate_point_lighting(
@@ -500,6 +520,7 @@ private:
         const std::vector<PointLight>& point_lights
     ) {
         constexpr double EPSILON = 0.001;
+        constexpr double MIN_TRANSMITTANCE = 1e-12;
 
         Vec3 total_radiance(0.0, 0.0, 0.0);
 
@@ -516,8 +537,7 @@ private:
             const double distance_squared =
                 to_light.length_squared();
 
-            if (distance_squared <=
-                EPSILON * EPSILON) {
+            if (distance_squared <= EPSILON * EPSILON) {
                 continue;
             }
 
@@ -566,17 +586,28 @@ private:
                 shadow_distance - EPSILON
             );
 
-            if (shadow_interval.max <=
-                shadow_interval.min) {
+            if (shadow_interval.max <= shadow_interval.min) {
                 continue;
             }
 
             HitRecord blocker;
 
-            if (world.hit(
+            // Opaque geometry blocks the point light.
+            if (world.hit_surface(
                     shadow_ray,
                     shadow_interval,
                     blocker)) {
+                continue;
+            }
+
+            // Participating media attenuate the light.
+            const double shadow_transmittance =
+                world.transmittance(
+                    shadow_ray,
+                    shadow_interval
+                );
+
+            if (shadow_transmittance <= MIN_TRANSMITTANCE) {
                 continue;
             }
 
@@ -587,9 +618,7 @@ private:
                     wi
                 );
 
-            // Point lights are delta lights. Their direct
-            // contribution does not use an area-light PDF or
-            // the area-light MIS weighting function.
+            // Point lights are delta lights. No area-light MIS.
             const double attenuation =
                 1.0 / distance_squared;
 
@@ -597,7 +626,11 @@ private:
                 total_radiance
                 + light.intensity
                 * bsdf
-                * (cos_surface * attenuation);
+                * (
+                    cos_surface
+                    * attenuation
+                    * shadow_transmittance
+                );
         }
 
         return total_radiance;
@@ -642,6 +675,7 @@ private:
     ) {
         constexpr double EPSILON = 0.001;
         constexpr double MIN_DISTANCE = 2.0 * EPSILON;
+        constexpr double MIN_TRANSMITTANCE = 1e-12;
 
         const auto& objects = scene_objects.objects();
 
@@ -655,8 +689,8 @@ private:
             1.0 / static_cast<double>(light_indices.size());
 
         std::size_t light_choice = static_cast<std::size_t>(
-            Random::random_double() *
-            static_cast<double>(light_indices.size())
+            Random::random_double()
+            * static_cast<double>(light_indices.size())
         );
 
         if (light_choice >= light_indices.size()) {
@@ -677,27 +711,28 @@ private:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        if (!light_sample.material ||
-            !light_sample.material->is_emissive() ||
-            pdf_area <= 0.0) {  
+        if (!light_sample.material
+            || !light_sample.material->is_emissive()
+            || pdf_area <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        // Compute lighting geometry from the actual shading point.
-        // The BSDF and MIS PDFs must use this same reference point.
+        // Calculate lighting geometry from the actual shading point.
         const Vec3 to_light =
             light_sample.point - hit.point;
 
         const double distance_squared =
             to_light.length_squared();
 
-        if (distance_squared <=
-            MIN_DISTANCE * MIN_DISTANCE) {
+        if (distance_squared <= MIN_DISTANCE * MIN_DISTANCE) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        const double distance = std::sqrt(distance_squared);
-        const Vec3 wi = to_light / distance;
+        const double distance =
+            std::sqrt(distance_squared);
+
+        const Vec3 wi =
+            to_light / distance;
 
         // Reject light arriving from below the geometric surface.
         const double cos_geometric =
@@ -710,7 +745,6 @@ private:
         const Vec3 wo =
             normalize(-incoming_ray.direction);
 
-        // Use the material's shading normal for the BSDF cosine.
         const Vec3 shading_normal =
             material.shading_normal(incoming_ray, hit);
 
@@ -738,8 +772,7 @@ private:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        // Offset only the visibility ray to reduce self-intersections.
-        // Do not use this offset origin to calculate the MIS PDFs.
+        // Offset only the visibility ray, not the MIS reference point.
         const Vec3 shadow_origin =
             hit.point + EPSILON * hit.normal;
 
@@ -756,8 +789,6 @@ private:
         const Vec3 shadow_direction =
             shadow_to_light / shadow_distance;
 
-        HitRecord blocker;
-
         const Interval shadow_interval(
             EPSILON,
             shadow_distance - EPSILON
@@ -772,7 +803,24 @@ private:
             shadow_direction
         );
 
-        if (world.hit(shadow_ray, shadow_interval, blocker)) {
+        HitRecord blocker;
+
+        // Opaque surfaces block the sampled area light.
+        if (world.hit_surface(
+                shadow_ray,
+                shadow_interval,
+                blocker)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        // Media attenuate the sampled light along its shadow ray.
+        const double shadow_transmittance =
+            world.transmittance(
+                shadow_ray,
+                shadow_interval
+            );
+
+        if (shadow_transmittance <= MIN_TRANSMITTANCE) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -804,7 +852,10 @@ private:
             );
 
         const double weight =
-            cos_surface * mis_weight / light_pdf;
+            cos_surface
+            * mis_weight
+            * shadow_transmittance
+            / light_pdf;
 
         return light_emission * bsdf * weight;
     }

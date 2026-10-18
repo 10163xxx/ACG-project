@@ -64,7 +64,54 @@ public:
         return hit_anything;
     }
 
-    
+    bool hit_surface(
+        const Ray& ray,
+        const Interval& ray_t,
+        HitRecord& record
+    ) const override {
+        HitRecord temp_record;
+        bool hit_anything = false;
+
+        double closest_so_far = ray_t.max;
+
+        for (const auto& object : objects_) {
+            const Interval current_interval(
+                ray_t.min,
+                closest_so_far
+            );
+
+            if (object->hit_surface(
+                    ray,
+                    current_interval,
+                    temp_record
+                )) {
+                hit_anything = true;
+                closest_so_far = temp_record.t;
+                record = temp_record;
+            }
+        }
+
+        return hit_anything;
+    }
+
+    double transmittance(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const override {
+        double total_transmittance = 1.0;
+
+        for (const auto& object : objects_) {
+            total_transmittance *=
+                object->transmittance(ray, ray_t);
+
+            if (total_transmittance <= 1e-12) {
+                return 0.0;
+            }
+        }
+
+        return total_transmittance;
+    }
+
     AABB bounding_box() const override {
         if (objects_.empty()) {
             return AABB();

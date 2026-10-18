@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <memory>
@@ -15,6 +14,9 @@ struct HitRecord {
     bool front_face = true;
     double u = 0.0;
     double v = 0.0;
+
+    // True only for a sampled event inside a participating medium.
+    bool is_volume = false;
 
     std::shared_ptr<const Material> material;
 
