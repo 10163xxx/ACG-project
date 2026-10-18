@@ -13,6 +13,7 @@
 #include "core/random.h"
 #include "geometry/hittable.h"
 #include "geometry/hittable_list.h"
+#include "materials/point_light.h"
 #include "materials/material.h"
 #include "integrator/mis.h"
 
@@ -39,23 +40,43 @@ public:
         }
     }
 
-    // Existing API: path tracing without explicit NEE lights.
     Vec3 trace(
         const Ray& initial_ray,
         const Hittable& world
     ) const {
-        return trace_impl(initial_ray, world, nullptr);
+        return trace_impl(
+            initial_ray,
+            world,
+            nullptr,
+            nullptr
+        );
     }
 
-    // NEE API: world is used for intersections and visibility;
-    // scene_objects provides the objects available for sampling.
     Vec3 trace(
         const Ray& initial_ray,
         const Hittable& world,
         const HittableList& scene_objects
     ) const {
         return trace_impl(
-            initial_ray, world, &scene_objects
+            initial_ray,
+            world,
+            &scene_objects,
+            nullptr
+        );
+    }
+
+    // NEE API with both area lights and point lights.
+    Vec3 trace(
+        const Ray& initial_ray,
+        const Hittable& world,
+        const HittableList& scene_objects,
+        const std::vector<PointLight>& point_lights
+    ) const {
+        return trace_impl(
+            initial_ray,
+            world,
+            &scene_objects,
+            &point_lights
         );
     }
 
@@ -66,7 +87,8 @@ private:
     Vec3 trace_impl(
         const Ray& initial_ray,
         const Hittable& world,
-        const HittableList* scene_objects
+        const HittableList* scene_objects,
+        const std::vector<PointLight>* point_lights
     ) const {
         Ray ray = initial_ray;
 
@@ -126,18 +148,35 @@ private:
             radiance = radiance
                 + throughput * emitted * emission_weight;
 
-            if (scene_objects != nullptr
-                && hit.material->supports_direct_lighting()) {
-                const Vec3 direct = estimate_direct_lighting(
-                    hit,
-                    *hit.material,
-                    ray,
-                    world,
-                    *scene_objects,
-                    light_indices
-                );
+            if (hit.material->supports_direct_lighting()) {
+                if (scene_objects != nullptr) {
+                    const Vec3 area_direct =
+                        estimate_direct_lighting(
+                            hit,
+                            *hit.material,
+                            ray,
+                            world,
+                            *scene_objects,
+                            light_indices
+                        );
 
-                radiance = radiance + throughput * direct;
+                    radiance =
+                        radiance + throughput * area_direct;
+                }
+
+                if (point_lights != nullptr) {
+                    const Vec3 point_direct =
+                        estimate_point_lighting(
+                            hit,
+                            *hit.material,
+                            ray,
+                            world,
+                            *point_lights
+                        );
+
+                    radiance =
+                        radiance + throughput * point_direct;
+                }
             }
 
             Vec3 attenuation;
@@ -326,6 +365,117 @@ private:
 
         return total_pdf;
     }
+
+        static Vec3 estimate_point_lighting(
+        const HitRecord& hit,
+        const Material& material,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const std::vector<PointLight>& point_lights
+    ) {
+        constexpr double EPSILON = 0.001;
+
+        Vec3 total_radiance(0.0, 0.0, 0.0);
+
+        const Vec3 wo =
+            normalize(-incoming_ray.direction);
+
+        const Vec3 shading_normal =
+            material.shading_normal(incoming_ray, hit);
+
+        for (const PointLight& light : point_lights) {
+            const Vec3 to_light =
+                light.position - hit.point;
+
+            const double distance_squared =
+                to_light.length_squared();
+
+            if (distance_squared <=
+                EPSILON * EPSILON) {
+                continue;
+            }
+
+            const double distance =
+                std::sqrt(distance_squared);
+
+            const Vec3 wi =
+                to_light / distance;
+
+            // Reject light arriving from below the geometric surface.
+            const double cos_geometric =
+                dot(hit.normal, wi);
+
+            if (cos_geometric <= 0.0) {
+                continue;
+            }
+
+            const double cos_surface =
+                dot(shading_normal, wi);
+
+            if (cos_surface <= 0.0) {
+                continue;
+            }
+
+            // Offset the shadow ray to avoid self-intersection.
+            const Vec3 shadow_origin =
+                hit.point + EPSILON * hit.normal;
+
+            const Vec3 shadow_to_light =
+                light.position - shadow_origin;
+
+            const double shadow_distance =
+                shadow_to_light.length();
+
+            if (shadow_distance <= EPSILON) {
+                continue;
+            }
+
+            const Ray shadow_ray(
+                shadow_origin,
+                shadow_to_light / shadow_distance
+            );
+
+            const Interval shadow_interval(
+                EPSILON,
+                shadow_distance - EPSILON
+            );
+
+            if (shadow_interval.max <=
+                shadow_interval.min) {
+                continue;
+            }
+
+            HitRecord blocker;
+
+            if (world.hit(
+                    shadow_ray,
+                    shadow_interval,
+                    blocker)) {
+                continue;
+            }
+
+            const Vec3 bsdf =
+                material.evaluate_bsdf(
+                    hit,
+                    wo,
+                    wi
+                );
+
+            // Point lights are delta lights. Their direct
+            // contribution does not use an area-light PDF or
+            // the area-light MIS weighting function.
+            const double attenuation =
+                1.0 / distance_squared;
+
+            total_radiance =
+                total_radiance
+                + light.intensity
+                * bsdf
+                * (cos_surface * attenuation);
+        }
+
+        return total_radiance;
+    }
     
     static Vec3 estimate_direct_lighting(
         const HitRecord& hit,
@@ -335,7 +485,7 @@ private:
         const HittableList& scene_objects,
         const std::vector<std::size_t>& light_indices
     ) {
-        constexpr int LIGHT_SAMPLES = 4;
+        constexpr int LIGHT_SAMPLES = 1;
 
         Vec3 total_radiance(0.0, 0.0, 0.0);
 

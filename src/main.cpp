@@ -3,6 +3,7 @@
 #include <iostream>
 #include <chrono>
 #include <string>
+#include <vector>
 
 #include "acceleration/bvh.h"
 #include "core/random.h"
@@ -13,6 +14,7 @@
 #include "scene/test_scene.h"
 #include "scene/obj_scene.h"
 #include "scene/showcase_scene.h"
+#include "materials/point_light.h"
 
 int main() {
     constexpr int image_width = 480;
@@ -41,6 +43,13 @@ int main() {
 
     PathTracer tracer(max_depth);
 
+    const std::vector<PointLight> point_lights = {
+        PointLight(
+            Vec3(-1.0, 2.8, -0.8),
+            Vec3(18.0, 12.0, 7.0)
+        )
+    };
+
     for (int y = 0; y < image_height; ++y) {
         std::cerr
             << "\rRendering row "
@@ -65,7 +74,13 @@ int main() {
                 const Ray ray = camera.get_ray(u, v);
 
                 pixel_color =
-                    pixel_color + tracer.trace(ray, world, scene);
+                    pixel_color
+                    + tracer.trace(
+                        ray,
+                        world,
+                        scene,
+                        point_lights
+                    );
             }
 
             pixel_color =
