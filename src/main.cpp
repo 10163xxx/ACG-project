@@ -15,6 +15,8 @@
 #include "scene/obj_scene.h"
 #include "scene/showcase_scene.h"
 #include "geometry/obj_loader.h"
+#include "geometry/constant_medium.h"
+#include "geometry/sphere.h"
 #include "materials/point_light.h"
 #include "materials/environment_map.h"
 #include "materials/lambertian.h"
@@ -24,10 +26,20 @@ int main(int argc, char* argv[]) {
     const bool uv_test =
         argc > 1 && std::string(argv[1]) == "--uv-test";
 
-    const int image_width = uv_test ? 480 : 480;
-    const int image_height = uv_test ? 360 : 270;
-    const int samples_per_pixel = uv_test ? 64 : 256;
-    const int max_depth = uv_test ? 12 : 24;
+    const bool volume_test =
+        argc > 1 && std::string(argv[1]) == "--volume-test";
+
+    const int image_width =
+        volume_test ? 320 : 480;
+
+    const int image_height =
+        volume_test ? 270 : (uv_test ? 360 : 270);
+
+    const int samples_per_pixel =
+        volume_test ? 128 : (uv_test ? 64 : 256);
+
+    const int max_depth =
+        volume_test ? 12 : (uv_test ? 12 : 24);
 
     Random::seed(2026);
 
@@ -78,8 +90,23 @@ int main(int argc, char* argv[]) {
         );
     } else {
         scene = make_showcase_scene();
-    }
 
+        if (volume_test) {
+            auto boundary = std::make_shared<Sphere>(
+                Vec3(0.0, 1.5, -1.8),
+                1.05,
+                nullptr
+            );
+
+            scene.add(
+                std::make_shared<ConstantMedium>(
+                    boundary,
+                    0.9,
+                    Vec3(0.85, 0.92, 1.0)
+                )
+            );
+        }
+    }
     BVHNode world(scene.objects());
 
     PathTracer tracer(max_depth);
@@ -145,7 +172,9 @@ int main(int argc, char* argv[]) {
     const std::string output_file =
         uv_test
             ? OutputPaths::RenderDirectory + "uv_test.ppm"
-            : OutputPaths::RenderDirectory + "showcase_scene.ppm";
+            : (volume_test
+                ? OutputPaths::RenderDirectory + "volume_test.ppm"
+                : OutputPaths::RenderDirectory + "showcase_scene.ppm");
 
     image.write_ppm(output_file);
 

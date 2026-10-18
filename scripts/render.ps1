@@ -1,8 +1,9 @@
+
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Config = "Debug",
+    [string]$Config = "Release",
 
-    [ValidateSet("Showcase", "UVTest")]
+    [ValidateSet("Showcase", "UVTest", "VolumeTest")]
     [string]$Scene = "Showcase"
 )
 
@@ -16,18 +17,29 @@ if (-not (Test-Path $Renderer)) {
     throw "Renderer not found: $Renderer. Build the project first."
 }
 
-if ($Scene -eq "UVTest") {
-    $Ppm = Join-Path $ProjectRoot "results\renders\uv_test.ppm"
-    $Jpg = Join-Path $ProjectRoot "results\renders\uv_test.jpg"
-
-    & $Renderer --uv-test
+switch ($Scene) {
+    "UVTest" {
+        $Ppm = Join-Path $ProjectRoot "results\renders\uv_test.ppm"
+        $Jpg = Join-Path $ProjectRoot "results\renders\uv_test.jpg"
+        $RenderArgs = @("--uv-test")
+    }
+    "VolumeTest" {
+        $Ppm = Join-Path $ProjectRoot "results\renders\volume_test.ppm"
+        $Jpg = Join-Path $ProjectRoot "results\renders\volume_test.jpg"
+        $RenderArgs = @("--volume-test")
+    }
+    default {
+        $Ppm = Join-Path $ProjectRoot "results\renders\showcase_scene.ppm"
+        $Jpg = Join-Path $ProjectRoot "results\renders\showcase_scene.jpg"
+        $RenderArgs = @()
+    }
 }
-else {
-    $Ppm = Join-Path $ProjectRoot "results\renders\showcase_scene.ppm"
-    $Jpg = Join-Path $ProjectRoot "results\renders\showcase_scene.jpg"
 
-    & $Renderer
-}
+Write-Host "Configuration: $Config"
+Write-Host "Scene: $Scene"
+Write-Host "Rendering..."
+
+& $Renderer @RenderArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "Rendering failed with exit code $LASTEXITCODE"
