@@ -4,7 +4,6 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
-#include <memory>
 #include <vector>
 
 #include "core/ray.h"
@@ -67,7 +66,6 @@ public:
         );
     }
 
-    // NEE API with both area lights and point lights.
     Vec3 trace(
         const Ray& initial_ray,
         const Hittable& world,
@@ -98,6 +96,25 @@ public:
         );
     }
 
+    // Render-time API: reuse light indices prepared once per scene.
+    Vec3 trace(
+        const Ray& initial_ray,
+        const Hittable& world,
+        const HittableList& scene_objects,
+        const std::vector<PointLight>& point_lights,
+        const EnvironmentMap& environment,
+        const std::vector<std::size_t>& light_indices
+    ) const {
+        return trace_impl(
+            initial_ray,
+            world,
+            &scene_objects,
+            &point_lights,
+            &environment,
+            &light_indices
+        );
+    }
+
 private:
     int max_depth_;
     int russian_roulette_start_depth_;
@@ -107,7 +124,8 @@ private:
         const Hittable& world,
         const HittableList* scene_objects,
         const std::vector<PointLight>* point_lights,
-        const EnvironmentMap* environment = nullptr
+        const EnvironmentMap* environment = nullptr,
+        const std::vector<std::size_t>* precomputed_light_indices = nullptr
     ) const {
         Ray ray = initial_ray;
 
@@ -123,10 +141,16 @@ private:
         double previous_bsdf_pdf = 0.0;
         Vec3 previous_scatter_point;
 
-        const std::vector<std::size_t> light_indices =
-            scene_objects != nullptr
+        const std::vector<std::size_t> owned_light_indices =
+            precomputed_light_indices == nullptr
+                && scene_objects != nullptr
                 ? DirectLighting::collect_light_indices(*scene_objects)
                 : std::vector<std::size_t>{};
+
+        const std::vector<std::size_t>& light_indices =
+            precomputed_light_indices != nullptr
+                ? *precomputed_light_indices
+                : owned_light_indices;
 
         for (int depth = 0; depth < max_depth_; ++depth) {
             HitRecord hit;
@@ -188,7 +212,6 @@ private:
 
             radiance = radiance
                 + throughput * emitted * emission_weight;
-
 
             const Vec3 direct_lighting =
                 hit.is_volume
@@ -267,7 +290,6 @@ private:
 
             if (bounce_count >= russian_roulette_start_depth_
                 && bounce_count < max_depth_) {
-
                 const double survival_probability =
                     russian_roulette_probability(throughput);
 
@@ -283,6 +305,7 @@ private:
 
         return radiance;
     }
+
     static double russian_roulette_probability(
         const Vec3& throughput
     ) {

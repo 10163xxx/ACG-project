@@ -122,6 +122,9 @@ int main(int argc, char* argv[]) {
         )
     };
 
+    const std::vector<std::size_t> light_indices =
+        DirectLighting::collect_light_indices(scene);
+
     for (int y = 0; y < image_height; ++y) {
         std::cerr
             << "\rRendering row "
@@ -152,7 +155,8 @@ int main(int argc, char* argv[]) {
                         world,
                         scene,
                         point_lights,
-                        environment
+                        environment,
+                        light_indices
                     );
             }
 
