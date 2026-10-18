@@ -28,10 +28,10 @@ int main() {
         static_cast<double>(image_width) / image_height;
 
     Camera camera(
-        Vec3(3.8, 2.2, 5.5),
-        Vec3(0.0, 1.35, -1.7),
+        Vec3(4.0, 2.35, 5.8),
+        Vec3(0.0, 1.45, -1.7),
         Vec3(0.0, 1.0, 0.0),
-        40.0,
+        42.0,
         aspect_ratio
     );
 

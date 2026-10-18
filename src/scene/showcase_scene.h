@@ -123,6 +123,19 @@ inline HittableList make_showcase_scene() {
         right_wall_material
     ));
 
+    // Ceiling: close the room and keep the camera inside the enclosure.
+    auto ceiling_material =
+        std::make_shared<Lambertian>(
+            Vec3(0.78, 0.77, 0.73)
+        );
+
+    world.add(std::make_shared<Quad>(
+        Vec3(-3.0, 4.0, 1.0),
+        Vec3(6.0, 0.0, 0.0),
+        Vec3(0.0, 0.0, -5.0),
+        ceiling_material
+    ));
+
     // Rectangular area light facing down into the room.
     auto light_material =
         std::make_shared<DiffuseLight>(
@@ -186,7 +199,7 @@ inline HittableList make_showcase_scene() {
         std::make_shared<Dielectric>(1.5);
 
     world.add(std::make_shared<Sphere>(
-        Vec3(0.0, 0.58, -2.65),
+        Vec3(0.0, 0.48, -3.05),
         0.42,
         glass_material
     ));
@@ -201,6 +214,18 @@ inline HittableList make_showcase_scene() {
         Vec3(-0.05, 0.28, -0.45),
         0.28,
         gold_material
+    ));
+
+    // Deep blue diffuse sphere for material and lighting comparison.
+    auto blue_material =
+        std::make_shared<Lambertian>(
+            Vec3(0.08, 0.16, 0.62)
+        );
+
+    world.add(std::make_shared<Sphere>(
+        Vec3(2.05, 0.34, -2.9),
+        0.34,
+        blue_material
     ));
 
     return world;
