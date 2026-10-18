@@ -3,26 +3,28 @@
 #include <cmath>
 #include <cstddef>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <vector>
-#include <limits>
 #include <utility>
+#include <vector>
 
 #include "geometry/mesh.h"
 
 class ObjLoader {
 public:
     // Load OBJ geometry from a stream.
-    // OBJ texture coordinates and normals are currently ignored.
     static TriangleMesh load(
         std::istream& input,
         std::shared_ptr<const Material> material = nullptr
     ) {
         std::vector<Vec3> vertices;
+        std::vector<Vec3> texcoords;
         std::vector<TriangleMesh::Face> faces;
+        std::vector<TriangleMesh::FaceUV> face_texcoords;
+        std::vector<bool> face_has_uv;
 
         std::string line;
         std::size_t line_number = 0;
@@ -30,7 +32,6 @@ public:
         while (std::getline(input, line)) {
             ++line_number;
 
-            // Remove comments.
             const std::size_t comment_pos = line.find('#');
 
             if (comment_pos != std::string::npos) {
@@ -51,10 +52,7 @@ public:
 
                 if (!(line_stream >> x >> y >> z)) {
                     throw std::runtime_error(
-                        make_error(
-                            line_number,
-                            "Invalid vertex position."
-                        )
+                        make_error(line_number, "Invalid vertex position.")
                     );
                 }
 
@@ -70,19 +68,81 @@ public:
                 }
 
                 vertices.emplace_back(x, y, z);
+            } else if (keyword == "vt") {
+                double u = 0.0;
+                double v = 0.0;
+
+                if (!(line_stream >> u >> v)) {
+                    throw std::runtime_error(
+                        make_error(line_number, "Invalid texture coordinate.")
+                    );
+                }
+
+                if (!std::isfinite(u) || !std::isfinite(v)) {
+                    throw std::runtime_error(
+                        make_error(
+                            line_number,
+                            "Texture coordinates must be finite."
+                        )
+                    );
+                }
+
+                texcoords.emplace_back(u, v, 0.0);
             } else if (keyword == "f") {
-                std::vector<std::size_t> polygon;
+                struct FaceVertex {
+                    std::size_t vertex_index;
+                    std::size_t texcoord_index;
+                    bool has_texcoord;
+                };
+
+                std::vector<FaceVertex> polygon;
                 std::string token;
 
                 while (line_stream >> token) {
-                    const std::size_t vertex_index =
-                        parse_vertex_index(
-                            token,
-                            vertices.size(),
-                            line_number
-                        );
+                    const std::size_t first_slash = token.find('/');
 
-                    polygon.push_back(vertex_index);
+                    const std::string vertex_text =
+                        token.substr(0, first_slash);
+
+                    const std::size_t vertex_index = parse_obj_index(
+                        vertex_text,
+                        vertices.size(),
+                        line_number,
+                        "vertex"
+                    );
+
+                    bool has_texcoord = false;
+                    std::size_t texcoord_index = 0;
+
+                    if (first_slash != std::string::npos) {
+                        const std::size_t second_slash =
+                            token.find('/', first_slash + 1);
+
+                        const std::string texcoord_text =
+                            token.substr(
+                                first_slash + 1,
+                                second_slash == std::string::npos
+                                    ? std::string::npos
+                                    : second_slash - first_slash - 1
+                            );
+
+                        if (!texcoord_text.empty()) {
+                            texcoord_index = parse_obj_index(
+                                texcoord_text,
+                                texcoords.size(),
+                                line_number,
+                                "texture coordinate"
+                            );
+
+                            has_texcoord = true;
+                        }
+                    }
+
+                    polygon.push_back({
+                        vertex_index,
+                        texcoord_index,
+                        has_texcoord
+                    });
                 }
 
                 if (polygon.size() < 3) {
@@ -94,21 +154,38 @@ public:
                     );
                 }
 
-                // Triangulate a polygon as a triangle fan:
-                // (0, 1, 2), (0, 2, 3), ...
+                const bool polygon_has_uv =
+                    polygon.front().has_texcoord;
+
+                for (const FaceVertex& vertex : polygon) {
+                    if (vertex.has_texcoord != polygon_has_uv) {
+                        throw std::runtime_error(
+                            make_error(
+                                line_number,
+                                "A face cannot mix vertices with and without UV coordinates."
+                            )
+                        );
+                    }
+                }
+
                 for (std::size_t i = 1;
                      i + 1 < polygon.size();
                      ++i) {
                     faces.push_back({
-                        polygon[0],
-                        polygon[i],
-                        polygon[i + 1]
+                        polygon[0].vertex_index,
+                        polygon[i].vertex_index,
+                        polygon[i + 1].vertex_index
                     });
+
+                    face_texcoords.push_back({
+                        polygon[0].texcoord_index,
+                        polygon[i].texcoord_index,
+                        polygon[i + 1].texcoord_index
+                    });
+
+                    face_has_uv.push_back(polygon_has_uv);
                 }
             }
-
-            // Other OBJ statements, including vt, vn, o, g,
-            // s, mtllib and usemtl, are currently ignored.
         }
 
         if (input.bad()) {
@@ -133,12 +210,14 @@ public:
             return TriangleMesh(
                 vertices,
                 faces,
-                std::move(material)
+                std::move(material),
+                texcoords,
+                face_texcoords,
+                face_has_uv
             );
         } catch (const std::exception& exception) {
             throw std::runtime_error(
-                std::string("Invalid OBJ mesh: ") +
-                exception.what()
+                std::string("Invalid OBJ mesh: ") + exception.what()
             );
         }
     }
@@ -169,24 +248,17 @@ private:
             ": " + message;
     }
 
-    static std::size_t parse_vertex_index(
-        const std::string& token,
-        std::size_t vertex_count,
-        std::size_t line_number
+    static std::size_t parse_obj_index(
+        const std::string& index_text,
+        std::size_t item_count,
+        std::size_t line_number,
+        const std::string& index_type
     ) {
-        // Face tokens may look like:
-        // v, v/vt, v//vn, or v/vt/vn.
-        // Only the vertex position index is needed here.
-        const std::size_t slash_pos = token.find('/');
-
-        const std::string index_text =
-            token.substr(0, slash_pos);
-
         if (index_text.empty()) {
             throw std::runtime_error(
                 make_error(
                     line_number,
-                    "Face token has no vertex index: " + token
+                    "Missing " + index_type + " index."
                 )
             );
         }
@@ -196,21 +268,16 @@ private:
         try {
             std::size_t parsed_chars = 0;
 
-            obj_index = std::stoll(
-                index_text,
-                &parsed_chars
-            );
+            obj_index = std::stoll(index_text, &parsed_chars);
 
             if (parsed_chars != index_text.size()) {
-                throw std::runtime_error(
-                    "Invalid vertex index."
-                );
+                throw std::runtime_error("Invalid index.");
             }
         } catch (const std::exception&) {
             throw std::runtime_error(
                 make_error(
                     line_number,
-                    "Invalid vertex index: " + token
+                    "Invalid " + index_type + " index: " + index_text
                 )
             );
         }
@@ -219,43 +286,34 @@ private:
             throw std::runtime_error(
                 make_error(
                     line_number,
-                    "OBJ vertex indices cannot be zero."
+                    "OBJ indices cannot be zero."
                 )
             );
         }
 
-        // OBJ indices are 1-based when positive.
-        // Negative indices are relative to the most recently
-        // defined vertex.
-        long long resolved_index = 0;
-
-        if (obj_index > 0) {
-            resolved_index = obj_index - 1;
-        } else {
-            if (vertex_count >
-                static_cast<std::size_t>(
-                    std::numeric_limits<long long>::max()
-                )) {
-                throw std::runtime_error(
-                    make_error(
-                        line_number,
-                        "Too many vertices to resolve OBJ index."
-                    )
-                );
-            }
-
-            resolved_index =
-                static_cast<long long>(vertex_count) +
-                obj_index;
-        }
-
-        if (resolved_index < 0 ||
-            static_cast<unsigned long long>(resolved_index) >=
-                vertex_count) {
+        if (item_count >
+            static_cast<std::size_t>(
+                std::numeric_limits<long long>::max()
+            )) {
             throw std::runtime_error(
                 make_error(
                     line_number,
-                    "Vertex index is out of range: " + token
+                    "Too many elements to resolve OBJ index."
+                )
+            );
+        }
+
+        const long long resolved_index =
+            obj_index > 0
+                ? obj_index - 1
+                : static_cast<long long>(item_count) + obj_index;
+
+        if (resolved_index < 0 ||
+            static_cast<unsigned long long>(resolved_index) >= item_count) {
+            throw std::runtime_error(
+                make_error(
+                    line_number,
+                    index_type + " index is out of range: " + index_text
                 )
             );
         }

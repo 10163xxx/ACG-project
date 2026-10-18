@@ -16,11 +16,15 @@
 class TriangleMesh : public Hittable {
 public:
     using Face = std::array<std::size_t, 3>;
+    using FaceUV = std::array<std::size_t, 3>;
 
     TriangleMesh(
         const std::vector<Vec3>& vertices,
         const std::vector<Face>& faces,
-        std::shared_ptr<const Material> material = nullptr
+        std::shared_ptr<const Material> material = nullptr,
+        const std::vector<Vec3>& texcoords = {},
+        const std::vector<FaceUV>& face_texcoords = {},
+        const std::vector<bool>& face_has_uv = {}
     ) {
         if (vertices.empty()) {
             throw std::invalid_argument(
@@ -34,12 +38,28 @@ public:
             );
         }
 
+        if (!face_texcoords.empty() &&
+            face_texcoords.size() != faces.size()) {
+            throw std::invalid_argument(
+                "TriangleMesh UV face count does not match face count."
+            );
+        }
+
+        if (!face_has_uv.empty() &&
+            face_has_uv.size() != faces.size()) {
+            throw std::invalid_argument(
+                "TriangleMesh UV presence count does not match face count."
+            );
+        }
+
         triangles_.reserve(faces.size());
         cumulative_areas_.reserve(faces.size());
 
         double accumulated_area = 0.0;
 
-        for (const Face& face : faces) {
+        for (std::size_t i = 0; i < faces.size(); ++i) {
+            const Face& face = faces[i];
+
             for (const std::size_t index : face) {
                 if (index >= vertices.size()) {
                     throw std::out_of_range(
@@ -48,11 +68,48 @@ public:
                 }
             }
 
+            // If face_has_uv is supplied, it determines whether this
+            // particular face has UV coordinates. Otherwise, preserve
+            // compatibility with callers that provide UV faces only.
+            const bool has_uv = face_has_uv.empty()
+                ? !face_texcoords.empty()
+                : face_has_uv[i];
+
+            Vec3 uv_a(0.0, 0.0, 0.0);
+            Vec3 uv_b(1.0, 0.0, 0.0);
+            Vec3 uv_c(0.0, 1.0, 0.0);
+
+            if (has_uv) {
+                if (face_texcoords.empty()) {
+                    throw std::invalid_argument(
+                        "TriangleMesh face has UVs but no UV indices were provided."
+                    );
+                }
+
+                const FaceUV& uv_face = face_texcoords[i];
+
+                for (const std::size_t index : uv_face) {
+                    if (index >= texcoords.size()) {
+                        throw std::out_of_range(
+                            "TriangleMesh UV index is out of range."
+                        );
+                    }
+                }
+
+                uv_a = texcoords[uv_face[0]];
+                uv_b = texcoords[uv_face[1]];
+                uv_c = texcoords[uv_face[2]];
+            }
+
             auto triangle = std::make_shared<Triangle>(
                 vertices[face[0]],
                 vertices[face[1]],
                 vertices[face[2]],
-                material
+                material,
+                uv_a,
+                uv_b,
+                uv_c,
+                has_uv
             );
 
             const double triangle_area = triangle->area();
@@ -175,7 +232,7 @@ public:
     }
 
 private:
-    std::vector<std::shared_ptr<const Triangle>> triangles_;
+    std::vector<std::shared_ptr<const Triangle> > triangles_;
     std::vector<double> cumulative_areas_;
 
     double total_area_ = 0.0;

@@ -14,13 +14,21 @@ public:
         const Vec3& a,
         const Vec3& b,
         const Vec3& c,
-        std::shared_ptr<const Material> material = nullptr
+        std::shared_ptr<const Material> material = nullptr,
+        const Vec3& uv_a = Vec3(0.0, 0.0, 0.0),
+        const Vec3& uv_b = Vec3(1.0, 0.0, 0.0),
+        const Vec3& uv_c = Vec3(0.0, 1.0, 0.0),
+        bool has_uv = false
     )
         : a_(a),
           b_(b),
           c_(c),
           edge1_(b - a),
           edge2_(c - a),
+          uv_a_(uv_a),
+          uv_b_(uv_b),
+          uv_c_(uv_c),
+          has_uv_(has_uv),
           material_(std::move(material)) {
         const Vec3 normal = cross(edge1_, edge2_);
         const double normal_length = normal.length();
@@ -82,9 +90,20 @@ public:
         record.point = ray.at(t);
         record.set_face_normal(ray, normal_);
 
-        // Use barycentric coordinates as the default UV mapping.
-        record.u = beta;
-        record.v = gamma;
+        if (has_uv_) {
+            record.u =
+                alpha * uv_a_.x +
+                beta * uv_b_.x +
+                gamma * uv_c_.x;
+
+            record.v =
+                alpha * uv_a_.y +
+                beta * uv_b_.y +
+                gamma * uv_c_.y;
+        } else {
+            record.u = beta;
+            record.v = gamma;
+        }
 
         record.material = material_;
 
@@ -139,8 +158,22 @@ public:
 
         sample.normal = normal_;
         sample.front_face = true;
-        sample.u = beta;
-        sample.v = gamma;
+        
+        if (has_uv_) {
+            sample.u =
+                alpha * uv_a_.x +
+                beta * uv_b_.x +
+                gamma * uv_c_.x;
+
+            sample.v =
+                alpha * uv_a_.y +
+                beta * uv_b_.y +
+                gamma * uv_c_.y;
+        } else {
+            sample.u = beta;
+            sample.v = gamma;
+        }
+
         sample.material = material_;
 
         pdf_area = 1.0 / area_;
@@ -156,6 +189,12 @@ private:
     Vec3 a_;
     Vec3 b_;
     Vec3 c_;
+    
+    Vec3 uv_a_;
+    Vec3 uv_b_;
+    Vec3 uv_c_;
+
+    bool has_uv_ = false;
 
     Vec3 edge1_;
     Vec3 edge2_;
