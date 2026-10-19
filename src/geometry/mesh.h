@@ -24,7 +24,8 @@ public:
         std::shared_ptr<const Material> material = nullptr,
         const std::vector<Vec3>& texcoords = {},
         const std::vector<FaceUV>& face_texcoords = {},
-        const std::vector<bool>& face_has_uv = {}
+        const std::vector<bool>& face_has_uv = {},
+        const std::vector<std::shared_ptr<const Material>>& face_materials = {}
     ) {
         if (vertices.empty()) {
             throw std::invalid_argument(
@@ -52,6 +53,13 @@ public:
             );
         }
 
+        if (!face_materials.empty() &&
+            face_materials.size() != faces.size()) {
+            throw std::invalid_argument(
+                "TriangleMesh material face count does not match face count."
+            );
+        }
+
         triangles_.reserve(faces.size());
         cumulative_areas_.reserve(faces.size());
 
@@ -68,9 +76,6 @@ public:
                 }
             }
 
-            // If face_has_uv is supplied, it determines whether this
-            // particular face has UV coordinates. Otherwise, preserve
-            // compatibility with callers that provide UV faces only.
             const bool has_uv = face_has_uv.empty()
                 ? !face_texcoords.empty()
                 : face_has_uv[i];
@@ -101,11 +106,16 @@ public:
                 uv_c = texcoords[uv_face[2]];
             }
 
+            const std::shared_ptr<const Material> triangle_material =
+                face_materials.empty()
+                    ? material
+                    : face_materials[i];
+
             auto triangle = std::make_shared<Triangle>(
                 vertices[face[0]],
                 vertices[face[1]],
                 vertices[face[2]],
-                material,
+                triangle_material,
                 uv_a,
                 uv_b,
                 uv_c,
@@ -241,8 +251,6 @@ public:
         const double triangle_area =
             cumulative_areas_[index] - previous_area;
 
-        // Remap the selection interval to [0, 1) for sampling
-        // a point uniformly inside the selected triangle.
         double local_u = (target - previous_area) / triangle_area;
 
         local_u = std::clamp(
@@ -276,7 +284,7 @@ public:
     }
 
 private:
-    std::vector<std::shared_ptr<const Triangle> > triangles_;
+    std::vector<std::shared_ptr<const Triangle>> triangles_;
     std::vector<double> cumulative_areas_;
 
     double total_area_ = 0.0;

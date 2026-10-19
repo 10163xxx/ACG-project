@@ -17,7 +17,11 @@ int main() {
     );
 
     const Vec3 result =
-        tracer.trace(upward_ray, empty_world);
+        tracer.trace(
+            upward_ray,
+            empty_world,
+            empty_world
+        );
 
     assert(std::abs(result.x - 0.5) < 1e-12);
     assert(std::abs(result.y - 0.7) < 1e-12);
