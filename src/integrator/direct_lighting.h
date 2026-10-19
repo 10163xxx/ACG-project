@@ -18,7 +18,9 @@
 
 class DirectLighting {
 public:
-
+    static constexpr int AREA_LIGHT_SAMPLES = 4;
+    static constexpr int VOLUME_LIGHT_SAMPLES = 1;
+    static constexpr int BSDF_SAMPLES = 1;
 
     static Vec3 estimate_surface_lighting(
         const HitRecord& hit,
@@ -790,7 +792,7 @@ static Vec3 estimate_direct_lighting(
         const HittableList& scene_objects,
         const std::vector<std::size_t>& light_indices
     ) {
-        constexpr int LIGHT_SAMPLES = 4;
+        constexpr int LIGHT_SAMPLES = AREA_LIGHT_SAMPLES;
 
         Vec3 total_radiance(0.0, 0.0, 0.0);
 
@@ -994,7 +996,9 @@ static Vec3 estimate_direct_lighting_single(
         const double mis_weight =
             mis::power_heuristic(
                 light_pdf,
-                bsdf_pdf
+                AREA_LIGHT_SAMPLES,
+                bsdf_pdf,
+                BSDF_SAMPLES
             );
 
         const double weight =

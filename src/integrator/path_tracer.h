@@ -61,6 +61,8 @@ public:
 
         bool previous_scatter_used_nee = false;
         double previous_bsdf_pdf = 0.0;
+        int previous_area_light_samples =
+            DirectLighting::AREA_LIGHT_SAMPLES;
         Vec3 previous_scatter_point;
 
         const std::vector<std::size_t> owned_light_indices =
@@ -124,10 +126,13 @@ public:
                         light_indices
                     );
 
-                emission_weight = mis::power_heuristic(
-                    previous_bsdf_pdf,
-                    light_pdf
-                );
+                emission_weight =
+                    mis::power_heuristic(
+                        previous_bsdf_pdf,
+                        DirectLighting::BSDF_SAMPLES,
+                        light_pdf,
+                        previous_area_light_samples
+                    );
             }
 
             radiance = radiance
@@ -175,6 +180,13 @@ public:
                     : hit.material->supports_direct_lighting();
 
             previous_scatter_point = hit.point;
+
+            // Surface direct lighting uses multiple area-light samples.
+            // Volume direct lighting currently uses one area-light sample.
+            previous_area_light_samples =
+                hit.is_volume
+                    ? DirectLighting::VOLUME_LIGHT_SAMPLES
+                    : DirectLighting::AREA_LIGHT_SAMPLES;
 
             if (previous_scatter_used_nee) {
                 const Vec3 wo =
