@@ -82,7 +82,7 @@ namespace {
 
         try {
             const TriangleMesh mesh = ObjLoader::load(input);
-        } catch (const std::runtime_error&) {
+        } catch (const std::out_of_range&) {
             exception_thrown = true;
         }
 
@@ -100,7 +100,7 @@ namespace {
 
         try {
             const TriangleMesh mesh = ObjLoader::load(input);
-        } catch (const std::runtime_error&) {
+        } catch (const std::invalid_argument&) {
             exception_thrown = true;
         }
 
