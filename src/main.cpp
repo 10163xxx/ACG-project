@@ -3,31 +3,56 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "acceleration/bvh.h"
-#include "core/random.h"
 #include "camera/camera.h"
-#include "integrator/path_tracer.h"
-#include "output/image.h"
-#include "output/output_paths.h"
-#include "scene/test_scene.h"
-#include "scene/obj_scene.h"
-#include "scene/showcase_scene.h"
-#include "geometry/obj_loader.h"
+#include "core/random.h"
 #include "geometry/constant_medium.h"
+#include "geometry/obj_loader.h"
 #include "geometry/sphere.h"
-#include "materials/point_light.h"
+#include "integrator/path_tracer.h"
 #include "materials/environment_map.h"
 #include "materials/lambertian.h"
+#include "materials/point_light.h"
 #include "materials/texture.h"
+#include "output/image.h"
+#include "output/output_paths.h"
+#include "scene/obj_scene.h"
+#include "scene/showcase_scene.h"
+#include "scene/test_scene.h"
 
 int main(int argc, char* argv[]) {
-    const bool uv_test =
-        argc > 1 && std::string(argv[1]) == "--uv-test";
+    const std::string mode =
+        argc > 1 ? std::string(argv[1]) : "";
 
-    const bool volume_test =
-        argc > 1 && std::string(argv[1]) == "--volume-test";
+    const bool uv_test = mode == "--uv-test";
+    const bool volume_test = mode == "--volume-test";
+    const bool obj_test = mode == "--obj";
+
+    if (obj_test && argc < 3) {
+        std::cerr
+            << "Usage: renderer --obj <path-to-model.obj>\n";
+        return 1;
+    }
+
+    if (!mode.empty() &&
+        mode != "--uv-test" &&
+        mode != "--volume-test" &&
+        mode != "--obj") {
+        std::cerr
+            << "Unknown option: " << mode << '\n'
+            << "Available modes:\n"
+            << "  renderer\n"
+            << "  renderer --uv-test\n"
+            << "  renderer --volume-test\n"
+            << "  renderer --obj <path-to-model.obj>\n";
+        return 1;
+    }
+
+    const std::string obj_path =
+        obj_test ? std::string(argv[2]) : "";
 
     const int image_width =
         volume_test ? 320 : 480;
@@ -40,6 +65,22 @@ int main(int argc, char* argv[]) {
 
     const int max_depth =
         volume_test ? 12 : (uv_test ? 12 : 24);
+
+    std::string output_file;
+
+    if (uv_test) {
+        output_file =
+            OutputPaths::RenderDirectory + "uv_test.ppm";
+    } else if (volume_test) {
+        output_file =
+            OutputPaths::RenderDirectory + "volume_test.ppm";
+    } else if (obj_test) {
+        output_file =
+            OutputPaths::RenderDirectory + "obj_scene.ppm";
+    } else {
+        output_file =
+            OutputPaths::RenderDirectory + "showcase_scene.ppm";
+    }
 
     Random::seed(2026);
 
@@ -88,6 +129,8 @@ int main(int argc, char* argv[]) {
                 std::move(mesh)
             )
         );
+    } else if (obj_test) {
+        scene = make_obj_scene(obj_path);
     } else {
         scene = make_showcase_scene();
 
@@ -107,6 +150,7 @@ int main(int argc, char* argv[]) {
             );
         }
     }
+
     BVHNode world(scene.objects());
 
     PathTracer tracer(max_depth);
@@ -148,7 +192,6 @@ int main(int argc, char* argv[]) {
 
                 const Ray ray = camera.get_ray(u, v);
 
-
                 pixel_color =
                     pixel_color
                     + tracer.trace(
@@ -159,7 +202,6 @@ int main(int argc, char* argv[]) {
                         &environment,
                         &light_indices
                     );
-
             }
 
             pixel_color =
@@ -174,13 +216,6 @@ int main(int argc, char* argv[]) {
             image.set_pixel(x, y, pixel_color);
         }
     }
-
-    const std::string output_file =
-        uv_test
-            ? OutputPaths::RenderDirectory + "uv_test.ppm"
-            : (volume_test
-                ? OutputPaths::RenderDirectory + "volume_test.ppm"
-                : OutputPaths::RenderDirectory + "showcase_scene.ppm");
 
     image.write_ppm(output_file);
 
