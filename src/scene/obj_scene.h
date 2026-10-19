@@ -1,22 +1,17 @@
 #pragma once
 
 #include <memory>
-#include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "geometry/hittable_list.h"
 #include "geometry/obj_loader.h"
-#include "geometry/sphere.h"
-
 #include "materials/lambertian.h"
-#include "materials/diffuse_light.h"
-
-#include "scene/test_scene.h"
 
 inline HittableList make_obj_scene(
     const std::string& obj_path
 ) {
-    HittableList world = make_material_test_scene();
+    HittableList world;
 
     auto mesh_material =
         std::make_shared<Lambertian>(

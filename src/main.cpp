@@ -89,23 +89,33 @@ int main(int argc, char* argv[]) {
     const double aspect_ratio =
         static_cast<double>(image_width) / image_height;
 
-    Camera camera = uv_test
+
+    Camera camera = obj_test
         ? Camera(
-            Vec3(3.2, 2.4, 4.2),
-            Vec3(0.0, 0.0, 0.0),
-            Vec3(0.0, 1.0, 0.0),
+            Vec3(4.0, -6.0, 4.0),
+            Vec3(0.0, 0.0, 0.8),
+            Vec3(0.0, 0.0, 1.0),
             38.0,
             aspect_ratio
         )
-        : Camera(
-            Vec3(4.0, 2.35, 5.8),
-            Vec3(0.0, 1.45, -1.7),
-            Vec3(0.0, 1.0, 0.0),
-            42.0,
-            aspect_ratio,
-            0.10,
-            8.6
-        );
+        : (uv_test
+            ? Camera(
+                Vec3(3.2, 2.4, 4.2),
+                Vec3(0.0, 0.0, 0.0),
+                Vec3(0.0, 1.0, 0.0),
+                38.0,
+                aspect_ratio
+            )
+            : Camera(
+                Vec3(4.0, 2.35, 5.8),
+                Vec3(0.0, 1.45, -1.7),
+                Vec3(0.0, 1.0, 0.0),
+                42.0,
+                aspect_ratio,
+                0.10,
+                8.6
+            ));
+
 
     HittableList scene;
 
