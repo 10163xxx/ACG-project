@@ -1,0 +1,34 @@
+# UV mapping test cube
+# 8 positions
+v -1 -1 -1
+v  1 -1 -1
+v  1  1 -1
+v -1  1 -1
+v -1 -1  1
+v  1 -1  1
+v  1  1  1
+v -1  1  1
+
+# UV coordinates: each face uses the full UV square
+vt 0 0
+vt 1 0
+vt 1 1
+vt 0 1
+
+# Front face (+Z)
+f 5/1 6/2 7/3 8/4
+
+# Back face (-Z)
+f 2/1 1/2 4/3 3/4
+
+# Left face (-X)
+f 1/1 5/2 8/3 4/4
+
+# Right face (+X)
+f 6/1 2/2 3/3 7/4
+
+# Top face (+Y)
+f 8/1 7/2 3/3 4/4
+
+# Bottom face (-Y)
+f 1/1 2/2 6/3 5/4

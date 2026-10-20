@@ -1,0 +1,263 @@
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cctype>
+#include <cstdint>
+#include <fstream>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#include "materials/texture.h"
+
+class ImageTexture final : public Texture {
+public:
+    explicit ImageTexture(const std::string& filename) {
+        load(filename);
+    }
+
+    Vec3 value(
+        double u,
+        double v,
+        const Vec3&
+    ) const override {
+        if (pixels_.empty() ||
+            !std::isfinite(u) ||
+            !std::isfinite(v)) {
+            return Vec3(1.0, 0.0, 1.0);
+        }
+
+        // Clamp rather than repeat: OBJ UVs outside [0, 1]
+        // sample the nearest edge texel.
+        u = std::clamp(u, 0.0, 1.0);
+        v = std::clamp(v, 0.0, 1.0);
+
+        const std::size_t x = std::min(
+            static_cast<std::size_t>(u * width_),
+            width_ - 1
+        );
+
+        // PPM stores rows from top to bottom, while OBJ UV v
+        // conventionally increases from bottom to top.
+        const std::size_t row_from_bottom =
+            std::min(
+                static_cast<std::size_t>(v * height_),
+                height_ - 1
+            );
+
+        const std::size_t y =
+            height_ - 1 - row_from_bottom;
+
+        return pixels_[y * width_ + x];
+    }
+
+    std::size_t width() const {
+        return width_;
+    }
+
+    std::size_t height() const {
+        return height_;
+    }
+
+private:
+    std::size_t width_ = 0;
+    std::size_t height_ = 0;
+    std::vector<Vec3> pixels_;
+
+    static std::string read_token(std::istream& input) {
+        std::string token;
+        char ch = '\0';
+
+        while (input.get(ch)) {
+            if (std::isspace(
+                    static_cast<unsigned char>(ch))) {
+                continue;
+            }
+
+            if (ch == '#') {
+                input.ignore(
+                    std::numeric_limits<std::streamsize>::max(),
+                    '\n'
+                );
+                continue;
+            }
+
+            token.push_back(ch);
+            break;
+        }
+
+        while (input.get(ch)) {
+            if (std::isspace(
+                    static_cast<unsigned char>(ch))) {
+                break;
+            }
+
+            if (ch == '#') {
+                input.ignore(
+                    std::numeric_limits<std::streamsize>::max(),
+                    '\n'
+                );
+                break;
+            }
+
+            token.push_back(ch);
+        }
+
+        if (token.empty()) {
+            throw std::runtime_error(
+                "Unexpected end of PPM header."
+            );
+        }
+
+        return token;
+    }
+
+    static std::size_t parse_positive_size(
+        const std::string& token,
+        const char* field_name
+    ) {
+        std::size_t consumed = 0;
+        const unsigned long long value =
+            std::stoull(token, &consumed);
+
+        if (consumed != token.size() ||
+            value == 0 ||
+            value > std::numeric_limits<std::size_t>::max()) {
+            throw std::runtime_error(
+                std::string("Invalid PPM ") + field_name + "."
+            );
+        }
+
+        return static_cast<std::size_t>(value);
+    }
+
+    void load(const std::string& filename) {
+        std::ifstream file(filename, std::ios::binary);
+
+        if (!file) {
+            throw std::runtime_error(
+                "Failed to open image texture: " + filename
+            );
+        }
+
+        const std::string magic = read_token(file);
+
+        if (magic != "P3" && magic != "P6") {
+            throw std::runtime_error(
+                "Unsupported image format for '" + filename +
+                "'. Only PPM P3 and P6 are supported."
+            );
+        }
+
+        width_ = parse_positive_size(
+            read_token(file),
+            "width"
+        );
+
+        height_ = parse_positive_size(
+            read_token(file),
+            "height"
+        );
+
+        const std::size_t max_value =
+            parse_positive_size(
+                read_token(file),
+                "maximum channel value"
+            );
+
+        if (max_value > 65535) {
+            throw std::runtime_error(
+                "PPM channel maximum cannot exceed 65535."
+            );
+        }
+
+        if (width_ >
+            std::numeric_limits<std::size_t>::max() / height_) {
+            throw std::runtime_error(
+                "PPM image dimensions overflow."
+            );
+        }
+
+        const std::size_t pixel_count = width_ * height_;
+
+        if (pixel_count >
+            std::numeric_limits<std::size_t>::max() /
+                sizeof(Vec3)) {
+            throw std::runtime_error(
+                "PPM image is too large."
+            );
+        }
+
+        pixels_.clear();
+        pixels_.reserve(pixel_count);
+
+        auto read_channel = [&]() -> unsigned int {
+            if (magic == "P3") {
+                const std::string token = read_token(file);
+                std::size_t consumed = 0;
+
+                const unsigned long value =
+                    std::stoul(token, &consumed);
+
+                if (consumed != token.size() ||
+                    value > max_value) {
+                    throw std::runtime_error(
+                        "Invalid P3 pixel channel."
+                    );
+                }
+
+                return static_cast<unsigned int>(value);
+            }
+
+            if (max_value <= 255) {
+                char byte = '\0';
+
+                if (!file.get(byte)) {
+                    throw std::runtime_error(
+                        "Unexpected end of P6 pixel data."
+                    );
+                }
+
+                return static_cast<unsigned char>(byte);
+            }
+
+            char high = '\0';
+            char low = '\0';
+
+            if (!file.get(high) || !file.get(low)) {
+                throw std::runtime_error(
+                    "Unexpected end of 16-bit P6 pixel data."
+                );
+            }
+
+            return
+                (static_cast<unsigned int>(
+                    static_cast<unsigned char>(high)
+                ) << 8) |
+                static_cast<unsigned int>(
+                    static_cast<unsigned char>(low)
+                );
+        };
+
+        for (std::size_t i = 0; i < pixel_count; ++i) {
+            const double r =
+                static_cast<double>(read_channel()) / max_value;
+
+            const double g =
+                static_cast<double>(read_channel()) / max_value;
+
+            const double b =
+                static_cast<double>(read_channel()) / max_value;
+
+            pixels_.emplace_back(r, g, b);
+        }
+
+        if (!file && !file.eof()) {
+            throw std::runtime_error(
+                "Failed while reading PPM image: " + filename
+            );
+        }
+    }
+};
