@@ -16,41 +16,63 @@ class ImageTexture final : public Texture {
 public:
     explicit ImageTexture(const std::string& filename) {
         load(filename);
+        build_mipmaps();
     }
 
+    // Default sampling uses bilinear filtering at full resolution.
+    // The existing Texture interface does not provide UV derivatives,
+    // so automatic screen-space LOD selection is not possible here.
     Vec3 value(
         double u,
         double v,
         const Vec3&
     ) const override {
-        if (pixels_.empty() ||
+        return sample(u, v, 0.0);
+    }
+
+    // Explicit-LOD sampling:
+    // bilinear filtering within each mip level, then trilinear
+    // interpolation between adjacent levels.
+    Vec3 sample(
+        double u,
+        double v,
+        double lod
+    ) const {
+        if (mipmaps_.empty() ||
             !std::isfinite(u) ||
-            !std::isfinite(v)) {
+            !std::isfinite(v) ||
+            !std::isfinite(lod)) {
             return Vec3(1.0, 0.0, 1.0);
         }
 
-        // Clamp rather than repeat: OBJ UVs outside [0, 1]
-        // sample the nearest edge texel.
         u = std::clamp(u, 0.0, 1.0);
         v = std::clamp(v, 0.0, 1.0);
 
-        const std::size_t x = std::min(
-            static_cast<std::size_t>(u * width_),
-            width_ - 1
-        );
+        const double max_lod =
+            static_cast<double>(mipmaps_.size() - 1);
 
-        // PPM stores rows from top to bottom, while OBJ UV v
-        // conventionally increases from bottom to top.
-        const std::size_t row_from_bottom =
-            std::min(
-                static_cast<std::size_t>(v * height_),
-                height_ - 1
-            );
+        lod = std::clamp(lod, 0.0, max_lod);
 
-        const std::size_t y =
-            height_ - 1 - row_from_bottom;
+        const std::size_t level0 =
+            static_cast<std::size_t>(std::floor(lod));
 
-        return pixels_[y * width_ + x];
+        const std::size_t level1 =
+            std::min(level0 + 1, mipmaps_.size() - 1);
+
+        const double blend =
+            lod - static_cast<double>(level0);
+
+        const Vec3 color0 =
+            bilinear_sample(mipmaps_[level0], u, v);
+
+        if (level0 == level1) {
+            return color0;
+        }
+
+        const Vec3 color1 =
+            bilinear_sample(mipmaps_[level1], u, v);
+
+        return (1.0 - blend) * color0 + blend * color1;
     }
 
     std::size_t width() const {
@@ -61,10 +83,26 @@ public:
         return height_;
     }
 
+    std::size_t mip_level_count() const {
+        return mipmaps_.size();
+    }
+
 private:
+    struct MipLevel {
+        std::size_t width = 0;
+        std::size_t height = 0;
+        std::vector<Vec3> pixels;
+    };
+
     std::size_t width_ = 0;
     std::size_t height_ = 0;
+
+    // Original pixels are retained for compatibility with existing code.
     std::vector<Vec3> pixels_;
+
+    // Level 0 is the original image; subsequent levels are progressively
+    // smaller box-filtered images.
+    std::vector<MipLevel> mipmaps_;
 
     static std::string read_token(std::istream& input) {
         std::string token;
@@ -131,6 +169,118 @@ private:
         }
 
         return static_cast<std::size_t>(value);
+    }
+
+    static Vec3 bilinear_sample(
+        const MipLevel& level,
+        double u,
+        double v
+    ) {
+        const double x =
+            u * static_cast<double>(level.width - 1);
+
+        // Image rows run from top to bottom; OBJ v runs bottom to top.
+        const double y =
+            (1.0 - v) * static_cast<double>(level.height - 1);
+
+        const std::size_t x0 =
+            static_cast<std::size_t>(std::floor(x));
+
+        const std::size_t y0 =
+            static_cast<std::size_t>(std::floor(y));
+
+        const std::size_t x1 =
+            std::min(x0 + 1, level.width - 1);
+
+        const std::size_t y1 =
+            std::min(y0 + 1, level.height - 1);
+
+        const double tx = x - static_cast<double>(x0);
+        const double ty = y - static_cast<double>(y0);
+
+        const Vec3& c00 =
+            level.pixels[y0 * level.width + x0];
+
+        const Vec3& c10 =
+            level.pixels[y0 * level.width + x1];
+
+        const Vec3& c01 =
+            level.pixels[y1 * level.width + x0];
+
+        const Vec3& c11 =
+            level.pixels[y1 * level.width + x1];
+
+        const Vec3 top =
+            (1.0 - tx) * c00 + tx * c10;
+
+        const Vec3 bottom =
+            (1.0 - tx) * c01 + tx * c11;
+
+        return (1.0 - ty) * top + ty * bottom;
+    }
+
+    void build_mipmaps() {
+        mipmaps_.clear();
+
+        if (pixels_.empty() || width_ == 0 || height_ == 0) {
+            return;
+        }
+
+        MipLevel base;
+        base.width = width_;
+        base.height = height_;
+        base.pixels = pixels_;
+
+        mipmaps_.push_back(std::move(base));
+
+        while (mipmaps_.back().width > 1 ||
+               mipmaps_.back().height > 1) {
+            const MipLevel& source = mipmaps_.back();
+
+            MipLevel next;
+            next.width = std::max<std::size_t>(
+                1,
+                (source.width + 1) / 2
+            );
+
+            next.height = std::max<std::size_t>(
+                1,
+                (source.height + 1) / 2
+            );
+
+            next.pixels.reserve(next.width * next.height);
+
+            for (std::size_t y = 0; y < next.height; ++y) {
+                for (std::size_t x = 0; x < next.width; ++x) {
+                    Vec3 sum(0.0, 0.0, 0.0);
+                    std::size_t count = 0;
+
+                    for (std::size_t dy = 0; dy < 2; ++dy) {
+                        for (std::size_t dx = 0; dx < 2; ++dx) {
+                            const std::size_t sx = 2 * x + dx;
+                            const std::size_t sy = 2 * y + dy;
+
+                            if (sx >= source.width ||
+                                sy >= source.height) {
+                                continue;
+                            }
+
+                            sum = sum + source.pixels[
+                                sy * source.width + sx
+                            ];
+
+                            ++count;
+                        }
+                    }
+
+                    next.pixels.push_back(
+                        sum / static_cast<double>(count)
+                    );
+                }
+            }
+
+            mipmaps_.push_back(std::move(next));
+        }
     }
 
     void load(const std::string& filename) {
@@ -220,7 +370,16 @@ private:
                     );
                 }
 
-                return static_cast<unsigned char>(byte);
+                const unsigned int value =
+                    static_cast<unsigned char>(byte);
+
+                if (value > max_value) {
+                    throw std::runtime_error(
+                        "P6 pixel channel exceeds maximum value."
+                    );
+                }
+
+                return value;
             }
 
             char high = '\0';
@@ -232,13 +391,21 @@ private:
                 );
             }
 
-            return
+            const unsigned int value =
                 (static_cast<unsigned int>(
                     static_cast<unsigned char>(high)
                 ) << 8) |
                 static_cast<unsigned int>(
                     static_cast<unsigned char>(low)
                 );
+
+            if (value > max_value) {
+                throw std::runtime_error(
+                    "P6 pixel channel exceeds maximum value."
+                );
+            }
+
+            return value;
         };
 
         for (std::size_t i = 0; i < pixel_count; ++i) {
@@ -252,12 +419,6 @@ private:
                 static_cast<double>(read_channel()) / max_value;
 
             pixels_.emplace_back(r, g, b);
-        }
-
-        if (!file && !file.eof()) {
-            throw std::runtime_error(
-                "Failed while reading PPM image: " + filename
-            );
         }
     }
 };

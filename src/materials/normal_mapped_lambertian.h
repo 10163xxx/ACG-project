@@ -194,7 +194,11 @@ public:
         Vec3& attenuation,
         Ray& scattered
     ) const override {
-        const Vec3 geometric_normal = hit.normal;
+        const Vec3 geometric_normal =
+            normalize_or(
+                hit.normal,
+                Vec3(0.0, 1.0, 0.0)
+            );
 
         HitRecord mapped_hit = hit;
         mapped_hit.normal = mapped_normal(incoming, hit);
@@ -208,20 +212,18 @@ public:
             return false;
         }
 
-        Vec3 direction = scattered.direction;
-        const double side = dot(direction, geometric_normal);
+        const Vec3 direction =
+            normalize_or(
+                scattered.direction,
+                geometric_normal
+            );
 
-        if (side <= 1e-8) {
-            direction =
-                direction -
-                side * geometric_normal +
-                1e-6 * geometric_normal;
+        // Reject samples below the geometric surface.
+        // Do not project or rotate them: doing so would change
+        // the sampling distribution without updating its PDF.
+        if (dot(direction, geometric_normal) <= 1e-8) {
+            return false;
         }
-
-        direction = normalize_or(
-            direction,
-            geometric_normal
-        );
 
         scattered = Ray(hit.point, direction);
         return true;

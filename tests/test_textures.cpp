@@ -147,8 +147,12 @@ namespace {
         auto neutral_map = std::make_shared<SolidColor>(
             Vec3(0.5, 0.5, 1.0));
 
-        NormalMappedLambertian neutral_material(
-            Vec3(0.8, 0.7, 0.6), neutral_map);
+        NormalMappedMaterial neutral_material(
+            std::make_shared<Lambertian>(
+                Vec3(0.8, 0.7, 0.6)
+            ),
+            neutral_map
+        );
 
         const Vec3 neutral_normal =
             neutral_material.mapped_normal(incoming, hit);
@@ -160,8 +164,12 @@ namespace {
         auto tilted_map = std::make_shared<SolidColor>(
             Vec3(1.0, 0.5, 0.5));
 
-        NormalMappedLambertian tilted_material(
-            Vec3(0.8, 0.7, 0.6), tilted_map);
+        NormalMappedMaterial tilted_material(
+            std::make_shared<Lambertian>(
+                Vec3(0.8, 0.7, 0.6)
+            ),
+            tilted_map
+        );
 
         const Vec3 tilted_normal =
             tilted_material.mapped_normal(incoming, hit);
@@ -198,8 +206,12 @@ namespace {
         auto u_map = std::make_shared<SolidColor>(
             Vec3(1.0, 0.5, 0.5));
 
-        NormalMappedLambertian u_material(
-            Vec3(0.8, 0.7, 0.6), u_map);
+        NormalMappedMaterial u_material(
+            std::make_shared<Lambertian>(
+                Vec3(0.8, 0.7, 0.6)
+            ),
+            u_map
+        );
 
         const Vec3 u_normal =
             u_material.mapped_normal(incoming, hit);
@@ -212,8 +224,12 @@ namespace {
         auto v_map = std::make_shared<SolidColor>(
             Vec3(0.5, 1.0, 0.5));
 
-        NormalMappedLambertian v_material(
-            Vec3(0.8, 0.7, 0.6), v_map);
+        NormalMappedMaterial v_material(
+            std::make_shared<Lambertian>(
+                Vec3(0.8, 0.7, 0.6)
+            ),
+            v_map
+        );
 
         const Vec3 v_normal =
             v_material.mapped_normal(incoming, hit);
@@ -242,27 +258,42 @@ namespace {
         auto normal_map = std::make_shared<SolidColor>(
             Vec3(1.0, 0.5, 0.5));
 
-        NormalMappedLambertian material(
-            Vec3(0.8, 0.7, 0.6), normal_map);
+        NormalMappedMaterial material(
+            std::make_shared<Lambertian>(
+                Vec3(0.8, 0.7, 0.6)
+            ),
+            normal_map
+        );
 
         Vec3 attenuation;
         Ray scattered;
 
-        // Test many random samples to catch directions
-        // that incorrectly cross the geometric surface.
+        int valid_samples = 0;
+        int rejected_samples = 0;
+
         for (int i = 0; i < 1000; ++i) {
             const bool ok = material.scatter(
-                incoming, hit, attenuation, scattered);
+                incoming,
+                hit,
+                attenuation,
+                scattered
+            );
 
-            assert(ok);
+            if (!ok) {
+                ++rejected_samples;
+                continue;
+            }
+
+            ++valid_samples;
 
             const double geometric_side =
-                scattered.direction.x * hit.normal.x
-                + scattered.direction.y * hit.normal.y
-                + scattered.direction.z * hit.normal.z;
+                dot(scattered.direction, hit.normal);
 
             assert(geometric_side > 0.0);
         }
+
+        assert(valid_samples > 0);
+        assert(rejected_samples > 0);
     }
 }
 

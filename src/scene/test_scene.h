@@ -60,11 +60,12 @@ inline HittableList make_material_test_scene() {
         std::make_shared<UVNormalTexture>(8.0);
 
     auto normal_mapped_material =
-        std::make_shared<NormalMappedLambertian>(
-            Vec3(0.8, 0.7, 0.3),
+        std::make_shared<NormalMappedMaterial>(
+            std::make_shared<Lambertian>(
+                Vec3(0.8, 0.7, 0.3)
+            ),
             normal_texture
         );
-
     world.add(std::make_shared<Sphere>(
         Vec3(0.0, 0.85, -1.0),
         0.35,
