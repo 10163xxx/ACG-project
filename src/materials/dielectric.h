@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -8,11 +9,19 @@
 
 class Dielectric : public Material {
 public:
-    explicit Dielectric(double index_of_refraction)
-        : ir_(index_of_refraction) {
-        if (ir_ <= 0.0) {
+    explicit Dielectric(
+        double index_of_refraction,
+        const Vec3& tint = Vec3(1.0, 1.0, 1.0)
+    )
+        : ir_(index_of_refraction),
+          tint_(
+              std::clamp(tint.x, 0.0, 1.0),
+              std::clamp(tint.y, 0.0, 1.0),
+              std::clamp(tint.z, 0.0, 1.0)
+          ) {
+        if (!std::isfinite(ir_) || ir_ <= 0.0) {
             throw std::invalid_argument(
-                "Index of refraction must be positive."
+                "Index of refraction must be positive and finite."
             );
         }
     }
@@ -23,7 +32,7 @@ public:
         Vec3& attenuation,
         Ray& scattered
     ) const override {
-        attenuation = Vec3(1.0, 1.0, 1.0);
+        attenuation = tint_;
 
         const double refraction_ratio =
             hit.front_face ? (1.0 / ir_) : ir_;
@@ -32,10 +41,13 @@ public:
             normalize(incoming.direction);
 
         const double cos_theta =
-            std::fmin(dot(-unit_direction, hit.normal), 1.0);
+            std::min(
+                dot(-unit_direction, hit.normal),
+                1.0
+            );
 
         const double sin_theta =
-            std::sqrt(std::fmax(
+            std::sqrt(std::max(
                 0.0,
                 1.0 - cos_theta * cos_theta
             ));
@@ -65,6 +77,7 @@ public:
 
 private:
     double ir_;
+    Vec3 tint_;
 
     static double reflectance(
         double cosine,

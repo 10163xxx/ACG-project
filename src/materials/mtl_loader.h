@@ -10,13 +10,16 @@
 #include <string>
 
 #include "materials/principled.h"
+#include "materials/dielectric.h"
+#include "materials/opacity_material.h"
 
 struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
-    Vec3 specular = Vec3(0.0, 0.0, 0.0);
+    Vec3 specular = Vec3(0.04, 0.04, 0.04);
     double shininess = 10.0;
     double index_of_refraction = 1.0;
     double opacity = 1.0;
+    int illumination_model = 2;
 };
 
 class MtlLoader {
@@ -47,29 +50,75 @@ public:
                 return;
             }
 
-            const double ks =
-                (properties.specular.x +
-                 properties.specular.y +
-                 properties.specular.z) / 3.0;
+            const double ior = properties.index_of_refraction;
 
-            const double metallic =
-                std::clamp(ks, 0.0, 1.0);
+            const bool has_valid_ior =
+                std::isfinite(ior) && ior > 1.001;
 
-            const double roughness =
-                std::clamp(
-                    std::sqrt(
-                        2.0 / (std::max(0.0, properties.shininess) + 2.0)
-                    ),
-                    0.045,
-                    1.0
+            const bool indicates_glass =
+                properties.illumination_model == 4 ||
+                properties.illumination_model == 6 ||
+                properties.illumination_model == 7 ||
+                properties.illumination_model == 9;
+
+            std::shared_ptr<const Material> base_material;
+
+            if (has_valid_ior || indicates_glass) {
+                const double glass_ior =
+                    has_valid_ior ? ior : 1.5;
+
+                // Kd is used as an approximate glass tint.
+                // This is not distance-based volumetric absorption.
+                base_material = std::make_shared<Dielectric>(
+                    glass_ior,
+                    properties.diffuse
                 );
+            } else {
+                const double ks =
+                    (
+                        properties.specular.x +
+                        properties.specular.y +
+                        properties.specular.z
+                    ) / 3.0;
 
-            materials[current_name] =
-                std::make_shared<PrincipledBSDF>(
-                    properties.diffuse,
-                    metallic,
-                    roughness
-                );
+                const double metallic =
+                    std::clamp(ks, 0.0, 1.0);
+
+                const double roughness =
+                    std::clamp(
+                        std::sqrt(
+                            2.0 /
+                            (
+                                std::max(
+                                    0.0,
+                                    properties.shininess
+                                ) + 2.0
+                            )
+                        ),
+                        0.045,
+                        1.0
+                    );
+
+                base_material =
+                    std::make_shared<PrincipledBSDF>(
+                        properties.diffuse,
+                        metallic,
+                        roughness
+                    );
+            }
+
+            const double opacity =
+                std::clamp(properties.opacity, 0.0, 1.0);
+
+            if (opacity < 1.0) {
+                materials[current_name] =
+                    std::make_shared<OpacityMaterial>(
+                        base_material,
+                        opacity
+                    );
+            } else {
+                materials[current_name] = base_material;
+            }
         };
 
         while (std::getline(input, line)) {
@@ -96,6 +145,13 @@ public:
                     properties.diffuse.x >>
                     properties.diffuse.y >>
                     properties.diffuse.z;
+
+                properties.diffuse.x =
+                    std::max(0.0, properties.diffuse.x);
+                properties.diffuse.y =
+                    std::max(0.0, properties.diffuse.y);
+                properties.diffuse.z =
+                    std::max(0.0, properties.diffuse.z);
             } else if (command == "Ks") {
                 stream >>
                     properties.specular.x >>
@@ -107,10 +163,21 @@ public:
                 stream >> properties.index_of_refraction;
             } else if (command == "d") {
                 stream >> properties.opacity;
+                properties.opacity =
+                    std::clamp(properties.opacity, 0.0, 1.0);
             } else if (command == "Tr") {
-                double transparency;
+                double transparency = 0.0;
+
                 stream >> transparency;
-                properties.opacity = 1.0 - transparency;
+
+                properties.opacity =
+                    1.0 - std::clamp(
+                        transparency,
+                        0.0,
+                        1.0
+                    );
+            } else if (command == "illum") {
+                stream >> properties.illumination_model;
             }
         }
 

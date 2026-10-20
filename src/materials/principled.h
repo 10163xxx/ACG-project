@@ -12,16 +12,30 @@ public:
     PrincipledBSDF(
         const Vec3& base_color,
         double metallic,
-        double roughness
+        double roughness,
+        const Vec3& dielectric_f0 = Vec3(0.04, 0.04, 0.04)
     )
         : base_color_(base_color),
           metallic_(std::clamp(metallic, 0.0, 1.0)),
-          roughness_(std::clamp(roughness, 0.045, 1.0)) {
+          roughness_(std::clamp(roughness, 0.045, 1.0)),
+          dielectric_f0_(
+              std::clamp(dielectric_f0.x, 0.0, 1.0),
+              std::clamp(dielectric_f0.y, 0.0, 1.0),
+              std::clamp(dielectric_f0.z, 0.0, 1.0)
+          ) {
         if (base_color.x < 0.0 ||
             base_color.y < 0.0 ||
             base_color.z < 0.0) {
             throw std::invalid_argument(
                 "Principled base color cannot be negative."
+            );
+        }
+
+        if (dielectric_f0.x < 0.0 ||
+            dielectric_f0.y < 0.0 ||
+            dielectric_f0.z < 0.0) {
+            throw std::invalid_argument(
+                "Principled dielectric F0 cannot be negative."
             );
         }
     }
@@ -44,15 +58,11 @@ public:
 
         Vec3 wi;
 
-        if (Random::random_double()
-            < specular_probability) {
+        if (Random::random_double() < specular_probability) {
             const Vec3 half_vector =
                 sample_ggx_half_vector(n);
 
-            wi = normalize(reflect(
-                -wo,
-                half_vector
-            ));
+            wi = normalize(reflect(-wo, half_vector));
         } else {
             wi = sample_cosine_hemisphere(n);
         }
@@ -61,21 +71,19 @@ public:
             return false;
         }
 
-        const double pdf =
-            scattering_pdf(hit, wo, wi);
+        const double pdf = scattering_pdf(hit, wo, wi);
 
         if (pdf <= 1e-12) {
             return false;
         }
 
-        const Vec3 f =
-            evaluate_bsdf(hit, wo, wi);
+        const Vec3 f = evaluate_bsdf(hit, wo, wi);
 
         const double cos_theta =
             std::max(0.0, dot(n, wi));
 
-        attenuation =
-            f * (cos_theta / pdf);
+        attenuation = f * (cos_theta / pdf);
+        scattered = Ray(hit.point, wi);
 
         return true;
     }
@@ -129,7 +137,7 @@ public:
             * smith_g1(cos_i, alpha_squared);
 
         const Vec3 f0 =
-            (1.0 - metallic_) * Vec3(0.04, 0.04, 0.04)
+            (1.0 - metallic_) * dielectric_f0_
             + metallic_ * base_color_;
 
         const Vec3 fresnel =
@@ -142,10 +150,7 @@ public:
             );
 
         const Vec3 diffuse_fresnel =
-            schlick_fresnel(
-                Vec3(0.04, 0.04, 0.04),
-                cos_oh
-            );
+            schlick_fresnel(dielectric_f0_, cos_oh);
 
         const Vec3 diffuse =
             (1.0 - metallic_)
@@ -175,17 +180,16 @@ public:
         const double specular_probability =
             0.25 + 0.75 * metallic_;
 
-        const double diffuse_pdf =
-            cos_i / PI;
+        const double diffuse_pdf = cos_i / PI;
 
         const Vec3 half_sum = wo + wi;
 
         if (half_sum.near_zero()) {
-            return (1.0 - specular_probability)
-                * diffuse_pdf;
+            return (1.0 - specular_probability) * diffuse_pdf;
         }
 
         const Vec3 h = normalize(half_sum);
+
         const double cos_h =
             std::max(0.0, dot(n, h));
 
@@ -193,8 +197,7 @@ public:
             std::abs(dot(wo, h));
 
         if (cos_h <= 0.0 || cos_oh <= 1e-12) {
-            return (1.0 - specular_probability)
-                * diffuse_pdf;
+            return (1.0 - specular_probability) * diffuse_pdf;
         }
 
         const double alpha = roughness_ * roughness_;
@@ -207,7 +210,7 @@ public:
             alpha_squared /
             (PI * denominator * denominator);
 
-        // Transform the GGX half-vector PDF to a direction PDF.
+        // Convert the GGX half-vector PDF to a direction PDF.
         const double specular_pdf =
             distribution * cos_h / (4.0 * cos_oh);
 
@@ -227,6 +230,7 @@ private:
     Vec3 base_color_;
     double metallic_;
     double roughness_;
+    Vec3 dielectric_f0_;
 
     static double smith_g1(
         double cos_theta,
