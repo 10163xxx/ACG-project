@@ -2,71 +2,114 @@
 
 #include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
-#include "core/random.h"
 #include "materials/material.h"
 #include "materials/texture.h"
 
-class NormalMappedLambertian final : public Material {
+class NormalMappedMaterial final : public Material {
 public:
-    NormalMappedLambertian(
-        const Vec3& albedo,
-        std::shared_ptr<const Texture> normal_map)
-        : albedo_(albedo),
-          normal_map_(std::move(normal_map)) {}
+    NormalMappedMaterial(
+        std::shared_ptr<const Material> base_material,
+        std::shared_ptr<const Texture> normal_map
+    )
+        : base_material_(std::move(base_material)),
+          normal_map_(std::move(normal_map)) {
+        if (!base_material_) {
+            throw std::invalid_argument(
+                "NormalMappedMaterial requires a base material."
+            );
+        }
+
+        if (!normal_map_) {
+            throw std::invalid_argument(
+                "NormalMappedMaterial requires a normal map."
+            );
+        }
+    }
 
     Vec3 mapped_normal(
         const Ray& incoming,
-        const HitRecord& hit) const {
-        Vec3 n = hit.front_face
-            ? hit.normal
-            : Vec3(-hit.normal.x, -hit.normal.y, -hit.normal.z);
+        const HitRecord& hit
+    ) const {
+        (void)incoming;
 
-        n = normalize_or(n, Vec3(0.0, 1.0, 0.0));
+        const Vec3 geometric_normal =
+            normalize_or(
+                hit.normal,
+                Vec3(0.0, 1.0, 0.0)
+            );
 
-        Vec3 t(n.z, 0.0, -n.x);
-        if (t.length_squared() < 1e-12) {
-            t = Vec3(1.0, 0.0, 0.0);
-        }
-        t = normalize_or(t, Vec3(1.0, 0.0, 0.0));
+        Vec3 tangent =
+            hit.tangent -
+            dot(hit.tangent, geometric_normal) *
+                geometric_normal;
 
-        const Vec3 b(
-            n.y * t.z - n.z * t.y,
-            n.z * t.x - n.x * t.z,
-            n.x * t.y - n.y * t.x);
+        tangent = normalize_or(
+            tangent,
+            fallback_tangent(geometric_normal)
+        );
 
-        const Vec3 rgb = normal_map_->value(hit.u, hit.v, hit.point);
+        Vec3 bitangent =
+            hit.bitangent -
+            dot(hit.bitangent, geometric_normal) *
+                geometric_normal -
+            dot(hit.bitangent, tangent) * tangent;
+
+        bitangent = normalize_or(
+            bitangent,
+            normalize_or(
+                cross(geometric_normal, tangent),
+                Vec3(0.0, 0.0, 1.0)
+            )
+        );
+
+        const Vec3 rgb = normal_map_->value(
+            hit.u,
+            hit.v,
+            hit.point
+        );
+
+        // Decode tangent-space RGB from [0, 1] to [-1, 1].
         Vec3 tangent_normal(
             2.0 * rgb.x - 1.0,
             2.0 * rgb.y - 1.0,
-            2.0 * rgb.z - 1.0);
+            2.0 * rgb.z - 1.0
+        );
 
         tangent_normal = normalize_or(
-            tangent_normal, Vec3(0.0, 0.0, 1.0));
+            tangent_normal,
+            Vec3(0.0, 0.0, 1.0)
+        );
 
         Vec3 world_normal =
-            tangent_normal.x * t +
-            tangent_normal.y * b +
-            tangent_normal.z * n;
+            tangent_normal.x * tangent +
+            tangent_normal.y * bitangent +
+            tangent_normal.z * geometric_normal;
 
-        world_normal = normalize_or(world_normal, n);
+        world_normal = normalize_or(
+            world_normal,
+            geometric_normal
+        );
 
-        const double facing =
-            incoming.direction.x * world_normal.x +
-            incoming.direction.y * world_normal.y +
-            incoming.direction.z * world_normal.z;
+        // A normal map may not reverse the geometric hemisphere.
+        if (dot(world_normal, geometric_normal) < 1e-6) {
+            world_normal =
+                world_normal -
+                dot(world_normal, geometric_normal) *
+                    geometric_normal +
+                1e-6 * geometric_normal;
 
-        if (facing > 0.0) {
-            world_normal = Vec3(
-                -world_normal.x,
-                -world_normal.y,
-                -world_normal.z);
+            world_normal = normalize_or(
+                world_normal,
+                geometric_normal
+            );
         }
 
         return world_normal;
     }
-    
+
     Vec3 shading_normal(
         const Ray& incoming,
         const HitRecord& hit
@@ -74,90 +117,143 @@ public:
         return mapped_normal(incoming, hit);
     }
 
-    bool scatter(
-        const Ray& incoming,
-        const HitRecord& hit,
-        Vec3& attenuation,
-        Ray& scattered) const override {
-        const Vec3 geometric_normal = hit.normal;
-        const Vec3 shading_normal = mapped_normal(incoming, hit);
-
-        Vec3 scatter_direction =
-            shading_normal + Random::random_unit_vector();
-
-        if (scatter_direction.length_squared() < 1e-12) {
-            scatter_direction = shading_normal;
-        }
-
-        const double side = dot(scatter_direction, geometric_normal);
-
-        if (side <= 1e-8) {
-            scatter_direction =
-                scatter_direction
-                - side * geometric_normal
-                + 1e-6 * geometric_normal;
-        }
-
-        scattered = Ray(hit.point, scatter_direction);
-        attenuation = albedo_;
-        return true;
+    Vec3 emitted(const HitRecord& hit) const override {
+        return base_material_->emitted(hit);
     }
-    
+
+    bool is_emissive() const override {
+        return base_material_->is_emissive();
+    }
+
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        // Reconstruct the incoming ray direction from the
-        // outgoing direction used by the BSDF evaluation.
-        const Ray incoming_ray(
-            hit.point,
-            -outgoing_direction
-        );
+        const Vec3 geometric_normal = hit.normal;
 
-        const Vec3 shading_normal =
-            mapped_normal(incoming_ray, hit);
-
-        // Both directions must lie above the shading normal.
-        const double cos_outgoing =
-            dot(shading_normal, outgoing_direction);
-
-        const double cos_incoming =
-            dot(shading_normal, incoming_direction);
-
-        // Reject directions that lie below the geometric
-        // surface, even if the normal map points toward them.
-        const double geometric_outgoing =
-            dot(hit.normal, outgoing_direction);
-
-        const double geometric_incoming =
-            dot(hit.normal, incoming_direction);
-
-        if (cos_outgoing <= 0.0 ||
-            cos_incoming <= 0.0 ||
-            geometric_outgoing <= 0.0 ||
-            geometric_incoming <= 0.0) {
+        // Preserve the geometric surface as a hard hemisphere constraint.
+        if (dot(geometric_normal, outgoing_direction) <= 0.0 ||
+            dot(geometric_normal, incoming_direction) <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        constexpr double PI = 3.14159265358979323846;
+        HitRecord mapped_hit = hit;
+        mapped_hit.normal = mapped_normal(
+            Ray(hit.point, -outgoing_direction),
+            hit
+        );
 
-        return albedo_ / PI;
+        if (dot(mapped_hit.normal, outgoing_direction) <= 0.0 ||
+            dot(mapped_hit.normal, incoming_direction) <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        return base_material_->evaluate_bsdf(
+            mapped_hit,
+            outgoing_direction,
+            incoming_direction
+        );
+    }
+
+    double scattering_pdf(
+        const HitRecord& hit,
+        const Vec3& outgoing_direction,
+        const Vec3& incoming_direction
+    ) const override {
+        if (dot(hit.normal, outgoing_direction) <= 0.0 ||
+            dot(hit.normal, incoming_direction) <= 0.0) {
+            return 0.0;
+        }
+
+        HitRecord mapped_hit = hit;
+        mapped_hit.normal = mapped_normal(
+            Ray(hit.point, -outgoing_direction),
+            hit
+        );
+
+        if (dot(mapped_hit.normal, outgoing_direction) <= 0.0 ||
+            dot(mapped_hit.normal, incoming_direction) <= 0.0) {
+            return 0.0;
+        }
+
+        return base_material_->scattering_pdf(
+            mapped_hit,
+            outgoing_direction,
+            incoming_direction
+        );
     }
 
     bool supports_direct_lighting() const override {
+        return base_material_->supports_direct_lighting();
+    }
+
+    bool scatter(
+        const Ray& incoming,
+        const HitRecord& hit,
+        Vec3& attenuation,
+        Ray& scattered
+    ) const override {
+        const Vec3 geometric_normal = hit.normal;
+
+        HitRecord mapped_hit = hit;
+        mapped_hit.normal = mapped_normal(incoming, hit);
+
+        if (!base_material_->scatter(
+                incoming,
+                mapped_hit,
+                attenuation,
+                scattered
+            )) {
+            return false;
+        }
+
+        Vec3 direction = scattered.direction;
+        const double side = dot(direction, geometric_normal);
+
+        if (side <= 1e-8) {
+            direction =
+                direction -
+                side * geometric_normal +
+                1e-6 * geometric_normal;
+        }
+
+        direction = normalize_or(
+            direction,
+            geometric_normal
+        );
+
+        scattered = Ray(hit.point, direction);
         return true;
     }
 
 private:
-    static Vec3 normalize_or(const Vec3& v, const Vec3& fallback) {
-        const double len2 = v.length_squared();
-        if (len2 < 1e-12) {
+    std::shared_ptr<const Material> base_material_;
+    std::shared_ptr<const Texture> normal_map_;
+
+    static Vec3 normalize_or(
+        const Vec3& value,
+        const Vec3& fallback
+    ) {
+        const double length_squared = value.length_squared();
+
+        if (!std::isfinite(length_squared) ||
+            length_squared < 1e-20) {
             return fallback;
         }
-        return v / std::sqrt(len2);
+
+        return value / std::sqrt(length_squared);
     }
 
-    Vec3 albedo_;
-    std::shared_ptr<const Texture> normal_map_;
+    static Vec3 fallback_tangent(const Vec3& normal) {
+        const Vec3 helper =
+            std::abs(normal.x) < 0.8
+                ? Vec3(1.0, 0.0, 0.0)
+                : Vec3(0.0, 1.0, 0.0);
+
+        return normalize_or(
+            cross(helper, normal),
+            Vec3(1.0, 0.0, 0.0)
+        );
+    }
 };

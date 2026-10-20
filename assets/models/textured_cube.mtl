@@ -9,3 +9,4 @@ d 1.0
 illum 2
 
 map_Kd checker.ppm
+map_Bump normal.ppm

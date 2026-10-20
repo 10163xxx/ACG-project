@@ -41,6 +41,8 @@ public:
 
         area_ = 0.5 * normal_length;
         normal_ = normal / normal_length;
+
+        compute_tangent_frame();
     }
 
     bool hit(
@@ -82,8 +84,6 @@ public:
             return false;
         }
 
-        // Barycentric coordinates:
-        // alpha + beta + gamma = 1.
         const double alpha = 1.0 - beta - gamma;
 
         record.t = t;
@@ -105,9 +105,12 @@ public:
             record.v = gamma;
         }
 
-        record.material = material_;
+        record.tangent = tangent_;
+        record.bitangent = record.front_face
+            ? bitangent_
+            : -1.0 * bitangent_;
 
-        (void)alpha;
+        record.material = material_;
 
         return true;
     }
@@ -140,7 +143,9 @@ public:
     ) const override {
         pdf_area = 0.0;
 
-        if (u < 0.0 || u >= 1.0 ||
+        if (!std::isfinite(u) ||
+            !std::isfinite(v) ||
+            u < 0.0 || u >= 1.0 ||
             v < 0.0 || v >= 1.0) {
             return false;
         }
@@ -158,7 +163,9 @@ public:
 
         sample.normal = normal_;
         sample.front_face = true;
-        
+        sample.tangent = tangent_;
+        sample.bitangent = bitangent_;
+
         if (has_uv_) {
             sample.u =
                 alpha * uv_a_.x +
@@ -189,7 +196,7 @@ private:
     Vec3 a_;
     Vec3 b_;
     Vec3 c_;
-    
+
     Vec3 uv_a_;
     Vec3 uv_b_;
     Vec3 uv_c_;
@@ -200,8 +207,97 @@ private:
     Vec3 edge2_;
 
     Vec3 normal_;
+    Vec3 tangent_;
+    Vec3 bitangent_;
 
     double area_ = 0.0;
 
     std::shared_ptr<const Material> material_;
+
+    static Vec3 normalize_or(
+        const Vec3& value,
+        const Vec3& fallback
+    ) {
+        const double length_squared = value.length_squared();
+
+        if (!std::isfinite(length_squared) ||
+            length_squared < 1e-20) {
+            return fallback;
+        }
+
+        return value / std::sqrt(length_squared);
+    }
+
+    void compute_tangent_frame() {
+        constexpr double UV_EPSILON = 1e-12;
+
+        bool valid_uv_frame = false;
+        Vec3 tangent;
+        double handedness = 1.0;
+
+        if (has_uv_) {
+            const Vec3 duv1(
+                uv_b_.x - uv_a_.x,
+                uv_b_.y - uv_a_.y,
+                0.0
+            );
+
+            const Vec3 duv2(
+                uv_c_.x - uv_a_.x,
+                uv_c_.y - uv_a_.y,
+                0.0
+            );
+
+            const double determinant =
+                duv1.x * duv2.y -
+                duv1.y * duv2.x;
+
+            if (std::isfinite(determinant) &&
+                std::abs(determinant) > UV_EPSILON) {
+                tangent =
+                    (duv2.y * edge1_ -
+                     duv1.y * edge2_) / determinant;
+
+                // Preserve mirrored UV orientation.
+                handedness = determinant < 0.0
+                    ? -1.0
+                    : 1.0;
+
+                valid_uv_frame =
+                    std::isfinite(tangent.length_squared()) &&
+                    tangent.length_squared() > 1e-20;
+            }
+        }
+
+        if (valid_uv_frame) {
+            // Gram-Schmidt: make tangent orthogonal to the normal.
+            tangent =
+                tangent - dot(tangent, normal_) * normal_;
+
+            valid_uv_frame =
+                std::isfinite(tangent.length_squared()) &&
+                tangent.length_squared() > 1e-20;
+        }
+
+        if (!valid_uv_frame) {
+            // Stable fallback for missing or degenerate UVs.
+            const Vec3 helper =
+                std::abs(normal_.x) < 0.8
+                    ? Vec3(1.0, 0.0, 0.0)
+                    : Vec3(0.0, 1.0, 0.0);
+
+            tangent = cross(helper, normal_);
+            handedness = 1.0;
+        }
+
+        tangent_ = normalize_or(
+            tangent,
+            Vec3(1.0, 0.0, 0.0)
+        );
+
+        bitangent_ = handedness * normalize_or(
+            cross(normal_, tangent_),
+            Vec3(0.0, 0.0, 1.0)
+        );
+    }
 };

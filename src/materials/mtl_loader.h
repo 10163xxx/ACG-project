@@ -15,6 +15,7 @@
 #include "materials/opacity_material.h"
 #include "materials/image_texture.h"
 #include "materials/textured_material.h"
+#include "materials/normal_mapped_lambertian.h"
 
 struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
@@ -23,7 +24,9 @@ struct MtlProperties {
     double index_of_refraction = 1.0;
     double opacity = 1.0;
     int illumination_model = 2;
+
     std::string diffuse_map;
+    std::string normal_map;
 };
 
 class MtlLoader {
@@ -57,6 +60,57 @@ public:
         MtlProperties properties;
         std::string current_name;
         std::string line;
+
+        auto resolve_path = [&](
+            const std::string& filename
+        ) -> std::filesystem::path {
+            std::filesystem::path path(filename);
+
+            if (path.is_relative()) {
+                path = base_directory / path;
+            }
+
+            return path;
+        };
+
+        auto trim = [](const std::string& value) {
+            const std::size_t first =
+                value.find_first_not_of(" \t\r\n");
+
+            if (first == std::string::npos) {
+                return std::string{};
+            }
+
+            const std::size_t last =
+                value.find_last_not_of(" \t\r\n");
+
+            return value.substr(first, last - first + 1);
+        };
+
+        auto read_map_path = [&](
+            std::istringstream& stream
+        ) -> std::string {
+            std::string value;
+            std::getline(stream, value);
+            value = trim(value);
+
+            // Support the common "-bm <scale> <filename>" prefix.
+            // This version recognizes the option but does not yet
+            // apply its bump-strength value.
+            if (value.rfind("-bm", 0) == 0 &&
+                value.size() > 3 &&
+                (value[3] == ' ' || value[3] == '\t')) {
+                std::istringstream option_stream(value);
+                std::string option;
+                double ignored_strength = 1.0;
+
+                option_stream >> option >> ignored_strength;
+                std::getline(option_stream, value);
+                value = trim(value);
+            }
+
+            return value;
+        };
 
         auto save_material = [&]() {
             if (current_name.empty()) {
@@ -123,16 +177,10 @@ public:
                     );
             }
 
+            // Apply the diffuse/color texture first.
             if (!properties.diffuse_map.empty()) {
-                std::filesystem::path texture_path =
-                    std::filesystem::path(
-                        properties.diffuse_map
-                    );
-
-                if (texture_path.is_relative()) {
-                    texture_path =
-                        base_directory / texture_path;
-                }
+                const auto texture_path =
+                    resolve_path(properties.diffuse_map);
 
                 auto texture =
                     std::make_shared<ImageTexture>(
@@ -146,6 +194,24 @@ public:
                     );
             }
 
+            // Then decorate the existing material with a normal map.
+            if (!properties.normal_map.empty()) {
+                const auto normal_path =
+                    resolve_path(properties.normal_map);
+
+                auto normal_texture =
+                    std::make_shared<ImageTexture>(
+                        normal_path.string()
+                    );
+
+                base_material =
+                    std::make_shared<NormalMappedMaterial>(
+                        base_material,
+                        normal_texture
+                    );
+            }
+
+            // Preserve the existing opacity handling.
             const double opacity =
                 std::clamp(
                     properties.opacity,
@@ -226,26 +292,15 @@ public:
             } else if (command == "illum") {
                 stream >> properties.illumination_model;
             } else if (command == "map_Kd") {
-                // This implementation supports a direct image path.
-                // Advanced MTL map options (such as -s and -o) are
-                // intentionally not interpreted in this version.
-                std::string texture_path;
-
-                std::getline(stream, texture_path);
-
-                const std::size_t first =
-                    texture_path.find_first_not_of(" \t\r\n");
-
-                if (first != std::string::npos) {
-                    const std::size_t last =
-                        texture_path.find_last_not_of(" \t\r\n");
-
-                    properties.diffuse_map =
-                        texture_path.substr(
-                            first,
-                            last - first + 1
-                        );
-                }
+                properties.diffuse_map = read_map_path(stream);
+            } else if (
+                command == "map_Bump" ||
+                command == "map_bump" ||
+                command == "bump" ||
+                command == "norm" ||
+                command == "map_Kn"
+            ) {
+                properties.normal_map = read_map_path(stream);
             }
         }
 

@@ -10,6 +10,11 @@ class Material;
 struct HitRecord {
     Vec3 point;
     Vec3 normal;
+
+    // Tangent-space basis derived from the hit triangle's UVs.
+    Vec3 tangent;
+    Vec3 bitangent;
+
     double t = 0.0;
     bool front_face = true;
     double u = 0.0;
