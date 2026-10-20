@@ -20,6 +20,14 @@ struct HitRecord {
     double u = 0.0;
     double v = 0.0;
 
+    // UV derivatives with respect to screen-space pixel steps.
+    double dudx = 0.0;
+    double dvdx = 0.0;
+    double dudy = 0.0;
+    double dvdy = 0.0;
+
+    bool has_uv_differentials = false;
+
     // True only for a sampled event inside a participating medium.
     bool is_volume = false;
 

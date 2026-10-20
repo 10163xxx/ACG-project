@@ -110,6 +110,8 @@ public:
             ? bitangent_
             : -1.0 * bitangent_;
 
+        compute_uv_differentials(ray, record);
+
         record.material = material_;
 
         return true;
@@ -226,6 +228,153 @@ private:
         }
 
         return value / std::sqrt(length_squared);
+    }
+
+
+    bool intersect_differential_ray(
+        const Vec3& ray_origin,
+        const Vec3& ray_direction,
+        Vec3& point
+    ) const {
+        const double denominator =
+            dot(normal_, ray_direction);
+
+        if (!std::isfinite(denominator) ||
+            std::abs(denominator) < 1e-12) {
+            return false;
+        }
+
+        const double t =
+            dot(a_ - ray_origin, normal_) / denominator;
+
+        if (!std::isfinite(t)) {
+            return false;
+        }
+
+        point = ray_origin + t * ray_direction;
+
+        return std::isfinite(point.x) &&
+               std::isfinite(point.y) &&
+               std::isfinite(point.z);
+    }
+
+    bool compute_barycentric_coordinates(
+        const Vec3& point,
+        double& beta,
+        double& gamma
+    ) const {
+        const Vec3 offset = point - a_;
+
+        const double d00 = dot(edge1_, edge1_);
+        const double d01 = dot(edge1_, edge2_);
+        const double d11 = dot(edge2_, edge2_);
+        const double d20 = dot(offset, edge1_);
+        const double d21 = dot(offset, edge2_);
+
+        const double denominator =
+            d00 * d11 - d01 * d01;
+
+        if (!std::isfinite(denominator) ||
+            std::abs(denominator) < 1e-20) {
+            return false;
+        }
+
+        beta =
+            (d11 * d20 - d01 * d21) / denominator;
+
+        gamma =
+            (d00 * d21 - d01 * d20) / denominator;
+
+        return std::isfinite(beta) &&
+               std::isfinite(gamma);
+    }
+
+    bool compute_uv_differentials(
+        const Ray& ray,
+        HitRecord& record
+    ) const {
+        record.has_uv_differentials = false;
+
+        if (!ray.has_differentials) {
+            return false;
+        }
+
+        Vec3 point_x;
+        Vec3 point_y;
+
+        if (!intersect_differential_ray(
+                ray.rx_origin,
+                ray.rx_direction,
+                point_x) ||
+            !intersect_differential_ray(
+                ray.ry_origin,
+                ray.ry_direction,
+                point_y)) {
+            return false;
+        }
+
+        double beta_x = 0.0;
+        double gamma_x = 0.0;
+        double beta_y = 0.0;
+        double gamma_y = 0.0;
+
+        if (!compute_barycentric_coordinates(
+                point_x, beta_x, gamma_x) ||
+            !compute_barycentric_coordinates(
+                point_y, beta_y, gamma_y)) {
+            return false;
+        }
+
+        const double alpha_x =
+            1.0 - beta_x - gamma_x;
+
+        const double alpha_y =
+            1.0 - beta_y - gamma_y;
+
+        double u_x;
+        double v_x;
+        double u_y;
+        double v_y;
+
+        if (has_uv_) {
+            u_x =
+                alpha_x * uv_a_.x +
+                beta_x * uv_b_.x +
+                gamma_x * uv_c_.x;
+
+            v_x =
+                alpha_x * uv_a_.y +
+                beta_x * uv_b_.y +
+                gamma_x * uv_c_.y;
+
+            u_y =
+                alpha_y * uv_a_.x +
+                beta_y * uv_b_.x +
+                gamma_y * uv_c_.x;
+
+            v_y =
+                alpha_y * uv_a_.y +
+                beta_y * uv_b_.y +
+                gamma_y * uv_c_.y;
+        } else {
+            u_x = beta_x;
+            v_x = gamma_x;
+            u_y = beta_y;
+            v_y = gamma_y;
+        }
+
+        record.dudx = u_x - record.u;
+        record.dvdx = v_x - record.v;
+        record.dudy = u_y - record.u;
+        record.dvdy = v_y - record.v;
+
+        record.has_uv_differentials =
+            std::isfinite(record.dudx) &&
+            std::isfinite(record.dvdx) &&
+            std::isfinite(record.dudy) &&
+            std::isfinite(record.dvdy);
+
+        return record.has_uv_differentials;
     }
 
     void compute_tangent_frame() {

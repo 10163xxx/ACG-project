@@ -30,6 +30,59 @@ public:
         return sample(u, v, 0.0);
     }
 
+    // Automatically select the mip level from screen-space UV derivatives.
+    Vec3 value(
+        double u,
+        double v,
+        const Vec3& p,
+        double dudx,
+        double dvdx,
+        double dudy,
+        double dvdy
+    ) const override {
+        (void)p;
+
+        if (!std::isfinite(dudx) ||
+            !std::isfinite(dvdx) ||
+            !std::isfinite(dudy) ||
+            !std::isfinite(dvdy)) {
+            return sample(u, v, 0.0);
+        }
+
+        // Convert UV derivatives into texture-space pixel distances.
+        const double dx_u =
+            dudx * static_cast<double>(width_);
+
+        const double dx_v =
+            dvdx * static_cast<double>(height_);
+
+        const double dy_u =
+            dudy * static_cast<double>(width_);
+
+        const double dy_v =
+            dvdy * static_cast<double>(height_);
+
+        const double footprint_x =
+            std::sqrt(dx_u * dx_u + dx_v * dx_v);
+
+        const double footprint_y =
+            std::sqrt(dy_u * dy_u + dy_v * dy_v);
+
+        const double footprint =
+            std::max(footprint_x, footprint_y);
+
+        if (!std::isfinite(footprint)) {
+            return sample(u, v, 0.0);
+        }
+
+        const double lod =
+            std::max(0.0, std::log2(
+                std::max(footprint, 1e-8)
+            ));
+
+        return sample(u, v, lod);
+    }
+
     // Explicit-LOD sampling:
     // bilinear filtering within each mip level, then trilinear
     // interpolation between adjacent levels.

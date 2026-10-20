@@ -14,6 +14,23 @@ public:
         double v,
         const Vec3& p
     ) const = 0;
+
+    virtual Vec3 value(
+        double u,
+        double v,
+        const Vec3& p,
+        double dudx,
+        double dvdx,
+        double dudy,
+        double dvdy
+    ) const {
+        (void)dudx;
+        (void)dvdx;
+        (void)dudy;
+        (void)dvdy;
+
+        return value(u, v, p);
+    }
 };
 
 class SolidColor final : public Texture {

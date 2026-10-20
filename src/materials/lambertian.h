@@ -56,8 +56,21 @@ public:
 
         scattered = Ray(hit.point, normalize(scatter_direction));
 
-        attenuation =
-            texture_->value(hit.u, hit.v, hit.point);
+        attenuation = hit.has_uv_differentials
+            ? texture_->value(
+                hit.u,
+                hit.v,
+                hit.point,
+                hit.dudx,
+                hit.dvdx,
+                hit.dudy,
+                hit.dvdy
+            )
+            : texture_->value(
+                hit.u,
+                hit.v,
+                hit.point
+            );
 
         return true;
     }
@@ -79,8 +92,21 @@ public:
 
         constexpr double PI = 3.14159265358979323846;
 
-        const Vec3 albedo =
-            texture_->value(hit.u, hit.v, hit.point);
+        const Vec3 albedo = hit.has_uv_differentials
+            ? texture_->value(
+                hit.u,
+                hit.v,
+                hit.point,
+                hit.dudx,
+                hit.dvdx,
+                hit.dudy,
+                hit.dvdy
+            )
+            : texture_->value(
+                hit.u,
+                hit.v,
+                hit.point
+            );
 
         return albedo / PI;
     }

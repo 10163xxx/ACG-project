@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
                     u,
                     v,
                     1.0 / image_width,
-                    1.0 / image_height
+                    -1.0 / image_height
                 );
 
                 pixel_color =
