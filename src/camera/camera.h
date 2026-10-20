@@ -91,13 +91,13 @@ public:
             - focus_distance * w_;
     }
 
+    // Original interface: preserves compatibility with existing callers.
     Ray get_ray(double s, double t) const {
         const Vec3 target =
             lower_left_corner_
             + s * horizontal_
             + t * vertical_;
 
-        // Sample a point on the camera lens.
         const Vec3 lens_sample =
             aperture_radius_ * random_in_unit_disk();
 
@@ -108,11 +108,49 @@ public:
         const Vec3 ray_origin =
             origin_ + lens_offset;
 
-        // All rays through the same pixel aim at the
-        // same focal-plane point, producing depth of field.
         return Ray(
             ray_origin,
             target - ray_origin
+        );
+    }
+
+    // Generate a primary ray and its screen-space differentials.
+    // ds and dt are the normalized image-space pixel steps.
+    Ray get_ray(
+        double s,
+        double t,
+        double ds,
+        double dt
+    ) const {
+        const Vec3 target =
+            lower_left_corner_
+            + s * horizontal_
+            + t * vertical_;
+
+        const Vec3 target_x =
+            target + ds * horizontal_;
+
+        const Vec3 target_y =
+            target + dt * vertical_;
+
+        // All three rays must use the same lens sample.
+        const Vec3 lens_sample =
+            aperture_radius_ * random_in_unit_disk();
+
+        const Vec3 lens_offset =
+            lens_sample.x * u_
+            + lens_sample.y * v_;
+
+        const Vec3 ray_origin =
+            origin_ + lens_offset;
+
+        return Ray(
+            ray_origin,
+            target - ray_origin,
+            ray_origin,
+            ray_origin,
+            target_x - ray_origin,
+            target_y - ray_origin
         );
     }
 

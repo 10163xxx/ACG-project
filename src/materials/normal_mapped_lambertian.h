@@ -93,13 +93,14 @@ public:
             geometric_normal
         );
 
-        // A normal map may not reverse the geometric hemisphere.
-        if (dot(world_normal, geometric_normal) < 1e-6) {
+        // Keep the mapped normal in the geometric hemisphere.
+        const double hemisphere_dot =
+            dot(world_normal, geometric_normal);
+
+        if (hemisphere_dot < 0.0) {
             world_normal =
                 world_normal -
-                dot(world_normal, geometric_normal) *
-                    geometric_normal +
-                1e-6 * geometric_normal;
+                hemisphere_dot * geometric_normal;
 
             world_normal = normalize_or(
                 world_normal,
@@ -249,9 +250,9 @@ private:
 
     static Vec3 fallback_tangent(const Vec3& normal) {
         const Vec3 helper =
-            std::abs(normal.x) < 0.8
-                ? Vec3(1.0, 0.0, 0.0)
-                : Vec3(0.0, 1.0, 0.0);
+            std::abs(normal.y) < 0.8
+                ? Vec3(0.0, 1.0, 0.0)
+                : Vec3(1.0, 0.0, 0.0);
 
         return normalize_or(
             cross(helper, normal),

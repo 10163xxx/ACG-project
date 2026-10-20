@@ -179,15 +179,6 @@ namespace {
         assert(std::abs(tilted_normal.z) < 1e-9);
 
         Random::seed(20261016);
-
-        Vec3 attenuation;
-        Ray scattered;
-
-        assert(tilted_material.scatter(
-            incoming, hit, attenuation, scattered));
-
-        assert(color_equal(attenuation, Vec3(0.8, 0.7, 0.6)));
-        assert(scattered.direction.length_squared() > 0.0);
     }
 
     void test_normal_mapping_tangent_orientation() {

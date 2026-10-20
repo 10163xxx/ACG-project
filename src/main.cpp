@@ -200,7 +200,12 @@ int main(int argc, char* argv[]) {
                     1.0 - (y + Random::random_double())
                     / image_height;
 
-                const Ray ray = camera.get_ray(u, v);
+                const Ray ray = camera.get_ray(
+                    u,
+                    v,
+                    1.0 / image_width,
+                    1.0 / image_height
+                );
 
                 pixel_color =
                     pixel_color
