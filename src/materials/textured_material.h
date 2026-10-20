@@ -96,6 +96,18 @@ private:
     std::shared_ptr<const Texture> albedo_texture_;
 
     Vec3 texture_color(const HitRecord& hit) const {
+        if (hit.has_uv_differentials) {
+            return albedo_texture_->value(
+                hit.u,
+                hit.v,
+                hit.point,
+                hit.dudx,
+                hit.dvdx,
+                hit.dudy,
+                hit.dvdy
+            );
+        }
+
         return albedo_texture_->value(
             hit.u,
             hit.v,

@@ -16,6 +16,7 @@
 #include "materials/image_texture.h"
 #include "materials/textured_material.h"
 #include "materials/normal_mapped_lambertian.h"
+#include "materials/bump_mapped_material.h"
 
 struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
@@ -27,6 +28,8 @@ struct MtlProperties {
 
     std::string diffuse_map;
     std::string normal_map;
+    std::string bump_map;
+    double bump_strength = 1.0;
 };
 
 class MtlLoader {
@@ -88,25 +91,28 @@ public:
         };
 
         auto read_map_path = [&](
-            std::istringstream& stream
+            std::istringstream& stream,
+            double* bump_strength = nullptr
         ) -> std::string {
             std::string value;
             std::getline(stream, value);
             value = trim(value);
 
-            // Support the common "-bm <scale> <filename>" prefix.
-            // This version recognizes the option but does not yet
-            // apply its bump-strength value.
             if (value.rfind("-bm", 0) == 0 &&
                 value.size() > 3 &&
                 (value[3] == ' ' || value[3] == '\t')) {
                 std::istringstream option_stream(value);
                 std::string option;
-                double ignored_strength = 1.0;
+                double strength = 1.0;
 
-                option_stream >> option >> ignored_strength;
+                option_stream >> option >> strength;
                 std::getline(option_stream, value);
                 value = trim(value);
+
+                if (bump_strength != nullptr &&
+                    std::isfinite(strength)) {
+                    *bump_strength = strength;
+                }
             }
 
             return value;
@@ -191,6 +197,24 @@ public:
                     std::make_shared<TexturedMaterial>(
                         base_material,
                         texture
+                    );
+            }
+
+            // Apply a scalar height map as bump mapping.
+            if (!properties.bump_map.empty()) {
+                const auto bump_path =
+                    resolve_path(properties.bump_map);
+
+                auto height_texture =
+                    std::make_shared<ImageTexture>(
+                        bump_path.string()
+                    );
+
+                base_material =
+                    std::make_shared<BumpMappedMaterial>(
+                        base_material,
+                        height_texture,
+                        properties.bump_strength
                     );
             }
 
@@ -296,11 +320,19 @@ public:
             } else if (
                 command == "map_Bump" ||
                 command == "map_bump" ||
-                command == "bump" ||
+                command == "bump"
+            ) {
+                properties.bump_map =
+                    read_map_path(
+                        stream,
+                        &properties.bump_strength
+                    );
+            } else if (
                 command == "norm" ||
                 command == "map_Kn"
             ) {
-                properties.normal_map = read_map_path(stream);
+                properties.normal_map =
+                    read_map_path(stream);
             }
         }
 
