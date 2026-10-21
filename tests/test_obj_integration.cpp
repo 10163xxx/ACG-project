@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <stdexcept>
 
 #include "acceleration/bvh.h"
 #include "geometry/hittable_list.h"
@@ -230,13 +231,28 @@ namespace {
 
             HitRecord record;
 
-            assert(mesh.hit(
+            const bool hit = mesh.hit(
                 ray,
                 Interval(0.001, 10.0),
                 record
-            ));
+            );
 
-            assert(record.material != nullptr);
+            assert(hit);
+
+            if (!hit) {
+                fs::remove_all(test_dir);
+                throw std::runtime_error(
+                    "OBJ/MTL texture integration test failed to hit the mesh."
+                );
+            }
+
+            if (record.material == nullptr) {
+                fs::remove_all(test_dir);
+                throw std::runtime_error(
+                    "OBJ/MTL texture integration test hit the mesh, "
+                    "but the material is null."
+                );
+            }
 
             // A white base diffuse color multiplied by the
             // green texture should produce a green-only BSDF.
