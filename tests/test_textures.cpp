@@ -2,11 +2,14 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <cstdio>
+#include <fstream>
 
 #include "core/random.h"
 #include "materials/texture.h"
 #include "materials/lambertian.h"
 #include "materials/normal_mapped_lambertian.h"
+#include "materials/image_texture.h"
 
 namespace {
     bool approximately_equal(double a, double b) {
@@ -286,6 +289,82 @@ namespace {
         assert(valid_samples > 0);
         assert(rejected_samples > 0);
     }
+
+    void test_image_texture_mipmap() {
+        const char* filename = "mipmap_test_texture.ppm";
+
+        {
+            std::ofstream file(filename);
+
+            assert(file.good());
+
+            file << "P3\n";
+            file << "4 4\n";
+            file << "255\n";
+
+            // High-frequency black-and-white checker pattern.
+            for (int y = 0; y < 4; ++y) {
+                for (int x = 0; x < 4; ++x) {
+                    const int value =
+                        ((x + y) % 2 == 0) ? 255 : 0;
+
+                    file << value << ' '
+                         << value << ' '
+                         << value << '\n';
+                }
+            }
+        }
+
+        {
+            ImageTexture texture(filename);
+
+            // 4x4 -> 2x2 -> 1x1.
+            assert(texture.width() == 4);
+            assert(texture.height() == 4);
+            assert(texture.mip_level_count() == 3);
+
+            // At the top-left texel, level 0 is white.
+            const Vec3 full_resolution =
+                texture.sample(0.0, 1.0, 0.0);
+
+            assert(full_resolution.x > 0.99);
+            assert(full_resolution.y > 0.99);
+            assert(full_resolution.z > 0.99);
+
+            // The complete checker averages to gray at the
+            // final mip level.
+            const Vec3 coarse =
+                texture.sample(0.0, 1.0, 2.0);
+
+            assert(approximately_equal(coarse.x, 0.5));
+            assert(approximately_equal(coarse.y, 0.5));
+            assert(approximately_equal(coarse.z, 0.5));
+
+            // Large screen-space UV derivatives should select
+            // a coarser mip level automatically.
+            const Vec3 automatic_lod = texture.value(
+                0.0,
+                1.0,
+                Vec3(),
+                1.0, 0.0,
+                0.0, 1.0
+            );
+
+            assert(approximately_equal(
+                automatic_lod.x, 0.5
+            ));
+
+            assert(approximately_equal(
+                automatic_lod.y, 0.5
+            ));
+
+            assert(approximately_equal(
+                automatic_lod.z, 0.5
+            ));
+        }
+
+        std::remove(filename);
+    }
 }
 
 int main() {
@@ -296,6 +375,8 @@ int main() {
     test_normal_mapping();
     test_normal_mapping_tangent_orientation();
     test_normal_mapping_stays_in_geometric_hemisphere();
+    test_image_texture_mipmap();
+
     std::cout << "Texture tests passed.\n";
     return 0;
 }
