@@ -4,6 +4,7 @@
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <algorithm>
 
 #include "materials/material.h"
 #include "materials/texture.h"
@@ -12,10 +13,20 @@ class NormalMappedMaterial final : public Material {
 public:
     NormalMappedMaterial(
         std::shared_ptr<const Material> base_material,
-        std::shared_ptr<const Texture> normal_map
+        std::shared_ptr<const Texture> normal_map,
+        double normal_strength = 0.4
     )
         : base_material_(std::move(base_material)),
-          normal_map_(std::move(normal_map)) {
+          normal_map_(std::move(normal_map)),
+          normal_strength_(
+              std::clamp(
+                  std::isfinite(normal_strength)
+                      ? normal_strength
+                      : 0.25,
+                  0.0,
+                  1.0
+              )
+          ) {
         if (!base_material_) {
             throw std::invalid_argument(
                 "NormalMappedMaterial requires a base material."
@@ -65,11 +76,25 @@ public:
             )
         );
 
-        const Vec3 rgb = normal_map_->value(
-            hit.u,
-            hit.v,
-            hit.point
-        );
+        Vec3 rgb;
+
+        if (hit.has_uv_differentials) {
+            rgb = normal_map_->value(
+                hit.u,
+                hit.v,
+                hit.point,
+                hit.dudx,
+                hit.dvdx,
+                hit.dudy,
+                hit.dvdy
+            );
+        } else {
+            rgb = normal_map_->value(
+                hit.u,
+                hit.v,
+                hit.point
+            );
+        }
 
         // Decode tangent-space RGB from [0, 1] to [-1, 1].
         Vec3 tangent_normal(
@@ -78,8 +103,11 @@ public:
             2.0 * rgb.z - 1.0
         );
 
+        // Blend the normal map toward the flat tangent-space normal.
+        // This reduces excessive shading changes near hard mesh edges.
         tangent_normal = normalize_or(
-            tangent_normal,
+            Vec3(0.0, 0.0, 1.0) * (1.0 - normal_strength_) +
+                tangent_normal * normal_strength_,
             Vec3(0.0, 0.0, 1.0)
         );
 
@@ -233,6 +261,7 @@ public:
 private:
     std::shared_ptr<const Material> base_material_;
     std::shared_ptr<const Texture> normal_map_;
+    double normal_strength_ = 0.4;
 
     static Vec3 normalize_or(
         const Vec3& value,
