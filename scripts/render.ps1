@@ -2,7 +2,7 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Config = "Release",
 
-    [ValidateSet("Showcase", "UVTest", "VolumeTest", "OBJ")]
+    [ValidateSet("Showcase", "UVTest", "VolumeTest", "MipmapTest", "OBJ")]
     [string]$Scene = "Showcase",
 
     [string]$ObjPath = "assets\models\test_model.obj",
@@ -31,6 +31,12 @@ if (-not (Test-Path $Renderer)) {
 }
 
 switch ($Scene) {
+    "MipmapTest" {
+        $Ppm = Join-Path $ProjectRoot "results\renders\mipmap_test.ppm"
+        $Jpg = Join-Path $ProjectRoot "results\renders\mipmap_test.jpg"
+        $RenderArgs = @("--mipmap-test")
+    }
+
     "UVTest" {
         $Ppm = Join-Path $ProjectRoot "results\renders\uv_test.ppm"
         $Jpg = Join-Path $ProjectRoot "results\renders\uv_test.jpg"

@@ -15,6 +15,7 @@
 #include "integrator/path_tracer.h"
 #include "materials/environment_map.h"
 #include "materials/lambertian.h"
+#include "materials/image_texture.h"
 #include "materials/point_light.h"
 #include "materials/texture.h"
 #include "output/image.h"
@@ -30,6 +31,7 @@ int main(int argc, char* argv[]) {
     const bool uv_test = mode == "--uv-test";
     const bool volume_test = mode == "--volume-test";
     const bool obj_test = mode == "--obj";
+    const bool mipmap_test = mode == "--mipmap-test";
 
     if (obj_test && argc < 3) {
         std::cerr
@@ -40,14 +42,16 @@ int main(int argc, char* argv[]) {
     if (!mode.empty() &&
         mode != "--uv-test" &&
         mode != "--volume-test" &&
-        mode != "--obj") {
+        mode != "--obj"
+        && mode != "--mipmap-test") {
         std::cerr
             << "Unknown option: " << mode << '\n'
             << "Available modes:\n"
             << "  renderer\n"
             << "  renderer --uv-test\n"
             << "  renderer --volume-test\n"
-            << "  renderer --obj <path-to-model.obj>\n";
+            << "  renderer --obj <path-to-model.obj>\n"
+            << "  renderer --mipmap-test\n";
         return 1;
     }
 
@@ -55,20 +59,26 @@ int main(int argc, char* argv[]) {
         obj_test ? std::string(argv[2]) : "";
 
     const int image_width =
-        volume_test ? 320 : 480;
+        (volume_test || mipmap_test) ? 320 : 480;
 
     const int image_height =
-        volume_test ? 270 : (uv_test ? 360 : 270);
+        mipmap_test ? 240
+        : (volume_test ? 270 : (uv_test ? 360 : 270));
 
     const int samples_per_pixel =
-        volume_test ? 128 : (uv_test ? 64 : 256);
+        mipmap_test ? 16
+        : (volume_test ? 128 : (uv_test ? 64 : 256));
 
     const int max_depth =
-        volume_test ? 12 : (uv_test ? 12 : 24);
+        mipmap_test ? 8
+        : (volume_test ? 12 : (uv_test ? 12 : 24));
 
     std::string output_file;
 
-    if (uv_test) {
+    if (mipmap_test) {
+        output_file =
+            OutputPaths::RenderDirectory + "mipmap_test.ppm";
+    } else if (uv_test) {
         output_file =
             OutputPaths::RenderDirectory + "uv_test.ppm";
     } else if (volume_test) {
@@ -89,37 +99,57 @@ int main(int argc, char* argv[]) {
     const double aspect_ratio =
         static_cast<double>(image_width) / image_height;
 
-
-    Camera camera = obj_test
+    Camera camera = mipmap_test
         ? Camera(
-            Vec3(4.0, -6.0, 4.0),
-            Vec3(0.0, 0.0, 0.8),
-            Vec3(0.0, 0.0, 1.0),
-            38.0,
+            Vec3(0.0, 0.0, 3.2),
+            Vec3(0.0, 0.0, 0.0),
+            Vec3(0.0, 1.0, 0.0),
+            40.0,
             aspect_ratio
         )
-        : (uv_test
+        : (obj_test
             ? Camera(
-                Vec3(3.2, 2.4, 4.2),
-                Vec3(0.0, 0.0, 0.0),
-                Vec3(0.0, 1.0, 0.0),
+                Vec3(4.0, -6.0, 4.0),
+                Vec3(0.0, 0.0, 0.8),
+                Vec3(0.0, 0.0, 1.0),
                 38.0,
                 aspect_ratio
             )
-            : Camera(
-                Vec3(4.0, 2.35, 5.8),
-                Vec3(0.0, 1.45, -1.7),
-                Vec3(0.0, 1.0, 0.0),
-                42.0,
-                aspect_ratio,
-                0.10,
-                8.6
-            ));
-
+            : (uv_test
+                ? Camera(
+                    Vec3(3.2, 2.4, 4.2),
+                    Vec3(0.0, 0.0, 0.0),
+                    Vec3(0.0, 1.0, 0.0),
+                    38.0,
+                    aspect_ratio
+                )
+                : Camera(
+                    Vec3(4.0, 2.35, 5.8),
+                    Vec3(0.0, 1.45, -1.7),
+                    Vec3(0.0, 1.0, 0.0),
+                    42.0,
+                    aspect_ratio,
+                    0.10,
+                    8.6
+                )));
 
     HittableList scene;
 
-    if (uv_test) {
+    if (mipmap_test) {
+        auto image_texture =
+            std::make_shared<ImageTexture>(
+                "assets/textures/bump_test.ppm"
+            );
+
+        auto material =
+            std::make_shared<Lambertian>(image_texture);
+
+        scene.add(std::make_shared<Sphere>(
+            Vec3(0.0, 0.0, 0.0),
+            1.0,
+            material
+        ));
+    } else if (uv_test) {
         auto checker = std::make_shared<UVCheckerTexture>(
             8.0,
             Vec3(0.95, 0.12, 0.08),
