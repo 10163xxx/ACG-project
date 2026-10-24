@@ -1,10 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <utility>
-#include <algorithm>
 
 #include "materials/material.h"
 #include "materials/texture.h"
@@ -44,8 +44,6 @@ public:
         const Ray& incoming,
         const HitRecord& hit
     ) const {
-        (void)incoming;
-
         const Vec3 geometric_normal =
             normalize_or(
                 hit.normal,
@@ -103,8 +101,8 @@ public:
             2.0 * rgb.z - 1.0
         );
 
-        // Blend the normal map toward the flat tangent-space normal.
-        // This reduces excessive shading changes near hard mesh edges.
+        // Blend the normal map toward a flat normal according
+        // to the configured normal-map strength.
         tangent_normal = normalize_or(
             Vec3(0.0, 0.0, 1.0) * (1.0 - normal_strength_) +
                 tangent_normal * normal_strength_,
@@ -121,19 +119,67 @@ public:
             geometric_normal
         );
 
-        // Keep the mapped normal in the geometric hemisphere.
-        const double hemisphere_dot =
+        // Keep the shading normal in the geometric hemisphere.
+        const double geometric_dot =
             dot(world_normal, geometric_normal);
 
-        if (hemisphere_dot < 0.0) {
+        if (geometric_dot < 0.0) {
             world_normal =
                 world_normal -
-                hemisphere_dot * geometric_normal;
+                geometric_dot * geometric_normal;
 
             world_normal = normalize_or(
                 world_normal,
                 geometric_normal
             );
+        }
+
+        // Prevent the mapped normal from facing away from the
+        // current viewing direction. Blend toward the geometric
+        // normal only when necessary.
+        const Vec3 wo =
+            normalize_or(
+                -incoming.direction,
+                geometric_normal
+            );
+
+        const double geometric_view_dot =
+            dot(geometric_normal, wo);
+
+        if (geometric_view_dot > 0.0) {
+            const double target_dot =
+                std::min(0.05, 0.5 * geometric_view_dot);
+
+            if (dot(world_normal, wo) < target_dot) {
+                double lower = 0.0;
+                double upper = 1.0;
+
+                // Find the smallest blend toward the geometric
+                // normal that keeps the shading normal view-facing.
+                for (int i = 0; i < 16; ++i) {
+                    const double blend =
+                        0.5 * (lower + upper);
+
+                    const Vec3 candidate =
+                        normalize_or(
+                            (1.0 - blend) * world_normal +
+                                blend * geometric_normal,
+                            geometric_normal
+                        );
+
+                    if (dot(candidate, wo) >= target_dot) {
+                        upper = blend;
+                    } else {
+                        lower = blend;
+                    }
+                }
+
+                world_normal = normalize_or(
+                    (1.0 - upper) * world_normal +
+                        upper * geometric_normal,
+                    geometric_normal
+                );
+            }
         }
 
         return world_normal;
@@ -177,7 +223,8 @@ public:
                 geometric_normal
             );
 
-        // Both directions must remain above the real surface.
+        // The BSDF must not transport energy through the back
+        // side of the actual geometric surface.
         if (dot(geometric_normal, wo) <= 0.0 ||
             dot(geometric_normal, wi) <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
@@ -195,8 +242,9 @@ public:
                 geometric_normal
             );
 
-        // The mapped BSDF is only evaluated in its valid
-        // shading hemisphere.
+        // The view-facing adjustment above ensures wo is in the
+        // shading hemisphere. Incoming light directions outside
+        // that hemisphere have zero BSDF contribution.
         if (dot(shading_normal, wo) <= 0.0 ||
             dot(shading_normal, wi) <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
@@ -248,8 +296,8 @@ public:
             return 0.0;
         }
 
-        // Sampling is performed around the geometric normal,
-        // so the PDF must use the same geometric-normal frame.
+        // scatter() samples around the geometric normal, so the
+        // PDF must describe that exact sampling distribution.
         return base_material_->scattering_pdf(
             hit,
             wo,
@@ -273,32 +321,61 @@ public:
                 Vec3(0.0, 1.0, 0.0)
             );
 
-        HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(incoming, hit);
+        const Vec3 wo =
+            normalize_or(
+                -incoming.direction,
+                geometric_normal
+            );
 
+        if (dot(geometric_normal, wo) <= 0.0) {
+            return false;
+        }
+
+        // Sample around the geometric normal. This avoids
+        // repeatedly rejecting directions that fall below the
+        // actual surface when the normal map tilts the shading frame.
         if (!base_material_->scatter(
                 incoming,
-                mapped_hit,
+                hit,
                 attenuation,
                 scattered
             )) {
             return false;
         }
 
-        const Vec3 direction =
+        const Vec3 wi =
             normalize_or(
                 scattered.direction,
                 geometric_normal
             );
 
-        // Reject samples below the geometric surface.
-        // Do not project or rotate them: doing so would change
-        // the sampling distribution without updating its PDF.
-        if (dot(direction, geometric_normal) <= 1e-8) {
+        if (dot(geometric_normal, wi) <= 1e-8) {
             return false;
         }
 
-        scattered = Ray(hit.point, direction);
+        scattered = Ray(hit.point, wi);
+
+        // Recompute throughput from the wrapper's actual BSDF,
+        // its matching geometric-frame sampling PDF, and the
+        // shading cosine used by direct-light estimation.
+        const double pdf =
+            scattering_pdf(hit, wo, wi);
+
+        if (!std::isfinite(pdf) || pdf <= 1e-12) {
+            return false;
+        }
+
+        const Vec3 bsdf =
+            evaluate_bsdf(hit, wo, wi);
+
+        const Vec3 shading_normal_value =
+            mapped_normal(incoming, hit);
+
+        const double cos_shading =
+            std::max(0.0, dot(shading_normal_value, wi));
+
+        attenuation = bsdf * (cos_shading / pdf);
+
         return true;
     }
 
@@ -311,7 +388,8 @@ private:
         const Vec3& value,
         const Vec3& fallback
     ) {
-        const double length_squared = value.length_squared();
+        const double length_squared =
+            value.length_squared();
 
         if (!std::isfinite(length_squared) ||
             length_squared < 1e-20) {
@@ -320,7 +398,7 @@ private:
 
         return value / std::sqrt(length_squared);
     }
-    
+
     static double shading_normal_correction(
         const Vec3& geometric_normal,
         const Vec3& shading_normal,
@@ -359,7 +437,7 @@ private:
             return 0.0;
         }
 
-        // Avoid unbounded weights near grazing directions.
+        // Bound grazing-angle weights for numerical stability.
         return std::min(correction, 10.0);
     }
 
