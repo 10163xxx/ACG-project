@@ -1,44 +1,62 @@
+
 # ACG Path Tracer
 
-A CPU-based path tracer developed in **C++17** for the Advanced Computer Graphics (ACG) 2026 course.
+A CPU-based path tracer developed in C++17 for the Advanced Computer Graphics (ACG) 2026 course.
 
-The project implements a modular Monte Carlo path tracer with ray-based light transport, procedural textures, normal mapping, and a BVH acceleration structure using the binned Surface Area Heuristic (SAH).
+The project focuses on physically based light transport, material evaluation, texture mapping, geometric acceleration, and rendering scenes from external OBJ/MTL assets.
 
 ## Implemented Features
 
-### Rendering Core
-- C++17 rendering framework
-- Rays, vectors, camera utilities, and surface intersection records
-- Sphere geometry and sky-gradient background
-- Iterative path tracing with configurable maximum path depth
-- Stochastic subpixel sampling for anti-aliasing
-- Gamma correction and PPM image output
+### Rendering and Light Transport
 
-### Materials and Texture Mapping
+- CPU-based path tracing for static image rendering
+- Iterative path tracing with configurable maximum path depth
+- Monte Carlo sampling for anti-aliasing and light transport
+- Direct lighting and multiple importance sampling (MIS)
+- Gamma correction and PPM image output
+- Automated PPM-to-JPG conversion
+
+### Geometry and Acceleration
+
+- Ray and surface intersection infrastructure
+- Sphere and triangle-based mesh geometry
+- Axis-aligned bounding boxes (AABBs)
+- Bounding Volume Hierarchy (BVH) acceleration
+- Binned Surface Area Heuristic (SAH) for BVH construction
+- Small multi-primitive leaves and median-split fallback
+
+### Materials and Textures
+
 - Lambertian diffuse reflection
 - Metal reflection
 - Dielectric transmission and refraction
-- Solid-color textures
-- UV-coordinate checker textures
-- UV-coordinate gradient textures
-- Procedural 3D checker textures
+- Principled BSDF material support
+- Emissive materials and area lights
+- Solid-color and procedural textures
+- UV-coordinate checker and gradient textures
 - Procedural UV-based normal textures
-- Normal-mapped Lambertian material with tangent-space to world-space normal transformation
-- A material-test scene demonstrating diffuse, reflective, transmissive, textured, and normal-mapped surfaces
+- Tangent-space normal mapping with transformation into world space
+- Texture filtering and mipmap support
 
-### Acceleration Structure
-- Axis-aligned bounding boxes (AABBs)
-- **Binned SAH BVH**
-- Small multi-primitive leaves selected using an SAH cost estimate
-- Median-split fallback for degenerate centroid distributions
-- BVH correctness tests and a benchmark comparing linear traversal with BVH traversal
+### External Assets and Lighting
+
+- OBJ mesh loading
+- MTL material loading
+- Imported mesh materials and textures
+- Environment-map lighting
+- Support for rendering scenes assembled from external assets
 
 ### Testing
-The project includes CMake-based test targets for:
-- Material behavior
+
+The project includes automated tests covering implemented components, including:
+
+- Material behavior and BSDF evaluation
 - Geometry intersections
-- BVH hit-result consistency
-- Texture evaluation and normal-mapping behavior
+- Texture evaluation and normal mapping
+- BVH correctness
+- Area-light behavior
+- Mixed-scene integration
+- OBJ/MTL loading and integration
 
 ## Project Structure
 
@@ -47,43 +65,134 @@ ACG-project/
 ├── CMakeLists.txt
 ├── README.md
 ├── src/
-│   ├── core/           # Vectors, rays, intervals, random sampling
-│   ├── geometry/       # Geometry, AABBs, hittable interfaces
+│   ├── core/           # Vectors, rays, intervals and sampling utilities
+│   ├── geometry/       # Geometry, AABBs and intersection interfaces
 │   ├── camera/         # Camera and ray generation
-│   ├── materials/      # Materials, procedural textures, normal mapping
+│   ├── materials/      # Materials, BSDFs and textures
 │   ├── sampling/       # Sampling and PDF utilities
 │   ├── acceleration/   # BVH and SAH acceleration
-│   ├── integrator/     # Path tracing integrator
-│   ├── scene/          # Test scene definitions
-│   └── output/         # Image output and output paths
-├── tests/              # Unit tests and BVH benchmark
-├── scripts/            # PPM-to-JPG conversion and render automation
-├── results/
-│   └── renders/        # Rendered image outputs
-└── assets/             # Additional project assets
+│   ├── integrator/     # Path tracing and light transport
+│   ├── scene/          # Scene definitions and asset integration
+│   └── output/         # Image output utilities
+├── tests/              # Tests and benchmarks
+├── scripts/
+│   ├── render.ps1      # Rendering automation
+│   └── convert_ppm_to_jpg.py
+├── assets/
+│   └── models/         # External models and related assets
+└── results/
+    └── renders/        # Rendered images
 ```
 
-## Build and Test on Windows
+## Requirements
 
-### Requirements
 - CMake 3.20 or later
 - A C++17-compatible compiler
-- A supported build toolchain, such as Visual Studio
-- Python 3 and Pillow for automatic JPG conversion
+- A supported build toolchain, such as Visual Studio on Windows
+- Python 3
+- Pillow for JPG conversion
 
-### Configure and Build
+## Build on Windows
 
-Run these commands from the project root in PowerShell:
+Run the following commands from the project root in PowerShell.
+
+Configure the project:
 
 ```powershell
 cmake -S . -B build
-cmake --build build --config Debug
 ```
 
-### Run Unit Tests
+Build the Release configuration:
 
 ```powershell
-ctest --test-dir build -C Debug --output-on-failure
+cmake --build build --config Release
 ```
 
-A successful test run should report that
+## Render Scenes
+
+The project provides a PowerShell script to automate rendering and JPG conversion.
+
+### OBJ Scene
+
+Run:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene OBJ
+```
+
+By default, the script loads:
+
+```text
+assets/models/test_model.obj
+```
+
+The OBJ file and its referenced MTL files and textures must be available at the expected paths.
+
+The default output files are:
+
+```text
+results/renders/obj_scene.ppm
+results/renders/obj_scene.jpg
+```
+
+The script renders the scene and then converts the PPM image to JPG.
+
+### Other Scenes
+
+Render the showcase scene:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene Showcase
+```
+
+Render the UV test scene:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene UVTest
+```
+
+Render the volume test scene:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene VolumeTest
+```
+
+To build before rendering, add `-Build`:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene OBJ -Build
+```
+
+### Specify a Different OBJ File
+
+Use `-ObjPath` to select a different model relative to the project root:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene OBJ -ObjPath "assets\models\my_model.obj"
+```
+
+## Run Tests
+
+Run the test suite using CTest:
+
+```powershell
+ctest --test-dir build -C Release --output-on-failure
+```
+
+To build the test targets first:
+
+```powershell
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+## Development Workflow
+
+1. Implement or refine a rendering feature.
+2. Build the Release configuration.
+3. Run the relevant automated tests.
+4. Render a representative scene using `scripts/render.ps1`.
+5. Inspect the generated image to evaluate visual correctness.
+6. Update the documentation when functionality or workflows change.
+
+The project prioritizes correctness of rendering algorithms, physically based material behavior, and reliable integration of external scene assets.
