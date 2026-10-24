@@ -14,7 +14,7 @@ public:
     NormalMappedMaterial(
         std::shared_ptr<const Material> base_material,
         std::shared_ptr<const Texture> normal_map,
-        double normal_strength = 0.4
+        double normal_strength = 1.0
     )
         : base_material_(std::move(base_material)),
           normal_map_(std::move(normal_map)),
@@ -159,30 +159,65 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 geometric_normal = hit.normal;
+        const Vec3 geometric_normal =
+            normalize_or(
+                hit.normal,
+                Vec3(0.0, 1.0, 0.0)
+            );
 
-        // Preserve the geometric surface as a hard hemisphere constraint.
-        if (dot(geometric_normal, outgoing_direction) <= 0.0 ||
-            dot(geometric_normal, incoming_direction) <= 0.0) {
+        const Vec3 wo =
+            normalize_or(
+                outgoing_direction,
+                geometric_normal
+            );
+
+        const Vec3 wi =
+            normalize_or(
+                incoming_direction,
+                geometric_normal
+            );
+
+        // Both directions must remain above the real surface.
+        if (dot(geometric_normal, wo) <= 0.0 ||
+            dot(geometric_normal, wi) <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
         HitRecord mapped_hit = hit;
         mapped_hit.normal = mapped_normal(
-            Ray(hit.point, -outgoing_direction),
+            Ray(hit.point, -wo),
             hit
         );
 
-        if (dot(mapped_hit.normal, outgoing_direction) <= 0.0 ||
-            dot(mapped_hit.normal, incoming_direction) <= 0.0) {
+        const Vec3 shading_normal =
+            normalize_or(
+                mapped_hit.normal,
+                geometric_normal
+            );
+
+        // The mapped BSDF is only evaluated in its valid
+        // shading hemisphere.
+        if (dot(shading_normal, wo) <= 0.0 ||
+            dot(shading_normal, wi) <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        return base_material_->evaluate_bsdf(
-            mapped_hit,
-            outgoing_direction,
-            incoming_direction
-        );
+        const Vec3 base_bsdf =
+            base_material_->evaluate_bsdf(
+                mapped_hit,
+                wo,
+                wi
+            );
+
+        const double correction =
+            shading_normal_correction(
+                geometric_normal,
+                shading_normal,
+                wo,
+                wi
+            );
+
+        return base_bsdf * correction;
     }
 
     double scattering_pdf(
@@ -190,26 +225,35 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        if (dot(hit.normal, outgoing_direction) <= 0.0 ||
-            dot(hit.normal, incoming_direction) <= 0.0) {
+        const Vec3 geometric_normal =
+            normalize_or(
+                hit.normal,
+                Vec3(0.0, 1.0, 0.0)
+            );
+
+        const Vec3 wo =
+            normalize_or(
+                outgoing_direction,
+                geometric_normal
+            );
+
+        const Vec3 wi =
+            normalize_or(
+                incoming_direction,
+                geometric_normal
+            );
+
+        if (dot(geometric_normal, wo) <= 0.0 ||
+            dot(geometric_normal, wi) <= 0.0) {
             return 0.0;
         }
 
-        HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(
-            Ray(hit.point, -outgoing_direction),
-            hit
-        );
-
-        if (dot(mapped_hit.normal, outgoing_direction) <= 0.0 ||
-            dot(mapped_hit.normal, incoming_direction) <= 0.0) {
-            return 0.0;
-        }
-
+        // Sampling is performed around the geometric normal,
+        // so the PDF must use the same geometric-normal frame.
         return base_material_->scattering_pdf(
-            mapped_hit,
-            outgoing_direction,
-            incoming_direction
+            hit,
+            wo,
+            wi
         );
     }
 
@@ -261,7 +305,7 @@ public:
 private:
     std::shared_ptr<const Material> base_material_;
     std::shared_ptr<const Texture> normal_map_;
-    double normal_strength_ = 0.4;
+    double normal_strength_ = 1.0;
 
     static Vec3 normalize_or(
         const Vec3& value,
@@ -275,6 +319,48 @@ private:
         }
 
         return value / std::sqrt(length_squared);
+    }
+    
+    static double shading_normal_correction(
+        const Vec3& geometric_normal,
+        const Vec3& shading_normal,
+        const Vec3& wo,
+        const Vec3& wi
+    ) {
+        const double wi_geometric =
+            dot(wi, geometric_normal);
+
+        const double wo_geometric =
+            dot(wo, geometric_normal);
+
+        const double wi_shading =
+            dot(wi, shading_normal);
+
+        const double wo_shading =
+            dot(wo, shading_normal);
+
+        constexpr double EPSILON = 1e-8;
+
+        const double denominator =
+            wi_geometric * wo_shading;
+
+        if (!std::isfinite(denominator) ||
+            std::abs(denominator) < EPSILON) {
+            return 0.0;
+        }
+
+        const double correction =
+            std::abs(
+                (wi_shading * wo_geometric) /
+                denominator
+            );
+
+        if (!std::isfinite(correction)) {
+            return 0.0;
+        }
+
+        // Avoid unbounded weights near grazing directions.
+        return std::min(correction, 10.0);
     }
 
     static Vec3 fallback_tangent(const Vec3& normal) {
