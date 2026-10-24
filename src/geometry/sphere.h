@@ -68,6 +68,9 @@ public:
 
         record.set_face_normal(ray, outward_normal);
         get_sphere_uv(outward_normal, record.u, record.v);
+
+        compute_uv_differentials(ray, record);
+
         record.material = material_;
 
         return true;
@@ -140,5 +143,113 @@ private:
 
         u = phi / (2.0 * PI);
         v = theta / PI;
+    }
+
+        bool intersect_differential_ray(
+        const Vec3& ray_origin,
+        const Vec3& ray_direction,
+        Vec3& outward_normal
+    ) const {
+        const Vec3 oc = ray_origin - center_;
+
+        const double a = dot(ray_direction, ray_direction);
+
+        if (!std::isfinite(a) || a <= 1e-20) {
+            return false;
+        }
+
+        const double half_b = dot(oc, ray_direction);
+        const double c =
+            dot(oc, oc) - radius_ * radius_;
+
+        const double discriminant =
+            half_b * half_b - a * c;
+
+        if (!std::isfinite(discriminant) ||
+            discriminant < 0.0) {
+            return false;
+        }
+
+        const double sqrt_d = std::sqrt(discriminant);
+
+        double t = (-half_b - sqrt_d) / a;
+
+        if (t <= 1e-8) {
+            t = (-half_b + sqrt_d) / a;
+        }
+
+        if (!std::isfinite(t) || t <= 1e-8) {
+            return false;
+        }
+
+        const Vec3 point =
+            ray_origin + t * ray_direction;
+
+        outward_normal =
+            (point - center_) / radius_;
+
+        return std::isfinite(outward_normal.x) &&
+               std::isfinite(outward_normal.y) &&
+               std::isfinite(outward_normal.z);
+    }
+
+    void compute_uv_differentials(
+        const Ray& ray,
+        HitRecord& record
+    ) const {
+        record.has_uv_differentials = false;
+
+        if (!ray.has_differentials) {
+            return;
+        }
+
+        Vec3 normal_x;
+        Vec3 normal_y;
+
+        if (!intersect_differential_ray(
+                ray.rx_origin,
+                ray.rx_direction,
+                normal_x) ||
+            !intersect_differential_ray(
+                ray.ry_origin,
+                ray.ry_direction,
+                normal_y)) {
+            return;
+        }
+
+        double u_x = 0.0;
+        double v_x = 0.0;
+        double u_y = 0.0;
+        double v_y = 0.0;
+
+        get_sphere_uv(normalize(normal_x), u_x, v_x);
+        get_sphere_uv(normalize(normal_y), u_y, v_y);
+
+        // Handle the wraparound at the spherical UV seam.
+        double delta_u_x = u_x - record.u;
+        double delta_u_y = u_y - record.u;
+
+        if (delta_u_x > 0.5) {
+            delta_u_x -= 1.0;
+        } else if (delta_u_x < -0.5) {
+            delta_u_x += 1.0;
+        }
+
+        if (delta_u_y > 0.5) {
+            delta_u_y -= 1.0;
+        } else if (delta_u_y < -0.5) {
+            delta_u_y += 1.0;
+        }
+
+        record.dudx = delta_u_x;
+        record.dvdx = v_x - record.v;
+        record.dudy = delta_u_y;
+        record.dvdy = v_y - record.v;
+
+        record.has_uv_differentials =
+            std::isfinite(record.dudx) &&
+            std::isfinite(record.dvdx) &&
+            std::isfinite(record.dudy) &&
+            std::isfinite(record.dvdy);
     }
 };
