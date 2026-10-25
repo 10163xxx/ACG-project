@@ -71,25 +71,21 @@ public:
             )
         );
 
-        Vec3 rgb;
-
-        if (hit.has_uv_differentials) {
-            rgb = normal_map_->value(
-                hit.u,
-                hit.v,
-                hit.point,
-                hit.dudx,
-                hit.dvdx,
-                hit.dudy,
-                hit.dvdy
-            );
-        } else {
-            rgb = normal_map_->value(
-                hit.u,
-                hit.v,
-                hit.point
-            );
-        }
+        const Vec3 rgb = normal_map_->value_with_cone(
+            hit.u,
+            hit.v,
+            hit.point,
+            hit.dudx,
+            hit.dvdx,
+            hit.dudy,
+            hit.dvdy,
+            hit.has_uv_differentials,
+            hit.ray_cone_width,
+            hit.has_ray_cone,
+            hit.dpdu,
+            hit.dpdv,
+            hit.has_uv_parameterization
+        );
 
         // Decode tangent-space RGB from [0, 1] to [-1, 1].
         Vec3 tangent_normal(

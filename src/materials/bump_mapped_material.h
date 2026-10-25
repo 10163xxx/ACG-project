@@ -240,17 +240,21 @@ private:
         double v,
         const HitRecord& hit
     ) const {
-        const Vec3 color = hit.has_uv_differentials
-            ? height_map_->value(
-                u,
-                v,
-                hit.point,
-                hit.dudx,
-                hit.dvdx,
-                hit.dudy,
-                hit.dvdy
-            )
-            : height_map_->value(u, v, hit.point);
+        const Vec3 color = height_map_->value_with_cone(
+            u,
+            v,
+            hit.point,
+            hit.dudx,
+            hit.dvdx,
+            hit.dudy,
+            hit.dvdy,
+            hit.has_uv_differentials,
+            hit.ray_cone_width,
+            hit.has_ray_cone,
+            hit.dpdu,
+            hit.dpdv,
+            hit.has_uv_parameterization
+        );
 
         // Convert RGB height maps to scalar luminance.
         return
