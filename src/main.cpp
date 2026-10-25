@@ -58,20 +58,26 @@ int main(int argc, char* argv[]) {
     const std::string obj_path =
         obj_test ? std::string(argv[2]) : "";
 
-    const int image_width =
-        (volume_test || mipmap_test) ? 320 : 480;
+    int image_width = 480;
+    int image_height = 270;
+    int samples_per_pixel = 256;
+    int max_depth = 24;
 
-    const int image_height =
-        mipmap_test ? 240
-        : (volume_test ? 270 : (uv_test ? 360 : 270));
-
-    const int samples_per_pixel =
-        mipmap_test ? 16
-        : (volume_test ? 128 : (uv_test ? 64 : 256));
-
-    const int max_depth =
-        mipmap_test ? 8
-        : (volume_test ? 12 : (uv_test ? 12 : 24));
+    if (mipmap_test) {
+        image_width = 320;
+        image_height = 240;
+        samples_per_pixel = 16;
+        max_depth = 8;
+    } else if (volume_test) {
+        image_width = 320;
+        image_height = 270;
+        samples_per_pixel = 128;
+        max_depth = 12;
+    } else if (uv_test) {
+        image_height = 360;
+        samples_per_pixel = 64;
+        max_depth = 12;
+    }
 
     std::string output_file;
 
@@ -99,39 +105,43 @@ int main(int argc, char* argv[]) {
     const double aspect_ratio =
         static_cast<double>(image_width) / image_height;
 
-    Camera camera = mipmap_test
-        ? Camera(
+    std::shared_ptr<Camera> camera;
+
+    if (mipmap_test) {
+        camera = std::make_shared<Camera>(
             Vec3(0.0, 0.0, 3.2),
             Vec3(0.0, 0.0, 0.0),
             Vec3(0.0, 1.0, 0.0),
             40.0,
             aspect_ratio
-        )
-        : (obj_test
-            ? Camera(
-                Vec3(4.0, -6.0, 4.0),
-                Vec3(0.0, 0.0, 0.8),
-                Vec3(0.0, 0.0, 1.0),
-                38.0,
-                aspect_ratio
-            )
-            : (uv_test
-                ? Camera(
-                    Vec3(3.2, 2.4, 4.2),
-                    Vec3(0.0, 0.0, 0.0),
-                    Vec3(0.0, 1.0, 0.0),
-                    38.0,
-                    aspect_ratio
-                )
-                : Camera(
-                    Vec3(4.0, 2.35, 5.8),
-                    Vec3(0.0, 1.45, -1.7),
-                    Vec3(0.0, 1.0, 0.0),
-                    42.0,
-                    aspect_ratio,
-                    0.10,
-                    8.6
-                )));
+        );
+    } else if (obj_test) {
+        camera = std::make_shared<Camera>(
+            Vec3(4.0, -6.0, 4.0),
+            Vec3(0.0, 0.0, 0.8),
+            Vec3(0.0, 0.0, 1.0),
+            38.0,
+            aspect_ratio
+        );
+    } else if (uv_test) {
+        camera = std::make_shared<Camera>(
+            Vec3(3.2, 2.4, 4.2),
+            Vec3(0.0, 0.0, 0.0),
+            Vec3(0.0, 1.0, 0.0),
+            38.0,
+            aspect_ratio
+        );
+    } else {
+        camera = std::make_shared<Camera>(
+            Vec3(4.0, 2.35, 5.8),
+            Vec3(0.0, 1.45, -1.7),
+            Vec3(0.0, 1.0, 0.0),
+            42.0,
+            aspect_ratio,
+            0.10,
+            8.6
+        );
+    }
 
     HittableList scene;
 
@@ -230,7 +240,7 @@ int main(int argc, char* argv[]) {
                     1.0 - (y + Random::random_double())
                     / image_height;
 
-                const Ray ray = camera.get_ray(
+                const Ray ray = camera->get_ray(
                     u,
                     v,
                     1.0 / image_width,
