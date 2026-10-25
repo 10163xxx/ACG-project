@@ -69,6 +69,49 @@ public:
         record.set_face_normal(ray, outward_normal);
         get_sphere_uv(outward_normal, record.u, record.v);
 
+        // Compute the sphere's world-space UV derivatives.
+        constexpr double PI = 3.14159265358979323846;
+
+        const double theta =
+            std::acos(std::clamp(
+                -outward_normal.y,
+                -1.0,
+                1.0
+            ));
+
+        const double phi =
+            std::atan2(-outward_normal.z, outward_normal.x);
+
+        const double sin_theta = std::sin(theta);
+        const double cos_theta = std::cos(theta);
+        const double sin_phi = std::sin(phi);
+        const double cos_phi = std::cos(phi);
+
+        record.dpdu = Vec3(
+            -2.0 * PI * radius_ * sin_theta * sin_phi,
+            0.0,
+            -2.0 * PI * radius_ * sin_theta * cos_phi
+        );
+
+        record.dpdv = Vec3(
+            PI * radius_ * cos_theta * cos_phi,
+            PI * radius_ * sin_theta,
+            -PI * radius_ * cos_theta * sin_phi
+        );
+
+        const double dpdu_length_squared =
+            record.dpdu.length_squared();
+
+        const double dpdv_length_squared =
+            record.dpdv.length_squared();
+
+        // U is singular at the sphere poles.
+        record.has_uv_parameterization =
+            std::isfinite(dpdu_length_squared) &&
+            std::isfinite(dpdv_length_squared) &&
+            dpdu_length_squared > 1e-20 &&
+            dpdv_length_squared > 1e-20;
+
         compute_uv_differentials(ray, record);
 
         record.material = material_;

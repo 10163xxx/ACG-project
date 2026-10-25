@@ -31,6 +31,39 @@ public:
 
         return value(u, v, p);
     }
+
+    // Sample using screen-space UV differentials when available,
+    // otherwise allow derived textures to use a ray-cone estimate.
+    virtual Vec3 value_with_cone(
+        double u,
+        double v,
+        const Vec3& p,
+        double dudx,
+        double dvdx,
+        double dudy,
+        double dvdy,
+        bool has_uv_differentials,
+        double cone_width,
+        bool has_ray_cone,
+        const Vec3& dpdu,
+        const Vec3& dpdv,
+        bool has_uv_parameterization
+    ) const {
+        if (has_uv_differentials) {
+            return value(
+                u, v, p,
+                dudx, dvdx, dudy, dvdy
+            );
+        }
+
+        (void)cone_width;
+        (void)has_ray_cone;
+        (void)dpdu;
+        (void)dpdv;
+        (void)has_uv_parameterization;
+
+        return value(u, v, p);
+    }
 };
 
 class SolidColor final : public Texture {

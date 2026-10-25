@@ -15,6 +15,13 @@ struct HitRecord {
     Vec3 tangent;
     Vec3 bitangent;
 
+    // World-space surface derivatives with respect to UV.
+    Vec3 dpdu;
+    Vec3 dpdv;
+
+    // True when dpdu and dpdv form a valid UV parameterization.
+    bool has_uv_parameterization = false;
+
     double t = 0.0;
     bool front_face = true;
     double u = 0.0;
