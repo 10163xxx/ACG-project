@@ -7,6 +7,7 @@
 #include "materials/lambertian.h"
 #include "materials/metal.h"
 #include "materials/dielectric.h"
+#include "materials/principled.h"
 #include "integrator/mis.h"
 
 int main() {
@@ -65,6 +66,42 @@ int main() {
     assert(std::abs(invalid_bsdf.x) < 1e-12);
     assert(std::abs(invalid_bsdf.y) < 1e-12);
     assert(std::abs(invalid_bsdf.z) < 1e-12);
+
+    // 1c. Principled BSDF multiple-scattering compensation.
+    const Vec3 metal_color(0.9, 0.8, 0.7);
+
+    PrincipledBSDF rough_metal(
+        metal_color,
+        1.0,
+        1.0
+    );
+
+    const Vec3 principled_bsdf = rough_metal.evaluate_bsdf(
+        hit,
+        outgoing_direction,
+        incoming_direction
+    );
+
+    // At normal incidence with roughness = 1:
+    // GGX D = 1 / PI, Smith G = 1, and cos_o = cos_i = 1.
+    // For a fully metallic material, the single-scattering
+    // BSDF is F0 / (4 * PI); the diffuse term is zero.
+    const Vec3 single_scattering =
+        metal_color / (4.0 * PI);
+
+    // Multiple-scattering compensation must add energy
+    // beyond the single-scattering GGX result.
+    assert(principled_bsdf.x > single_scattering.x);
+    assert(principled_bsdf.y > single_scattering.y);
+    assert(principled_bsdf.z > single_scattering.z);
+
+    assert(std::isfinite(principled_bsdf.x));
+    assert(std::isfinite(principled_bsdf.y));
+    assert(std::isfinite(principled_bsdf.z));
+
+    assert(principled_bsdf.x >= 0.0);
+    assert(principled_bsdf.y >= 0.0);
+    assert(principled_bsdf.z >= 0.0);
 
     // 2. Perfect metal
     Metal mirror(Vec3(0.9, 0.9, 0.9), 0.0);

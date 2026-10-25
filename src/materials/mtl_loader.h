@@ -22,6 +22,9 @@ struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
     Vec3 specular = Vec3(0.04, 0.04, 0.04);
     double shininess = 10.0;
+    double metallic = 0.0;
+    double roughness = 1.0;
+    bool has_roughness = false;
     double index_of_refraction = 1.0;
     double opacity = 1.0;
     int illumination_model = 2;
@@ -160,8 +163,9 @@ public:
                 );
 
                 const double roughness =
-                    std::clamp(
-                        std::sqrt(
+                    properties.has_roughness
+                        ? properties.roughness
+                        : std::sqrt(
                             2.0 /
                             (
                                 std::max(
@@ -169,15 +173,12 @@ public:
                                     properties.shininess
                                 ) + 2.0
                             )
-                        ),
-                        0.045,
-                        1.0
-                    );
+                        );
 
                 base_material =
                     std::make_shared<PrincipledBSDF>(
                         properties.diffuse,
-                        0.0,
+                        properties.metallic,
                         roughness,
                         dielectric_f0
                     );
@@ -292,6 +293,11 @@ public:
                     properties.specular.z;
             } else if (command == "Ns") {
                 stream >> properties.shininess;
+            } else if (command == "Pm") {
+                stream >> properties.metallic;
+            } else if (command == "Pr") {
+                stream >> properties.roughness;
+                properties.has_roughness = true;
             } else if (command == "Ni") {
                 stream >> properties.index_of_refraction;
             } else if (command == "d") {
