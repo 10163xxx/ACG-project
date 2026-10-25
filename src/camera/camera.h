@@ -92,29 +92,6 @@ public:
             - focus_distance * w_;
     }
 
-    // Original interface: preserves compatibility with existing callers.
-    Ray get_ray(double s, double t) const {
-        const Vec3 target =
-            lower_left_corner_
-            + s * horizontal_
-            + t * vertical_;
-
-        const Vec3 lens_sample =
-            aperture_radius_ * random_in_unit_disk();
-
-        const Vec3 lens_offset =
-            lens_sample.x * u_
-            + lens_sample.y * v_;
-
-        const Vec3 ray_origin =
-            origin_ + lens_offset;
-
-        return Ray(
-            ray_origin,
-            target - ray_origin
-        );
-    }
-
     // Generate a primary ray and its screen-space differentials.
     // ds and dt are the normalized image-space pixel steps.
     Ray get_ray(
