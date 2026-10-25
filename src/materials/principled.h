@@ -190,7 +190,14 @@ public:
             * (one - diffuse_fresnel_in)
             / PI;
 
-        return diffuse + specular;
+        const Vec3 multiple_scattering =
+            evaluate_multiple_scattering(
+                cos_o,
+                cos_i,
+                f0
+            );
+
+        return diffuse + specular + multiple_scattering;
     }
 
     double scattering_pdf(
@@ -274,6 +281,122 @@ private:
             + 0.0722 * color.z;
     }
 
+    double ggx_directional_albedo(
+        double cos_theta
+    ) const {
+        const double alpha =
+            roughness_ * roughness_;
+
+        const double alpha_uv =
+            alpha * alpha;
+
+        const double mu =
+            std::clamp(cos_theta, 0.0, 1.0);
+
+        const double roughness_term =
+            -0.20277
+            + alpha_uv * (
+                2.772
+                + alpha_uv * (
+                    -2.6175
+                    + 0.73343 * alpha_uv
+                )
+            );
+
+        const double angle_term =
+            3.09507
+            + mu * (
+                -9.11369
+                + mu * (
+                    15.8884
+                    + mu * (
+                        -13.70343
+                        + 4.51786 * mu
+                    )
+                )
+            );
+
+        const double albedo =
+            1.0
+            - 1.4594
+            * alpha_uv
+            * mu
+            * roughness_term
+            * angle_term;
+
+        return std::clamp(albedo, 0.0, 1.0);
+    }
+
+    double ggx_average_albedo() const {
+        const double alpha =
+            roughness_ * roughness_;
+
+        const double alpha_uv =
+            alpha * alpha;
+
+        const double albedo =
+            1.0
+            + alpha_uv * (
+                -0.113
+                + alpha_uv * (
+                    -1.8695
+                    + alpha_uv * (
+                        2.2268
+                        - 0.83397 * alpha_uv
+                    )
+                )
+            );
+
+        return std::clamp(albedo, 0.0, 1.0);
+    }
+
+    Vec3 evaluate_multiple_scattering(
+        double cos_o,
+        double cos_i,
+        const Vec3& f0
+    ) const {
+        const double e_o =
+            ggx_directional_albedo(cos_o);
+
+        const double e_i =
+            ggx_directional_albedo(cos_i);
+
+        const double e_avg =
+            ggx_average_albedo();
+
+        const double geometric_denominator =
+            PI * (1.0 - e_avg);
+
+        if (geometric_denominator <= 1e-12) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double average_albedo_factor =
+            (1.0 - e_o)
+            * (1.0 - e_i)
+            / geometric_denominator;
+
+        // Schlick Fresnel averaged over the hemisphere.
+        const Vec3 f_avg =
+            (f0 * 20.0 + Vec3(1.0, 1.0, 1.0))
+            / 21.0;
+
+        const Vec3 denominator =
+            Vec3(1.0, 1.0, 1.0)
+            - f_avg * (1.0 - e_avg);
+
+        const Vec3 numerator =
+            f_avg * f_avg * e_avg;
+
+        const Vec3 fresnel_factor(
+            numerator.x / denominator.x,
+            numerator.y / denominator.y,
+            numerator.z / denominator.z
+        );
+
+        return average_albedo_factor * fresnel_factor;
+    }
+
     double specular_sampling_probability(
         const Vec3& normal,
         const Vec3& outgoing_direction
@@ -309,7 +432,7 @@ private:
 
         // No diffuse component needs to be sampled.
         if (diffuse_energy <= 1e-12) {
-            return 1.0;
+            return 0.95;
         }
 
         const double total_energy =
