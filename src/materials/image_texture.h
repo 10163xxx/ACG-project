@@ -14,7 +14,11 @@
 
 class ImageTexture final : public Texture {
 public:
-    explicit ImageTexture(const std::string& filename) {
+    explicit ImageTexture(
+        const std::string& filename,
+        bool use_mipmaps = true
+    )
+        : use_mipmaps_(use_mipmaps) {
         load(filename);
         build_mipmaps();
     }
@@ -41,6 +45,10 @@ public:
         double dvdy
     ) const override {
         (void)p;
+
+        if (!use_mipmaps_) {
+            return sample(u, v, 0.0);
+        }
 
         if (!std::isfinite(dudx) ||
             !std::isfinite(dvdx) ||
@@ -149,6 +157,7 @@ private:
 
     std::size_t width_ = 0;
     std::size_t height_ = 0;
+    bool use_mipmaps_ = true;
 
     // Original pixels are retained for compatibility with existing code.
     std::vector<Vec3> pixels_;

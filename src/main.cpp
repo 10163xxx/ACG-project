@@ -25,13 +25,18 @@
 #include "scene/test_scene.h"
 
 int main(int argc, char* argv[]) {
-    const std::string mode =
-        argc > 1 ? std::string(argv[1]) : "";
+    std::string mode;
+
+    if (argc > 1) {
+        mode = argv[1];
+    }
 
     const bool uv_test = mode == "--uv-test";
     const bool volume_test = mode == "--volume-test";
     const bool obj_test = mode == "--obj";
     const bool mipmap_test = mode == "--mipmap-test";
+    const bool mipmap_test_no_filter =
+        mode == "--mipmap-test-lod0";
 
     if (obj_test && argc < 3) {
         std::cerr
@@ -42,8 +47,9 @@ int main(int argc, char* argv[]) {
     if (!mode.empty() &&
         mode != "--uv-test" &&
         mode != "--volume-test" &&
-        mode != "--obj"
-        && mode != "--mipmap-test") {
+        mode != "--obj" &&
+        mode != "--mipmap-test" &&
+        mode != "--mipmap-test-lod0") {
         std::cerr
             << "Unknown option: " << mode << '\n'
             << "Available modes:\n"
@@ -51,19 +57,23 @@ int main(int argc, char* argv[]) {
             << "  renderer --uv-test\n"
             << "  renderer --volume-test\n"
             << "  renderer --obj <path-to-model.obj>\n"
-            << "  renderer --mipmap-test\n";
+            << "  renderer --mipmap-test\n"
+            << "  renderer --mipmap-test-lod0\n";
         return 1;
     }
 
-    const std::string obj_path =
-        obj_test ? std::string(argv[2]) : "";
+    std::string obj_path;
+
+    if (obj_test) {
+        obj_path = argv[2];
+    }
 
     int image_width = 480;
     int image_height = 270;
     int samples_per_pixel = 256;
     int max_depth = 24;
 
-    if (mipmap_test) {
+    if (mipmap_test || mipmap_test_no_filter) {
         image_width = 320;
         image_height = 240;
         samples_per_pixel = 16;
@@ -84,6 +94,9 @@ int main(int argc, char* argv[]) {
     if (mipmap_test) {
         output_file =
             OutputPaths::RenderDirectory + "mipmap_test.ppm";
+    } else if (mipmap_test_no_filter) {
+        output_file =
+            OutputPaths::RenderDirectory + "mipmap_test_lod0.ppm";
     } else if (uv_test) {
         output_file =
             OutputPaths::RenderDirectory + "uv_test.ppm";
@@ -107,7 +120,7 @@ int main(int argc, char* argv[]) {
 
     std::shared_ptr<Camera> camera;
 
-    if (mipmap_test) {
+    if (mipmap_test || mipmap_test_no_filter) {
         camera = std::make_shared<Camera>(
             Vec3(0.0, 0.0, 3.2),
             Vec3(0.0, 0.0, 0.0),
@@ -145,10 +158,11 @@ int main(int argc, char* argv[]) {
 
     HittableList scene;
 
-    if (mipmap_test) {
+    if (mipmap_test || mipmap_test_no_filter) {
         auto image_texture =
             std::make_shared<ImageTexture>(
-                "assets/textures/bump_test.ppm"
+                "assets/textures/bump_test.ppm",
+                !mipmap_test_no_filter
             );
 
         auto material =
