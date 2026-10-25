@@ -271,83 +271,187 @@ namespace {
         fs::remove_all(test_dir);
     }
 
-        void test_mtl_metallic_and_roughness() {
+    void test_mtl_metallic_and_roughness() {
+        namespace fs = std::filesystem;
+
+        const fs::path test_dir =
+            fs::current_path() / "obj_mtl_parameter_map_test";
+
+        fs::create_directories(test_dir);
+
+        auto write_ppm = [](
+            const fs::path& path,
+            int value
+        ) {
+            std::ofstream file(path);
+            if (!file) {
+                throw std::runtime_error(
+                    "Failed to create parameter-map test texture."
+                );
+            }
+
+            file << "P3\n";
+            file << "1 1\n";
+            file << "255\n";
+            file << value << " " << value << " " << value << "\n";
+        };
+
+        write_ppm(test_dir / "black.ppm", 0);
+        write_ppm(test_dir / "white.ppm", 255);
+        write_ppm(test_dir / "rough_low.ppm", 64);
+        write_ppm(test_dir / "rough_high.ppm", 220);
+
         std::istringstream input(
             "newmtl dielectric\n"
             "Kd 0.8 0.4 0.2\n"
             "Ks 0.04 0.04 0.04\n"
-            "Ns 32.0\n"
+            "Pr 0.5\n"
+            "Pm 0.0\n"
 
             "newmtl metallic\n"
             "Kd 0.8 0.4 0.2\n"
             "Ks 0.04 0.04 0.04\n"
-            "Ns 32.0\n"
+            "Pr 0.5\n"
             "Pm 1.0\n"
-            "Pr 1.0\n"
 
             "newmtl roughness_override\n"
             "Kd 0.8 0.4 0.2\n"
             "Ks 0.04 0.04 0.04\n"
             "Ns 1000.0\n"
             "Pr 1.0\n"
+
+            "newmtl metallic_map_black\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "Pr 0.5\n"
+            "map_Pm black.ppm\n"
+
+            "newmtl metallic_map_white\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "Pr 0.5\n"
+            "map_Pm white.ppm\n"
+
+            "newmtl roughness_map_low\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "map_Pr rough_low.ppm\n"
+
+            "newmtl roughness_map_high\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "map_Pr rough_high.ppm\n"
         );
 
-        const auto materials = MtlLoader::load(input);
+        try {
+            const auto materials =
+                MtlLoader::load(input, test_dir);
 
-        assert(materials.count("dielectric") == 1);
-        assert(materials.count("metallic") == 1);
-        assert(materials.count("roughness_override") == 1);
+            assert(materials.count("dielectric") == 1);
+            assert(materials.count("metallic") == 1);
+            assert(materials.count("roughness_override") == 1);
+            assert(materials.count("metallic_map_black") == 1);
+            assert(materials.count("metallic_map_white") == 1);
+            assert(materials.count("roughness_map_low") == 1);
+            assert(materials.count("roughness_map_high") == 1);
 
-        HitRecord hit;
-        hit.normal = Vec3(0.0, 0.0, 1.0);
+            HitRecord hit;
+            hit.normal = Vec3(0.0, 0.0, 1.0);
+            hit.u = 0.5;
+            hit.v = 0.5;
 
-        const Vec3 outgoing(0.0, 0.0, 1.0);
-        const Vec3 incoming(0.0, 0.0, 1.0);
+            const Vec3 outgoing =
+                normalize(Vec3(0.3, 0.0, 1.0));
 
-        const Vec3 dielectric_bsdf =
-            materials.at("dielectric")->evaluate_bsdf(
-                hit,
-                outgoing,
-                incoming
+            const Vec3 incoming =
+                normalize(Vec3(-0.2, 0.1, 1.0));
+
+            auto evaluate = [&](
+                const std::string& name
+            ) {
+                return materials.at(name)->evaluate_bsdf(
+                    hit,
+                    outgoing,
+                    incoming
+                );
+            };
+
+            auto difference = [](
+                const Vec3& a,
+                const Vec3& b
+            ) {
+                return
+                    std::abs(a.x - b.x)
+                    + std::abs(a.y - b.y)
+                    + std::abs(a.z - b.z);
+            };
+
+            const Vec3 dielectric_bsdf =
+                evaluate("dielectric");
+
+            const Vec3 metallic_bsdf =
+                evaluate("metallic");
+
+            // Constant Pm must affect the BSDF.
+            assert(
+                difference(
+                    dielectric_bsdf,
+                    metallic_bsdf
+                ) > 1e-6
             );
 
-        const Vec3 metallic_bsdf =
-            materials.at("metallic")->evaluate_bsdf(
-                hit,
-                outgoing,
-                incoming
+            const Vec3 override_bsdf =
+                evaluate("roughness_override");
+
+            // Explicit Pr=1.0 must override Ns.
+            assert(
+                difference(
+                    metallic_bsdf,
+                    override_bsdf
+                ) > 1e-6
             );
 
-        const Vec3 override_bsdf =
-            materials.at("roughness_override")->evaluate_bsdf(
-                hit,
-                outgoing,
-                incoming
+            // A black metallic map should behave like Pm=0.
+            const Vec3 black_map_bsdf =
+                evaluate("metallic_map_black");
+
+            assert(
+                difference(
+                    dielectric_bsdf,
+                    black_map_bsdf
+                ) < 1e-6
             );
 
-        // Pm must change the BSDF from dielectric to metallic.
-        const double metallic_difference =
-            std::abs(dielectric_bsdf.x - metallic_bsdf.x)
-            + std::abs(dielectric_bsdf.y - metallic_bsdf.y)
-            + std::abs(dielectric_bsdf.z - metallic_bsdf.z);
+            // A white metallic map should behave like Pm=1.
+            const Vec3 white_map_bsdf =
+                evaluate("metallic_map_white");
 
-        assert(metallic_difference > 1e-6);
+            assert(
+                difference(
+                    metallic_bsdf,
+                    white_map_bsdf
+                ) < 1e-6
+            );
 
-        // Explicit Pr=1.0 must override Ns, even when Ns differs.
-        assert(approximately_equal(
-            metallic_bsdf.x,
-            override_bsdf.x
-        ));
+            // Different roughness maps must produce different BSDFs.
+            const Vec3 low_roughness_bsdf =
+                evaluate("roughness_map_low");
 
-        assert(approximately_equal(
-            metallic_bsdf.y,
-            override_bsdf.y
-        ));
+            const Vec3 high_roughness_bsdf =
+                evaluate("roughness_map_high");
 
-        assert(approximately_equal(
-            metallic_bsdf.z,
-            override_bsdf.z
-        ));
+            assert(
+                difference(
+                    low_roughness_bsdf,
+                    high_roughness_bsdf
+                ) > 1e-6
+            );
+        } catch (...) {
+            fs::remove_all(test_dir);
+            throw;
+        }
+
+        fs::remove_all(test_dir);
     }
 }
 

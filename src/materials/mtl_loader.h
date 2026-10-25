@@ -30,6 +30,8 @@ struct MtlProperties {
     int illumination_model = 2;
 
     std::string diffuse_map;
+    std::string metallic_map;
+    std::string roughness_map;
     std::string normal_map;
     std::string bump_map;
     double bump_strength = 1.0;
@@ -140,6 +142,29 @@ public:
 
             std::shared_ptr<const Material> base_material;
 
+            std::shared_ptr<const Texture> metallic_texture;
+            std::shared_ptr<const Texture> roughness_texture;
+
+            if (!properties.metallic_map.empty()) {
+                const auto texture_path =
+                    resolve_path(properties.metallic_map);
+
+                metallic_texture =
+                    std::make_shared<ImageTexture>(
+                        texture_path.string()
+                    );
+            }
+
+            if (!properties.roughness_map.empty()) {
+                const auto texture_path =
+                    resolve_path(properties.roughness_map);
+
+                roughness_texture =
+                    std::make_shared<ImageTexture>(
+                        texture_path.string()
+                    );
+            }
+
             if (indicates_glass) {
                 const double glass_ior =
                     has_valid_ior ? ior : 1.5;
@@ -180,7 +205,9 @@ public:
                         properties.diffuse,
                         properties.metallic,
                         roughness,
-                        dielectric_f0
+                        dielectric_f0,
+                        metallic_texture,
+                        roughness_texture
                     );
             }
 
@@ -344,6 +371,12 @@ public:
                 stream >> properties.illumination_model;
             } else if (command == "map_Kd") {
                 properties.diffuse_map = read_map_path(stream);
+            } else if (command == "map_Pm") {
+                properties.metallic_map =
+                    read_map_path(stream);
+            } else if (command == "map_Pr") {
+                properties.roughness_map =
+                    read_map_path(stream);
             } else if (
                 command == "map_Bump" ||
                 command == "map_bump" ||

@@ -3,9 +3,11 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <memory>
 
 #include "materials/material.h"
 #include "core/random.h"
+#include "materials/texture.h"
 
 class PrincipledBSDF final : public Material {
 public:
@@ -13,7 +15,9 @@ public:
         const Vec3& base_color,
         double metallic,
         double roughness,
-        const Vec3& dielectric_f0 = Vec3(0.04, 0.04, 0.04)
+        const Vec3& dielectric_f0 = Vec3(0.04, 0.04, 0.04),
+        std::shared_ptr<const Texture> metallic_texture = nullptr,
+        std::shared_ptr<const Texture> roughness_texture = nullptr
     )
         : base_color_(base_color),
           metallic_(std::clamp(metallic, 0.0, 1.0)),
@@ -21,8 +25,10 @@ public:
           dielectric_f0_(
               std::clamp(dielectric_f0.x, 0.0, 1.0),
               std::clamp(dielectric_f0.y, 0.0, 1.0),
-              std::clamp(dielectric_f0.z, 0.0, 1.0)
-          ) {
+              std::clamp(dielectric_f0.z, 0.0, 1.0)),
+          metallic_texture_(std::move(metallic_texture)),
+          roughness_texture_(std::move(roughness_texture))
+        {
         if (!std::isfinite(base_color.x) ||
             !std::isfinite(base_color.y) ||
             !std::isfinite(base_color.z)) {
@@ -79,14 +85,25 @@ public:
             return false;
         }
 
+        const double metallic = metallic_at(hit);
+        const double roughness = roughness_at(hit);
+
         const double specular_probability =
-            specular_sampling_probability(n, wo);
+            specular_sampling_probability(
+                n,
+                wo,
+                metallic
+            );
 
         Vec3 wi;
 
         if (Random::random_double() < specular_probability) {
             const Vec3 half_vector =
-                sample_ggx_half_vector(n, wo);
+                sample_ggx_half_vector(
+                    n,
+                    wo,
+                    roughness
+                );
 
             wi = normalize(reflect(-wo, half_vector));
         } else {
@@ -148,7 +165,10 @@ public:
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        const double alpha = roughness_ * roughness_;
+        const double metallic = metallic_at(hit);
+        const double roughness = roughness_at(hit);
+
+        const double alpha = roughness * roughness;
         const double alpha_squared = alpha * alpha;
 
         const double denominator =
@@ -163,8 +183,8 @@ public:
             * smith_g1(cos_i, alpha_squared);
 
         const Vec3 f0 =
-            (1.0 - metallic_) * dielectric_f0_
-            + metallic_ * base_color_;
+            (1.0 - metallic) * dielectric_f0_
+            + metallic * base_color_;
 
         const Vec3 fresnel =
             schlick_fresnel(f0, cos_oh);
@@ -184,7 +204,7 @@ public:
         const Vec3 one(1.0, 1.0, 1.0);
 
         const Vec3 diffuse =
-            (1.0 - metallic_)
+            (1.0 - metallic)
             * base_color_
             * (one - diffuse_fresnel_out)
             * (one - diffuse_fresnel_in)
@@ -194,7 +214,8 @@ public:
             evaluate_multiple_scattering(
                 cos_o,
                 cos_i,
-                f0
+                f0,
+                roughness
             );
 
         return diffuse + specular + multiple_scattering;
@@ -216,8 +237,15 @@ public:
             return 0.0;
         }
 
+        const double metallic = metallic_at(hit);
+        const double roughness = roughness_at(hit);
+
         const double specular_probability =
-            specular_sampling_probability(n, wo);
+            specular_sampling_probability(
+                n,
+                wo,
+                metallic
+            );
 
         const double diffuse_pdf = cos_i / PI;
 
@@ -239,7 +267,7 @@ public:
             return (1.0 - specular_probability) * diffuse_pdf;
         }
 
-        const double alpha = roughness_ * roughness_;
+        const double alpha = roughness * roughness;
         const double alpha_squared = alpha * alpha;
 
         const double denominator =
@@ -249,8 +277,6 @@ public:
             alpha_squared /
             (PI * denominator * denominator);
 
-        // PDF for GGX visible-normal sampling, converted
-        // from half-vector space to reflection-direction space.
         const double specular_pdf =
             distribution
             * smith_g1(cos_o, alpha_squared)
@@ -273,6 +299,8 @@ private:
     double metallic_;
     double roughness_;
     Vec3 dielectric_f0_;
+    std::shared_ptr<const Texture> metallic_texture_;
+    std::shared_ptr<const Texture> roughness_texture_;
 
     static double luminance(const Vec3& color) {
         return
@@ -282,10 +310,11 @@ private:
     }
 
     double ggx_directional_albedo(
-        double cos_theta
+        double cos_theta,
+        double roughness
     ) const {
         const double alpha =
-            roughness_ * roughness_;
+            roughness * roughness;
 
         const double alpha_uv =
             alpha * alpha;
@@ -327,9 +356,11 @@ private:
         return std::clamp(albedo, 0.0, 1.0);
     }
 
-    double ggx_average_albedo() const {
+    double ggx_average_albedo(
+        double roughness
+    ) const {
         const double alpha =
-            roughness_ * roughness_;
+            roughness * roughness;
 
         const double alpha_uv =
             alpha * alpha;
@@ -353,16 +384,23 @@ private:
     Vec3 evaluate_multiple_scattering(
         double cos_o,
         double cos_i,
-        const Vec3& f0
+        const Vec3& f0,
+        double roughness
     ) const {
         const double e_o =
-            ggx_directional_albedo(cos_o);
+            ggx_directional_albedo(
+                cos_o,
+                roughness
+            );
 
         const double e_i =
-            ggx_directional_albedo(cos_i);
+            ggx_directional_albedo(
+                cos_i,
+                roughness
+            );
 
         const double e_avg =
-            ggx_average_albedo();
+            ggx_average_albedo(roughness);
 
         const double geometric_denominator =
             PI * (1.0 - e_avg);
@@ -376,7 +414,6 @@ private:
             * (1.0 - e_i)
             / geometric_denominator;
 
-        // Schlick Fresnel averaged over the hemisphere.
         const Vec3 f_avg =
             (f0 * 20.0 + Vec3(1.0, 1.0, 1.0))
             / 21.0;
@@ -399,7 +436,8 @@ private:
 
     double specular_sampling_probability(
         const Vec3& normal,
-        const Vec3& outgoing_direction
+        const Vec3& outgoing_direction,
+        double metallic
     ) const {
         const double cos_o = std::clamp(
             dot(normal, outgoing_direction),
@@ -408,8 +446,8 @@ private:
         );
 
         const Vec3 f0 =
-            (1.0 - metallic_) * dielectric_f0_
-            + metallic_ * base_color_;
+            (1.0 - metallic) * dielectric_f0_
+            + metallic * base_color_;
 
         const Vec3 fresnel =
             schlick_fresnel(f0, cos_o);
@@ -425,12 +463,13 @@ private:
         const double diffuse_energy =
             std::max(
                 0.0,
-                (1.0 - metallic_)
-                * luminance(base_color_
-                    * (one - diffuse_fresnel))
+                (1.0 - metallic)
+                * luminance(
+                    base_color_
+                    * (one - diffuse_fresnel)
+                )
             );
 
-        // No diffuse component needs to be sampled.
         if (diffuse_energy <= 1e-12) {
             return 0.95;
         }
@@ -513,9 +552,9 @@ private:
 
     Vec3 sample_ggx_half_vector(
         const Vec3& normal,
-        const Vec3& outgoing_direction
+        const Vec3& outgoing_direction,
+        double roughness
     ) const {
-        // Construct a local frame around the surface normal.
         const Vec3 helper =
             std::abs(normal.x) > 0.9
                 ? Vec3(0.0, 1.0, 0.0)
@@ -527,7 +566,6 @@ private:
         const Vec3 bitangent =
             cross(normal, tangent);
 
-        // Transform the outgoing direction to local space.
         const Vec3 wo = normalize(outgoing_direction);
 
         const Vec3 view(
@@ -536,8 +574,7 @@ private:
             dot(wo, normal)
         );
 
-        // Stretch the view direction for GGX VNDF sampling.
-        const double alpha = roughness_ * roughness_;
+        const double alpha = roughness * roughness;
 
         const Vec3 stretched_view =
             normalize(Vec3(
@@ -546,7 +583,6 @@ private:
                 view.z
             ));
 
-        // Build an orthonormal basis around the stretched view.
         const double lensq =
             stretched_view.x * stretched_view.x
             + stretched_view.y * stretched_view.y;
@@ -562,7 +598,6 @@ private:
 
         const Vec3 t2 = cross(stretched_view, t1);
 
-        // Sample a point on the projected visible-normal disk.
         const double r1 = Random::random_double();
         const double r2 = Random::random_double();
 
@@ -591,19 +626,44 @@ private:
             + p2 * t2
             + p3 * stretched_view;
 
-        // Unstretch the sampled normal to recover the GGX
-        // microfacet normal in local coordinates.
         const Vec3 local_half_vector = normalize(Vec3(
             alpha * sampled_normal.x,
             alpha * sampled_normal.y,
             std::max(0.0, sampled_normal.z)
         ));
 
-        // Transform the half-vector back to world space.
         return normalize(
             local_half_vector.x * tangent
             + local_half_vector.y * bitangent
             + local_half_vector.z * normal
         );
+    }
+
+    double metallic_at(const HitRecord& hit) const {
+        if (!metallic_texture_) {
+            return metallic_;
+        }
+
+        const Vec3 value = metallic_texture_->value(
+            hit.u,
+            hit.v,
+            hit.point
+        );
+
+        return std::clamp(value.x, 0.0, 1.0);
+    }
+
+    double roughness_at(const HitRecord& hit) const {
+        if (!roughness_texture_) {
+            return roughness_;
+        }
+
+        const Vec3 value = roughness_texture_->value(
+            hit.u,
+            hit.v,
+            hit.point
+        );
+
+        return std::clamp(value.x, 0.045, 1.0);
     }
 };
