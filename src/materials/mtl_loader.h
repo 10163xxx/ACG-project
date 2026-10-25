@@ -140,7 +140,7 @@ public:
 
             std::shared_ptr<const Material> base_material;
 
-            if (has_valid_ior || indicates_glass) {
+            if (indicates_glass) {
                 const double glass_ior =
                     has_valid_ior ? ior : 1.5;
 
@@ -292,12 +292,33 @@ public:
                     properties.specular.y >>
                     properties.specular.z;
             } else if (command == "Ns") {
-                stream >> properties.shininess;
+                double value = properties.shininess;
+
+                if (stream >> value) {
+                    if (std::isfinite(value)) {
+                        properties.shininess =
+                            std::max(0.0, value);
+                    }
+                }
             } else if (command == "Pm") {
-                stream >> properties.metallic;
+                double value = properties.metallic;
+
+                if (stream >> value) {
+                    if (std::isfinite(value)) {
+                        properties.metallic =
+                            std::clamp(value, 0.0, 1.0);
+                    }
+                }
             } else if (command == "Pr") {
-                stream >> properties.roughness;
-                properties.has_roughness = true;
+                double value = properties.roughness;
+
+                if (stream >> value) {
+                    if (std::isfinite(value)) {
+                        properties.roughness =
+                            std::clamp(value, 0.045, 1.0);
+                        properties.has_roughness = true;
+                    }
+                }
             } else if (command == "Ni") {
                 stream >> properties.index_of_refraction;
             } else if (command == "d") {

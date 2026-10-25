@@ -14,6 +14,7 @@
 #include "geometry/sphere.h"
 #include "materials/diffuse_light.h"
 #include "materials/lambertian.h"
+#include "materials/mtl_loader.h"
 
 namespace {
     bool approximately_equal(double a, double b) {
@@ -270,6 +271,84 @@ namespace {
         fs::remove_all(test_dir);
     }
 
+        void test_mtl_metallic_and_roughness() {
+        std::istringstream input(
+            "newmtl dielectric\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "Ns 32.0\n"
+
+            "newmtl metallic\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "Ns 32.0\n"
+            "Pm 1.0\n"
+            "Pr 1.0\n"
+
+            "newmtl roughness_override\n"
+            "Kd 0.8 0.4 0.2\n"
+            "Ks 0.04 0.04 0.04\n"
+            "Ns 1000.0\n"
+            "Pr 1.0\n"
+        );
+
+        const auto materials = MtlLoader::load(input);
+
+        assert(materials.count("dielectric") == 1);
+        assert(materials.count("metallic") == 1);
+        assert(materials.count("roughness_override") == 1);
+
+        HitRecord hit;
+        hit.normal = Vec3(0.0, 0.0, 1.0);
+
+        const Vec3 outgoing(0.0, 0.0, 1.0);
+        const Vec3 incoming(0.0, 0.0, 1.0);
+
+        const Vec3 dielectric_bsdf =
+            materials.at("dielectric")->evaluate_bsdf(
+                hit,
+                outgoing,
+                incoming
+            );
+
+        const Vec3 metallic_bsdf =
+            materials.at("metallic")->evaluate_bsdf(
+                hit,
+                outgoing,
+                incoming
+            );
+
+        const Vec3 override_bsdf =
+            materials.at("roughness_override")->evaluate_bsdf(
+                hit,
+                outgoing,
+                incoming
+            );
+
+        // Pm must change the BSDF from dielectric to metallic.
+        const double metallic_difference =
+            std::abs(dielectric_bsdf.x - metallic_bsdf.x)
+            + std::abs(dielectric_bsdf.y - metallic_bsdf.y)
+            + std::abs(dielectric_bsdf.z - metallic_bsdf.z);
+
+        assert(metallic_difference > 1e-6);
+
+        // Explicit Pr=1.0 must override Ns, even when Ns differs.
+        assert(approximately_equal(
+            metallic_bsdf.x,
+            override_bsdf.x
+        ));
+
+        assert(approximately_equal(
+            metallic_bsdf.y,
+            override_bsdf.y
+        ));
+
+        assert(approximately_equal(
+            metallic_bsdf.z,
+            override_bsdf.z
+        ));
+    }
 }
 
 int main() {
@@ -277,6 +356,7 @@ int main() {
     test_imported_mesh_as_area_light();
     test_imported_mesh_in_scene_with_other_objects();
     test_obj_mtl_diffuse_texture();
+    test_mtl_metallic_and_roughness();
 
     std::cout << "OBJ integration tests passed.\n";
     return 0;
