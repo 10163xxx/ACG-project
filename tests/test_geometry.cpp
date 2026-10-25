@@ -6,6 +6,7 @@
 #include "geometry/aabb.h"
 #include "geometry/sphere.h"
 #include "geometry/hittable_list.h"
+#include "geometry/triangle.h"
 
 namespace {
     bool approximately_equal(double a, double b) {
@@ -96,6 +97,52 @@ namespace {
         assert(approximately_equal(hit_x.v, 0.5));
     }
 
+    void test_triangle_uv_parameterization_without_differentials() {
+        const Triangle triangle(
+            Vec3(0.0, 0.0, 0.0),
+            Vec3(1.0, 0.0, 0.0),
+            Vec3(0.0, 1.0, 0.0)
+        );
+
+        // This ray has no screen-space ray differentials.
+        const Ray ray(
+            Vec3(0.25, 0.25, 1.0),
+            Vec3(0.0, 0.0, -1.0)
+        );
+
+        HitRecord record;
+
+        assert(triangle.hit(
+            ray,
+            Interval(0.001, 10.0),
+            record
+        ));
+
+        assert(!ray.has_differentials);
+        assert(record.has_uv_parameterization);
+
+        assert(approximately_equal(
+            record.dpdu.x, 1.0
+        ));
+        assert(approximately_equal(
+            record.dpdu.y, 0.0
+        ));
+        assert(approximately_equal(
+            record.dpdu.z, 0.0
+        ));
+
+        assert(approximately_equal(
+            record.dpdv.x, 0.0
+        ));
+        assert(approximately_equal(
+            record.dpdv.y, 1.0
+        ));
+        assert(approximately_equal(
+            record.dpdv.z, 0.0
+        ));
+
+        assert(!record.has_uv_differentials);
+    }
 }
 
 int main() {
@@ -103,6 +150,7 @@ int main() {
     test_aabb_hit();
     test_hittable_list_bounding_box();
     test_sphere_uv_coordinates();
+    test_triangle_uv_parameterization_without_differentials();
     std::cout << "Geometry tests passed.\n";
     return 0;
 }

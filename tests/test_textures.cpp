@@ -361,6 +361,26 @@ namespace {
             assert(approximately_equal(
                 automatic_lod.z, 0.5
             ));
+
+                        // Ray-cone fallback should select a coarse mip level
+            // when screen-space UV differentials are unavailable.
+            const Vec3 cone_lod = texture.value_with_cone(
+                0.0,
+                1.0,
+                Vec3(),
+                0.0, 0.0,
+                0.0, 0.0,
+                false,
+                1.0,
+                true,
+                Vec3(1.0, 0.0, 0.0),
+                Vec3(0.0, 1.0, 0.0),
+                true
+            );
+
+            assert(approximately_equal(cone_lod.x, 0.5));
+            assert(approximately_equal(cone_lod.y, 0.5));
+            assert(approximately_equal(cone_lod.z, 0.5));
         }
 
         std::remove(filename);

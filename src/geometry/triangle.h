@@ -110,6 +110,7 @@ public:
             ? bitangent_
             : -1.0 * bitangent_;
 
+        compute_uv_parameterization(record);
         compute_uv_differentials(ray, record);
 
         record.material = material_;
@@ -289,6 +290,51 @@ private:
                std::isfinite(gamma);
     }
 
+    void compute_uv_parameterization(
+        HitRecord& record
+    ) const {
+        // Compute the world-space surface parameterization.
+        if (has_uv_) {
+            const double du1 = uv_b_.x - uv_a_.x;
+            const double dv1 = uv_b_.y - uv_a_.y;
+            const double du2 = uv_c_.x - uv_a_.x;
+            const double dv2 = uv_c_.y - uv_a_.y;
+
+            const double determinant =
+                du1 * dv2 - dv1 * du2;
+
+            if (std::isfinite(determinant) &&
+                std::abs(determinant) > 1e-12) {
+                record.dpdu =
+                    (dv2 * edge1_ - dv1 * edge2_)
+                    / determinant;
+
+                record.dpdv =
+                    (du1 * edge2_ - du2 * edge1_)
+                    / determinant;
+
+                const double dpdu_length_squared =
+                    record.dpdu.length_squared();
+
+                const double dpdv_length_squared =
+                    record.dpdv.length_squared();
+
+                record.has_uv_parameterization =
+                    std::isfinite(dpdu_length_squared) &&
+                    std::isfinite(dpdv_length_squared) &&
+                    dpdu_length_squared > 1e-20 &&
+                    dpdv_length_squared > 1e-20;
+            } else {
+                record.has_uv_parameterization = false;
+            }
+        } else {
+            // The existing fallback UVs are beta and gamma.
+            record.dpdu = edge1_;
+            record.dpdv = edge2_;
+            record.has_uv_parameterization = true;
+        }
+    }
+
     bool compute_uv_differentials(
         const Ray& ray,
         HitRecord& record
@@ -381,47 +427,6 @@ private:
             v_x = gamma_x;
             u_y = beta_y;
             v_y = gamma_y;
-        }
-
-        // Compute the world-space surface parameterization.
-        if (has_uv_) {
-            const double du1 = uv_b_.x - uv_a_.x;
-            const double dv1 = uv_b_.y - uv_a_.y;
-            const double du2 = uv_c_.x - uv_a_.x;
-            const double dv2 = uv_c_.y - uv_a_.y;
-
-            const double determinant =
-                du1 * dv2 - dv1 * du2;
-
-            if (std::isfinite(determinant) &&
-                std::abs(determinant) > 1e-12) {
-                record.dpdu =
-                    (dv2 * edge1_ - dv1 * edge2_)
-                    / determinant;
-
-                record.dpdv =
-                    (du1 * edge2_ - du2 * edge1_)
-                    / determinant;
-
-                const double dpdu_length_squared =
-                    record.dpdu.length_squared();
-
-                const double dpdv_length_squared =
-                    record.dpdv.length_squared();
-
-                record.has_uv_parameterization =
-                    std::isfinite(dpdu_length_squared) &&
-                    std::isfinite(dpdv_length_squared) &&
-                    dpdu_length_squared > 1e-20 &&
-                    dpdv_length_squared > 1e-20;
-            } else {
-                record.has_uv_parameterization = false;
-            }
-        } else {
-            // The existing fallback UVs are beta and gamma.
-            record.dpdu = edge1_;
-            record.dpdv = edge2_;
-            record.has_uv_parameterization = true;
         }
 
         record.dudx = u_x - record.u;
