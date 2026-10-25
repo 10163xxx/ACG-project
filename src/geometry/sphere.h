@@ -145,20 +145,24 @@ private:
         v = theta / PI;
     }
 
-        bool intersect_differential_ray(
+    bool intersect_differential_ray(
         const Vec3& ray_origin,
         const Vec3& ray_direction,
+        Vec3& point,
         Vec3& outward_normal
     ) const {
         const Vec3 oc = ray_origin - center_;
 
-        const double a = dot(ray_direction, ray_direction);
+        const double a =
+            dot(ray_direction, ray_direction);
 
         if (!std::isfinite(a) || a <= 1e-20) {
             return false;
         }
 
-        const double half_b = dot(oc, ray_direction);
+        const double half_b =
+            dot(oc, ray_direction);
+
         const double c =
             dot(oc, oc) - radius_ * radius_;
 
@@ -170,11 +174,13 @@ private:
             return false;
         }
 
-        const double sqrt_d = std::sqrt(discriminant);
+        const double sqrt_d =
+            std::sqrt(discriminant);
 
-        double t = (-half_b - sqrt_d) / a;
+        double t =
+            (-half_b - sqrt_d) / a;
 
-        if (t <= 1e-8) {
+        if (!std::isfinite(t) || t <= 1e-8) {
             t = (-half_b + sqrt_d) / a;
         }
 
@@ -182,13 +188,13 @@ private:
             return false;
         }
 
-        const Vec3 point =
-            ray_origin + t * ray_direction;
+        point = ray_origin + t * ray_direction;
+        outward_normal = (point - center_) / radius_;
 
-        outward_normal =
-            (point - center_) / radius_;
-
-        return std::isfinite(outward_normal.x) &&
+        return std::isfinite(point.x) &&
+               std::isfinite(point.y) &&
+               std::isfinite(point.z) &&
+               std::isfinite(outward_normal.x) &&
                std::isfinite(outward_normal.y) &&
                std::isfinite(outward_normal.z);
     }
@@ -197,23 +203,60 @@ private:
         const Ray& ray,
         HitRecord& record
     ) const {
+        record.has_surface_differentials = false;
         record.has_uv_differentials = false;
 
         if (!ray.has_differentials) {
             return;
         }
 
+        Vec3 point_x;
+        Vec3 point_y;
         Vec3 normal_x;
         Vec3 normal_y;
 
         if (!intersect_differential_ray(
                 ray.rx_origin,
                 ray.rx_direction,
+                point_x,
                 normal_x) ||
             !intersect_differential_ray(
                 ray.ry_origin,
                 ray.ry_direction,
+                point_y,
                 normal_y)) {
+            return;
+        }
+
+        record.dpdx = point_x - record.point;
+        record.dpdy = point_y - record.point;
+
+        const Vec3 outward_normal =
+            record.front_face
+                ? record.normal
+                : -1.0 * record.normal;
+
+        record.dndx =
+            normalize(normal_x) - outward_normal;
+
+        record.dndy =
+            normalize(normal_y) - outward_normal;
+
+        record.has_surface_differentials =
+            std::isfinite(record.dpdx.x) &&
+            std::isfinite(record.dpdx.y) &&
+            std::isfinite(record.dpdx.z) &&
+            std::isfinite(record.dpdy.x) &&
+            std::isfinite(record.dpdy.y) &&
+            std::isfinite(record.dpdy.z) &&
+            std::isfinite(record.dndx.x) &&
+            std::isfinite(record.dndx.y) &&
+            std::isfinite(record.dndx.z) &&
+            std::isfinite(record.dndy.x) &&
+            std::isfinite(record.dndy.y) &&
+            std::isfinite(record.dndy.z);
+
+        if (!record.has_surface_differentials) {
             return;
         }
 

@@ -293,6 +293,7 @@ private:
         const Ray& ray,
         HitRecord& record
     ) const {
+        record.has_surface_differentials = false;
         record.has_uv_differentials = false;
 
         if (!ray.has_differentials) {
@@ -310,6 +311,25 @@ private:
                 ray.ry_origin,
                 ray.ry_direction,
                 point_y)) {
+            return false;
+        }
+
+        record.dpdx = point_x - record.point;
+        record.dpdy = point_y - record.point;
+
+        // A triangle has a constant geometric normal over its face.
+        record.dndx = Vec3(0.0, 0.0, 0.0);
+        record.dndy = Vec3(0.0, 0.0, 0.0);
+
+        record.has_surface_differentials =
+            std::isfinite(record.dpdx.x) &&
+            std::isfinite(record.dpdx.y) &&
+            std::isfinite(record.dpdx.z) &&
+            std::isfinite(record.dpdy.x) &&
+            std::isfinite(record.dpdy.y) &&
+            std::isfinite(record.dpdy.z);
+
+        if (!record.has_surface_differentials) {
             return false;
         }
 

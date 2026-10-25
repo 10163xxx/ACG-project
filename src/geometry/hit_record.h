@@ -20,12 +20,22 @@ struct HitRecord {
     double u = 0.0;
     double v = 0.0;
 
+    // Surface-point derivatives with respect to screen-space pixel steps.
+    Vec3 dpdx;
+    Vec3 dpdy;
+
+    // Surface-normal derivatives with respect to screen-space pixel steps.
+    Vec3 dndx;
+    Vec3 dndy;
+
     // UV derivatives with respect to screen-space pixel steps.
     double dudx = 0.0;
     double dvdx = 0.0;
     double dudy = 0.0;
     double dvdy = 0.0;
 
+    // True when the incoming ray supplied valid surface differentials.
+    bool has_surface_differentials = false;
     bool has_uv_differentials = false;
 
     // True only for a sampled event inside a participating medium.
