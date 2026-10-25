@@ -23,11 +23,37 @@ public:
               std::clamp(dielectric_f0.y, 0.0, 1.0),
               std::clamp(dielectric_f0.z, 0.0, 1.0)
           ) {
-        if (base_color.x < 0.0 ||
-            base_color.y < 0.0 ||
-            base_color.z < 0.0) {
+        if (!std::isfinite(base_color.x) ||
+            !std::isfinite(base_color.y) ||
+            !std::isfinite(base_color.z)) {
             throw std::invalid_argument(
-                "Principled base color cannot be negative."
+                "Principled base color must be finite."
+            );
+        }
+
+        if (!std::isfinite(metallic) ||
+            !std::isfinite(roughness)) {
+            throw std::invalid_argument(
+                "Principled metallic and roughness must be finite."
+            );
+        }
+
+        if (!std::isfinite(dielectric_f0.x) ||
+            !std::isfinite(dielectric_f0.y) ||
+            !std::isfinite(dielectric_f0.z)) {
+            throw std::invalid_argument(
+                "Principled dielectric F0 must be finite."
+            );
+        }
+
+        if (base_color.x < 0.0 ||
+            base_color.x > 1.0 ||
+            base_color.y < 0.0 ||
+            base_color.y > 1.0 ||
+            base_color.z < 0.0 ||
+            base_color.z > 1.0) {
+            throw std::invalid_argument(
+                "Principled base color must be in [0, 1]."
             );
         }
 
@@ -54,7 +80,7 @@ public:
         }
 
         const double specular_probability =
-            0.25 + 0.75 * metallic_;
+            specular_sampling_probability(n, wo);
 
         Vec3 wi;
 
@@ -149,13 +175,19 @@ public:
                 (4.0 * cos_o * cos_i)
             );
 
-        const Vec3 diffuse_fresnel =
-            schlick_fresnel(dielectric_f0_, cos_oh);
+        const Vec3 diffuse_fresnel_out =
+            schlick_fresnel(dielectric_f0_, cos_o);
+
+        const Vec3 diffuse_fresnel_in =
+            schlick_fresnel(dielectric_f0_, cos_i);
+
+        const Vec3 one(1.0, 1.0, 1.0);
 
         const Vec3 diffuse =
             (1.0 - metallic_)
             * base_color_
-            * (Vec3(1.0, 1.0, 1.0) - diffuse_fresnel)
+            * (one - diffuse_fresnel_out)
+            * (one - diffuse_fresnel_in)
             / PI;
 
         return diffuse + specular;
@@ -178,7 +210,7 @@ public:
         }
 
         const double specular_probability =
-            0.25 + 0.75 * metallic_;
+            specular_sampling_probability(n, wo);
 
         const double diffuse_pdf = cos_i / PI;
 
@@ -234,6 +266,65 @@ private:
     double metallic_;
     double roughness_;
     Vec3 dielectric_f0_;
+
+    static double luminance(const Vec3& color) {
+        return
+            0.2126 * color.x
+            + 0.7152 * color.y
+            + 0.0722 * color.z;
+    }
+
+    double specular_sampling_probability(
+        const Vec3& normal,
+        const Vec3& outgoing_direction
+    ) const {
+        const double cos_o = std::clamp(
+            dot(normal, outgoing_direction),
+            0.0,
+            1.0
+        );
+
+        const Vec3 f0 =
+            (1.0 - metallic_) * dielectric_f0_
+            + metallic_ * base_color_;
+
+        const Vec3 fresnel =
+            schlick_fresnel(f0, cos_o);
+
+        const Vec3 diffuse_fresnel =
+            schlick_fresnel(dielectric_f0_, cos_o);
+
+        const Vec3 one(1.0, 1.0, 1.0);
+
+        const double specular_energy =
+            std::max(0.0, luminance(fresnel));
+
+        const double diffuse_energy =
+            std::max(
+                0.0,
+                (1.0 - metallic_)
+                * luminance(base_color_
+                    * (one - diffuse_fresnel))
+            );
+
+        // No diffuse component needs to be sampled.
+        if (diffuse_energy <= 1e-12) {
+            return 1.0;
+        }
+
+        const double total_energy =
+            specular_energy + diffuse_energy;
+
+        if (total_energy <= 1e-12) {
+            return 0.5;
+        }
+
+        return std::clamp(
+            specular_energy / total_energy,
+            0.05,
+            0.95
+        );
+    }
 
     static double smith_g1(
         double cos_theta,
