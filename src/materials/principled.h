@@ -60,7 +60,7 @@ public:
 
         if (Random::random_double() < specular_probability) {
             const Vec3 half_vector =
-                sample_ggx_half_vector(n);
+                sample_ggx_half_vector(n, wo);
 
             wi = normalize(reflect(-wo, half_vector));
         } else {
@@ -210,9 +210,12 @@ public:
             alpha_squared /
             (PI * denominator * denominator);
 
-        // Convert the GGX half-vector PDF to a direction PDF.
+        // PDF for GGX visible-normal sampling, converted
+        // from half-vector space to reflection-direction space.
         const double specular_pdf =
-            distribution * cos_h / (4.0 * cos_oh);
+            distribution
+            * smith_g1(cos_o, alpha_squared)
+            / (4.0 * cos_o);
 
         return
             (1.0 - specular_probability) * diffuse_pdf
@@ -295,33 +298,10 @@ private:
     }
 
     Vec3 sample_ggx_half_vector(
-        const Vec3& normal
+        const Vec3& normal,
+        const Vec3& outgoing_direction
     ) const {
-        const double r1 = Random::random_double();
-        const double r2 = Random::random_double();
-
-        const double alpha = roughness_ * roughness_;
-        const double alpha_squared = alpha * alpha;
-
-        const double phi = 2.0 * PI * r1;
-
-        const double cos_theta =
-            std::sqrt(
-                (1.0 - r2) /
-                (1.0 + (alpha_squared - 1.0) * r2)
-            );
-
-        const double sin_theta =
-            std::sqrt(
-                std::max(0.0, 1.0 - cos_theta * cos_theta)
-            );
-
-        const Vec3 local(
-            sin_theta * std::cos(phi),
-            sin_theta * std::sin(phi),
-            cos_theta
-        );
-
+        // Construct a local frame around the surface normal.
         const Vec3 helper =
             std::abs(normal.x) > 0.9
                 ? Vec3(0.0, 1.0, 0.0)
@@ -333,10 +313,83 @@ private:
         const Vec3 bitangent =
             cross(normal, tangent);
 
+        // Transform the outgoing direction to local space.
+        const Vec3 wo = normalize(outgoing_direction);
+
+        const Vec3 view(
+            dot(wo, tangent),
+            dot(wo, bitangent),
+            dot(wo, normal)
+        );
+
+        // Stretch the view direction for GGX VNDF sampling.
+        const double alpha = roughness_ * roughness_;
+
+        const Vec3 stretched_view =
+            normalize(Vec3(
+                alpha * view.x,
+                alpha * view.y,
+                view.z
+            ));
+
+        // Build an orthonormal basis around the stretched view.
+        const double lensq =
+            stretched_view.x * stretched_view.x
+            + stretched_view.y * stretched_view.y;
+
+        const Vec3 t1 =
+            lensq > 1e-12
+                ? Vec3(
+                    -stretched_view.y,
+                    stretched_view.x,
+                    0.0
+                ) / std::sqrt(lensq)
+                : Vec3(1.0, 0.0, 0.0);
+
+        const Vec3 t2 = cross(stretched_view, t1);
+
+        // Sample a point on the projected visible-normal disk.
+        const double r1 = Random::random_double();
+        const double r2 = Random::random_double();
+
+        const double radius = std::sqrt(r1);
+        const double phi = 2.0 * PI * r2;
+
+        const double p1 = radius * std::cos(phi);
+        double p2 = radius * std::sin(phi);
+
+        const double blend =
+            0.5 * (1.0 + stretched_view.z);
+
+        p2 =
+            (1.0 - blend)
+                * std::sqrt(std::max(0.0, 1.0 - p1 * p1))
+            + blend * p2;
+
+        const double p3 =
+            std::sqrt(std::max(
+                0.0,
+                1.0 - p1 * p1 - p2 * p2
+            ));
+
+        const Vec3 sampled_normal =
+            p1 * t1
+            + p2 * t2
+            + p3 * stretched_view;
+
+        // Unstretch the sampled normal to recover the GGX
+        // microfacet normal in local coordinates.
+        const Vec3 local_half_vector = normalize(Vec3(
+            alpha * sampled_normal.x,
+            alpha * sampled_normal.y,
+            std::max(0.0, sampled_normal.z)
+        ));
+
+        // Transform the half-vector back to world space.
         return normalize(
-            local.x * tangent
-            + local.y * bitangent
-            + local.z * normal
+            local_half_vector.x * tangent
+            + local_half_vector.y * bitangent
+            + local_half_vector.z * normal
         );
     }
 };
