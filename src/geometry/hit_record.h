@@ -20,6 +20,10 @@ struct HitRecord {
     double u = 0.0;
     double v = 0.0;
 
+    // Ray-cone radius evaluated at this hit point.
+    double ray_cone_width = 0.0;
+    bool has_ray_cone = false;
+
     // Surface-point derivatives with respect to screen-space pixel steps.
     Vec3 dpdx;
     Vec3 dpdy;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <algorithm>
 #include <stdexcept>
 
 #include "core/ray.h"
@@ -144,7 +145,7 @@ public:
         const Vec3 ray_origin =
             origin_ + lens_offset;
 
-        return Ray(
+        Ray ray(
             ray_origin,
             target - ray_origin,
             ray_origin,
@@ -152,6 +153,29 @@ public:
             target_x - ray_origin,
             target_y - ray_origin
         );
+
+        const Vec3 unit_direction =
+            normalize(ray.direction);
+
+        const Vec3 unit_rx_direction =
+            normalize(ray.rx_direction);
+
+        const Vec3 unit_ry_direction =
+            normalize(ray.ry_direction);
+
+        const double spread_x =
+            (unit_rx_direction - unit_direction).length();
+
+        const double spread_y =
+            (unit_ry_direction - unit_direction).length();
+
+        // Approximate the pixel footprint radius using half
+        // the larger angular difference to a neighboring ray.
+        ray.cone_width = 0.0;
+        ray.cone_spread =
+            0.5 * std::max(spread_x, spread_y);
+
+        return ray;
     }
 
 private:

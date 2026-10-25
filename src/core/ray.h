@@ -16,6 +16,12 @@ struct Ray {
 
     bool has_differentials = false;
 
+    // Approximate ray-cone footprint in world space.
+    // cone_width is the radius at the ray origin.
+    // cone_spread is the radius growth per unit world distance.
+    double cone_width = 0.0;
+    double cone_spread = 0.0;
+
     Ray() = default;
 
     Ray(

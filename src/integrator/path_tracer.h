@@ -106,6 +106,29 @@ public:
                 break;
             }
 
+            // Advance the ray-cone radius to the hit point.
+            // Ray directions are not guaranteed to be normalized,
+            // so convert the hit parameter to world-space distance.
+            const double ray_length =
+                ray.direction.length();
+
+            const double hit_distance =
+                hit.t * ray_length;
+
+            if (std::isfinite(hit_distance) &&
+                hit_distance >= 0.0 &&
+                std::isfinite(ray.cone_width) &&
+                std::isfinite(ray.cone_spread) &&
+                ray.cone_width >= 0.0 &&
+                ray.cone_spread >= 0.0) {
+                hit.ray_cone_width =
+                    ray.cone_width
+                    + hit_distance * ray.cone_spread;
+
+                hit.has_ray_cone =
+                    std::isfinite(hit.ray_cone_width);
+            }
+
             if (!hit.material) {
                 break;
             }
@@ -172,6 +195,16 @@ public:
                     attenuation,
                     scattered)) {
                 break;
+            }
+
+            // Carry the cone footprint from the hit point
+            // to the next ray's origin.
+            if (hit.has_ray_cone) {
+                scattered.cone_width =
+                    hit.ray_cone_width;
+
+                scattered.cone_spread =
+                    ray.cone_spread;
             }
 
             previous_scatter_used_nee =
