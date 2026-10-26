@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -28,17 +29,53 @@ private:
         const std::string& token,
         std::size_t count
     ) {
-        const int index = std::stoi(token);
+        std::size_t consumed = 0;
+        const long long index =
+            std::stoll(token, &consumed);
+
+        if (consumed != token.size()) {
+            throw std::runtime_error(
+                "Invalid OBJ index: " + token
+            );
+        }
+
+        if (index == 0) {
+            throw std::runtime_error(
+                "OBJ index cannot be zero."
+            );
+        }
+
+        if (count >
+            static_cast<std::size_t>(
+                std::numeric_limits<int>::max()
+            )) {
+            throw std::runtime_error(
+                "OBJ attribute count exceeds supported index range."
+            );
+        }
+
+        const long long attribute_count =
+            static_cast<long long>(count);
 
         if (index > 0) {
-            return index - 1;
+            if (index > attribute_count) {
+                throw std::out_of_range(
+                    "OBJ index is out of range: " + token
+                );
+            }
+
+            return static_cast<int>(index - 1);
         }
 
-        if (index < 0) {
-            return static_cast<int>(count) + index;
+        if (index < -attribute_count) {
+            throw std::out_of_range(
+                "OBJ relative index is out of range: " + token
+            );
         }
 
-        throw std::runtime_error("OBJ index cannot be zero");
+        return static_cast<int>(
+            attribute_count + index
+        );
     }
 
     static void parse_face_vertex(

@@ -21,6 +21,65 @@ namespace {
         return std::abs(a - b) < 1e-8;
     }
 
+    void test_obj_index_validation() {
+        // Valid negative indices refer to previously defined vertices.
+        {
+            std::istringstream input(
+                "v 0 0 0\n"
+                "v 1 0 0\n"
+                "v 0 1 0\n"
+                "f -3 -2 -1\n"
+            );
+
+            TriangleMesh mesh = ObjLoader::load(input);
+
+            assert(mesh.triangle_count() == 1);
+        }
+
+        // Positive vertex indices must be in range.
+        {
+            std::istringstream input(
+                "v 0 0 0\n"
+                "v 1 0 0\n"
+                "v 0 1 0\n"
+                "f 1 2 4\n"
+            );
+
+            bool threw = false;
+
+            try {
+                (void)ObjLoader::load(input);
+            } catch (const std::out_of_range&) {
+                threw = true;
+            }
+
+            assert(threw);
+        }
+
+        // Negative texture-coordinate indices must be in range.
+        {
+            std::istringstream input(
+                "v 0 0 0\n"
+                "v 1 0 0\n"
+                "v 0 1 0\n"
+                "vt 0 0\n"
+                "vt 1 0\n"
+                "vt 0 1\n"
+                "f 1/-4 2/-2 3/-1\n"
+            );
+
+            bool threw = false;
+
+            try {
+                (void)ObjLoader::load(input);
+            } catch (const std::out_of_range&) {
+                threw = true;
+            }
+
+            assert(threw);
+        }
+    }
+
     void test_imported_mesh_in_bvh() {
         std::istringstream input(
             "v -1 -1 0\n"
@@ -456,6 +515,7 @@ namespace {
 }
 
 int main() {
+    test_obj_index_validation();
     test_imported_mesh_in_bvh();
     test_imported_mesh_as_area_light();
     test_imported_mesh_in_scene_with_other_objects();
