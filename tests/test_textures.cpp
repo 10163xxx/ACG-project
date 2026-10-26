@@ -290,6 +290,72 @@ namespace {
         assert(rejected_samples > 0);
     }
 
+    void test_image_texture_srgb_decoding() {
+        const char* filename = "srgb_test_texture.ppm";
+
+        {
+            std::ofstream file(filename);
+
+            assert(file.good());
+
+            file << "P3\n";
+            file << "1 1\n";
+            file << "255\n";
+            file << "128 128 128\n";
+        }
+
+        {
+            // Default behavior must preserve raw normalized values.
+            ImageTexture linear_texture(filename);
+
+            // Color textures can explicitly request sRGB decoding.
+            ImageTexture srgb_texture(
+                filename,
+                true,
+                true
+            );
+
+            const Vec3 linear_value =
+                linear_texture.sample(0.5, 0.5, 0.0);
+
+            const Vec3 decoded_value =
+                srgb_texture.sample(0.5, 0.5, 0.0);
+
+            const double expected_linear =
+                128.0 / 255.0;
+
+            const double expected_decoded =
+                std::pow(
+                    (expected_linear + 0.055) / 1.055,
+                    2.4
+                );
+
+            assert(std::abs(
+                linear_value.x - expected_linear
+            ) < 1e-8);
+
+            assert(std::abs(
+                decoded_value.x - expected_decoded
+            ) < 1e-8);
+
+            assert(std::abs(
+                decoded_value.y - expected_decoded
+            ) < 1e-8);
+
+            assert(std::abs(
+                decoded_value.z - expected_decoded
+            ) < 1e-8);
+
+            // Mid-gray in sRGB should be substantially darker
+            // after conversion to linear light.
+            assert(decoded_value.x < linear_value.x);
+            assert(decoded_value.x > 0.21);
+            assert(decoded_value.x < 0.22);
+        }
+
+        std::remove(filename);
+    }
+
     void test_image_texture_mipmap() {
         const char* filename = "mipmap_test_texture.ppm";
 
@@ -395,6 +461,7 @@ int main() {
     test_normal_mapping();
     test_normal_mapping_tangent_orientation();
     test_normal_mapping_stays_in_geometric_hemisphere();
+    test_image_texture_srgb_decoding();
     test_image_texture_mipmap();
 
     std::cout << "Texture tests passed.\n";

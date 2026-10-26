@@ -14,14 +14,22 @@
 
 class ImageTexture final : public Texture {
 public:
+
     explicit ImageTexture(
         const std::string& filename,
-        bool use_mipmaps = true
+        bool use_mipmaps = true,
+        bool decode_srgb = false
     )
         : use_mipmaps_(use_mipmaps) {
         load(filename);
+
+        if (decode_srgb) {
+            decode_srgb_pixels();
+        }
+
         build_mipmaps();
     }
+
 
     // Default sampling uses bilinear filtering at full resolution.
     // The existing Texture interface does not provide UV derivatives,
@@ -566,6 +574,27 @@ private:
                 static_cast<double>(read_channel()) / max_value;
 
             pixels_.emplace_back(r, g, b);
+        }
+    }
+
+    static double srgb_to_linear(double value) {
+        value = std::clamp(value, 0.0, 1.0);
+
+        if (value <= 0.04045) {
+            return value / 12.92;
+        }
+
+        return std::pow(
+            (value + 0.055) / 1.055,
+            2.4
+        );
+    }
+
+    void decode_srgb_pixels() {
+        for (Vec3& pixel : pixels_) {
+            pixel.x = srgb_to_linear(pixel.x);
+            pixel.y = srgb_to_linear(pixel.y);
+            pixel.z = srgb_to_linear(pixel.z);
         }
     }
 };

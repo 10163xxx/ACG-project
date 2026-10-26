@@ -211,14 +211,16 @@ public:
                     );
             }
 
-            // Apply the diffuse/color texture first.
+            // Color textures are decoded from sRGB to linear space.
             if (!properties.diffuse_map.empty()) {
                 const auto texture_path =
                     resolve_path(properties.diffuse_map);
 
                 auto texture =
                     std::make_shared<ImageTexture>(
-                        texture_path.string()
+                        texture_path.string(),
+                        true,
+                        true
                     );
 
                 base_material =
@@ -228,7 +230,7 @@ public:
                     );
             }
 
-            // Apply a scalar height map as bump mapping.
+            // Height maps remain linear data textures.
             if (!properties.bump_map.empty()) {
                 const auto bump_path =
                     resolve_path(properties.bump_map);
@@ -246,7 +248,7 @@ public:
                     );
             }
 
-            // Then decorate the existing material with a normal map.
+            // Normal maps remain linear data textures.
             if (!properties.normal_map.empty()) {
                 const auto normal_path =
                     resolve_path(properties.normal_map);
