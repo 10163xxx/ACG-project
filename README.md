@@ -37,6 +37,8 @@ The project focuses on physically based light transport, material evaluation, te
 - Procedural UV-based normal textures
 - Tangent-space normal mapping with transformation into world space
 - Texture filtering and mipmap support
+- MTL texture options for UV scaling (`-s`), offset (`-o`), and clamp/repeat addressing (`-clamp`)
+- Configurable bump-map strength through the MTL `-bm` option
 
 ### External Assets and Lighting
 

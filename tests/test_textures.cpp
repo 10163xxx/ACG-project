@@ -10,6 +10,7 @@
 #include "materials/lambertian.h"
 #include "materials/normal_mapped_lambertian.h"
 #include "materials/image_texture.h"
+#include "materials/texture_transform.h"
 
 namespace {
     bool approximately_equal(double a, double b) {
@@ -451,6 +452,91 @@ namespace {
 
         std::remove(filename);
     }
+
+    void test_texture_transform_and_address_modes() {
+        const char* filename =
+            "texture_transform_test.ppm";
+
+        {
+            std::ofstream file(filename);
+
+            assert(file.good());
+
+            file << "P3\n";
+            file << "2 1\n";
+            file << "255\n";
+            file << "0 0 0 255 255 255\n";
+        }
+
+        try {
+            ImageTexture clamp_texture(
+                filename,
+                false,
+                false,
+                TextureAddressMode::Clamp
+            );
+
+            ImageTexture repeat_texture(
+                filename,
+                false,
+                false,
+                TextureAddressMode::Repeat
+            );
+
+            const Vec3 clamped =
+                clamp_texture.sample(0.0, 0.5, 0.0);
+
+            const Vec3 repeated =
+                repeat_texture.sample(0.0, 0.5, 0.0);
+
+            // Clamp samples the first texel at u=0.
+            assert(color_equal(
+                clamped,
+                Vec3(0.0, 0.0, 0.0)
+            ));
+
+            // Repeat interpolates across the texture seam.
+            assert(color_equal(
+                repeated,
+                Vec3(0.5, 0.5, 0.5)
+            ));
+
+            auto underlying =
+                std::make_shared<ImageTexture>(
+                    filename,
+                    false,
+                    false,
+                    TextureAddressMode::Clamp
+                );
+
+            TextureTransform transformed(
+                underlying,
+                0.5,
+                1.0,
+                0.25,
+                0.0
+            );
+
+            // u=0.5 becomes 0.5*0.5+0.25=0.5,
+            // which lies halfway between the two texels.
+            const Vec3 transformed_color =
+                transformed.value(
+                    0.5,
+                    0.5,
+                    Vec3()
+                );
+
+            assert(color_equal(
+                transformed_color,
+                Vec3(0.5, 0.5, 0.5)
+            ));
+        } catch (...) {
+            std::remove(filename);
+            throw;
+        }
+
+        std::remove(filename);
+    }
 }
 
 int main() {
@@ -463,6 +549,7 @@ int main() {
     test_normal_mapping_stays_in_geometric_hemisphere();
     test_image_texture_srgb_decoding();
     test_image_texture_mipmap();
+    test_texture_transform_and_address_modes();
 
     std::cout << "Texture tests passed.\n";
     return 0;

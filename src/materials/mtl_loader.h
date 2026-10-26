@@ -9,6 +9,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <cstdlib>
+#include <vector>
 
 #include "materials/principled.h"
 #include "materials/dielectric.h"
@@ -17,6 +19,20 @@
 #include "materials/textured_material.h"
 #include "materials/normal_mapped_lambertian.h"
 #include "materials/bump_mapped_material.h"
+#include "materials/texture_transform.h"
+
+struct MtlMapOptions {
+    std::string filename;
+
+    double scale_u = 1.0;
+    double scale_v = 1.0;
+
+    double offset_u = 0.0;
+    double offset_v = 0.0;
+
+    TextureAddressMode address_mode =
+        TextureAddressMode::Clamp;
+};
 
 struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
@@ -29,11 +45,12 @@ struct MtlProperties {
     double opacity = 1.0;
     int illumination_model = 2;
 
-    std::string diffuse_map;
-    std::string metallic_map;
-    std::string roughness_map;
-    std::string normal_map;
-    std::string bump_map;
+    MtlMapOptions diffuse_map;
+    MtlMapOptions metallic_map;
+    MtlMapOptions roughness_map;
+    MtlMapOptions normal_map;
+    MtlMapOptions bump_map;
+
     double bump_strength = 1.0;
 };
 
@@ -95,32 +112,173 @@ public:
             return value.substr(first, last - first + 1);
         };
 
-        auto read_map_path = [&](
+        auto read_map_options = [&](
             std::istringstream& stream,
             double* bump_strength = nullptr
-        ) -> std::string {
-            std::string value;
-            std::getline(stream, value);
-            value = trim(value);
+        ) -> MtlMapOptions {
+            MtlMapOptions options;
 
-            if (value.rfind("-bm", 0) == 0 &&
-                value.size() > 3 &&
-                (value[3] == ' ' || value[3] == '\t')) {
-                std::istringstream option_stream(value);
-                std::string option;
-                double strength = 1.0;
+            std::string remainder;
+            std::getline(stream, remainder);
+            remainder = trim(remainder);
 
-                option_stream >> option >> strength;
-                std::getline(option_stream, value);
-                value = trim(value);
+            std::istringstream option_stream(remainder);
+            std::vector<std::string> tokens;
+            std::string token;
 
-                if (bump_strength != nullptr &&
-                    std::isfinite(strength)) {
-                    *bump_strength = strength;
-                }
+            while (option_stream >> token) {
+                tokens.push_back(token);
             }
 
-            return value;
+            auto parse_number = [](
+                const std::string& text,
+                double& result
+            ) -> bool {
+                char* end = nullptr;
+                result = std::strtod(text.c_str(), &end);
+
+                return end != text.c_str() &&
+                    end != nullptr &&
+                    *end == '\0' &&
+                    std::isfinite(result);
+            };
+
+            std::size_t index = 0;
+
+            while (index < tokens.size()) {
+                const std::string& current = tokens[index];
+
+                if (current == "-s" || current == "-o") {
+                    const bool is_scale = current == "-s";
+                    ++index;
+
+                    double values[3] = {
+                        is_scale ? 1.0 : 0.0,
+                        is_scale ? 1.0 : 0.0,
+                        is_scale ? 1.0 : 0.0
+                    };
+
+                    std::size_t count = 0;
+
+                    while (index < tokens.size() &&
+                           count < 3) {
+                        double value = 0.0;
+
+                        if (!parse_number(
+                                tokens[index],
+                                value
+                            )) {
+                            break;
+                        }
+
+                        values[count++] = value;
+                        ++index;
+                    }
+
+                    if (count == 0) {
+                        throw std::runtime_error(
+                            "MTL map option " + current +
+                            " requires at least one numeric value."
+                        );
+                    }
+
+                    if (is_scale) {
+                        options.scale_u = values[0];
+                        options.scale_v =
+                            count >= 2 ? values[1] : 1.0;
+                    } else {
+                        options.offset_u = values[0];
+                        options.offset_v =
+                            count >= 2 ? values[1] : 0.0;
+                    }
+
+                    continue;
+                }
+
+                if (current == "-clamp") {
+                    ++index;
+
+                    if (index >= tokens.size()) {
+                        throw std::runtime_error(
+                            "MTL map option -clamp requires on or off."
+                        );
+                    }
+
+                    if (tokens[index] == "on") {
+                        options.address_mode =
+                            TextureAddressMode::Clamp;
+                    } else if (tokens[index] == "off") {
+                        options.address_mode =
+                            TextureAddressMode::Repeat;
+                    } else {
+                        throw std::runtime_error(
+                            "MTL map option -clamp accepts only on or off."
+                        );
+                    }
+
+                    ++index;
+                    continue;
+                }
+
+                if (current == "-bm") {
+                    ++index;
+
+                    if (index >= tokens.size()) {
+                        throw std::runtime_error(
+                            "MTL map option -bm requires a numeric value."
+                        );
+                    }
+
+                    double strength = 1.0;
+
+                    if (!parse_number(
+                            tokens[index],
+                            strength
+                        )) {
+                        throw std::runtime_error(
+                            "Invalid numeric value for MTL option -bm."
+                        );
+                    }
+
+                    if (bump_strength != nullptr) {
+                        *bump_strength = strength;
+                    }
+
+                    ++index;
+                    continue;
+                }
+
+                // The first non-option token begins the filename.
+                // Join the remaining tokens to preserve spaces.
+                for (; index < tokens.size(); ++index) {
+                    if (!options.filename.empty()) {
+                        options.filename += ' ';
+                    }
+
+                    options.filename += tokens[index];
+                }
+
+                break;
+            }
+
+            if (options.filename.empty()) {
+                throw std::runtime_error(
+                    "MTL map declaration is missing a filename."
+                );
+            }
+
+            if (!std::isfinite(options.scale_u) ||
+                !std::isfinite(options.scale_v) ||
+                options.scale_u == 0.0 ||
+                options.scale_v == 0.0 ||
+                !std::isfinite(options.offset_u) ||
+                !std::isfinite(options.offset_v)) {
+                throw std::runtime_error(
+                    "MTL map has invalid scale or offset values."
+                );
+            }
+
+            return options;
         };
 
         auto save_material = [&]() {
@@ -142,27 +300,53 @@ public:
 
             std::shared_ptr<const Material> base_material;
 
+                    auto make_map_texture = [&](
+                const MtlMapOptions& map,
+                bool decode_srgb
+            ) -> std::shared_ptr<const Texture> {
+                const auto texture_path =
+                    resolve_path(map.filename);
+
+                std::shared_ptr<const Texture> texture =
+                    std::make_shared<ImageTexture>(
+                        texture_path.string(),
+                        true,
+                        decode_srgb,
+                        map.address_mode
+                    );
+
+                if (map.scale_u != 1.0 ||
+                    map.scale_v != 1.0 ||
+                    map.offset_u != 0.0 ||
+                    map.offset_v != 0.0) {
+                    texture =
+                        std::make_shared<TextureTransform>(
+                            texture,
+                            map.scale_u,
+                            map.scale_v,
+                            map.offset_u,
+                            map.offset_v
+                        );
+                }
+
+                return texture;
+            };
+
             std::shared_ptr<const Texture> metallic_texture;
             std::shared_ptr<const Texture> roughness_texture;
 
-            if (!properties.metallic_map.empty()) {
-                const auto texture_path =
-                    resolve_path(properties.metallic_map);
-
-                metallic_texture =
-                    std::make_shared<ImageTexture>(
-                        texture_path.string()
-                    );
+            if (!properties.metallic_map.filename.empty()) {
+                metallic_texture = make_map_texture(
+                    properties.metallic_map,
+                    false
+                );
             }
 
-            if (!properties.roughness_map.empty()) {
-                const auto texture_path =
-                    resolve_path(properties.roughness_map);
-
-                roughness_texture =
-                    std::make_shared<ImageTexture>(
-                        texture_path.string()
-                    );
+            if (!properties.roughness_map.filename.empty()) {
+                roughness_texture = make_map_texture(
+                    properties.roughness_map,
+                    false
+                );
             }
 
             if (indicates_glass) {
@@ -212,16 +396,11 @@ public:
             }
 
             // Color textures are decoded from sRGB to linear space.
-            if (!properties.diffuse_map.empty()) {
-                const auto texture_path =
-                    resolve_path(properties.diffuse_map);
-
-                auto texture =
-                    std::make_shared<ImageTexture>(
-                        texture_path.string(),
-                        true,
-                        true
-                    );
+            if (!properties.diffuse_map.filename.empty()) {
+                auto texture = make_map_texture(
+                    properties.diffuse_map,
+                    true
+                );
 
                 base_material =
                     std::make_shared<TexturedMaterial>(
@@ -231,14 +410,11 @@ public:
             }
 
             // Height maps remain linear data textures.
-            if (!properties.bump_map.empty()) {
-                const auto bump_path =
-                    resolve_path(properties.bump_map);
-
-                auto height_texture =
-                    std::make_shared<ImageTexture>(
-                        bump_path.string()
-                    );
+            if (!properties.bump_map.filename.empty()) {
+                auto height_texture = make_map_texture(
+                    properties.bump_map,
+                    false
+                );
 
                 base_material =
                     std::make_shared<BumpMappedMaterial>(
@@ -249,14 +425,11 @@ public:
             }
 
             // Normal maps remain linear data textures.
-            if (!properties.normal_map.empty()) {
-                const auto normal_path =
-                    resolve_path(properties.normal_map);
-
-                auto normal_texture =
-                    std::make_shared<ImageTexture>(
-                        normal_path.string()
-                    );
+            if (!properties.normal_map.filename.empty()) {
+                auto normal_texture = make_map_texture(
+                    properties.normal_map,
+                    false
+                );
 
                 base_material =
                     std::make_shared<NormalMappedMaterial>(
@@ -372,20 +545,21 @@ public:
             } else if (command == "illum") {
                 stream >> properties.illumination_model;
             } else if (command == "map_Kd") {
-                properties.diffuse_map = read_map_path(stream);
+                properties.diffuse_map =
+                    read_map_options(stream);
             } else if (command == "map_Pm") {
                 properties.metallic_map =
-                    read_map_path(stream);
+                    read_map_options(stream);
             } else if (command == "map_Pr") {
                 properties.roughness_map =
-                    read_map_path(stream);
+                    read_map_options(stream);
             } else if (
                 command == "map_Bump" ||
                 command == "map_bump" ||
                 command == "bump"
             ) {
                 properties.bump_map =
-                    read_map_path(
+                    read_map_options(
                         stream,
                         &properties.bump_strength
                     );
@@ -394,7 +568,7 @@ public:
                 command == "map_Kn"
             ) {
                 properties.normal_map =
-                    read_map_path(stream);
+                    read_map_options(stream);
             }
         }
 

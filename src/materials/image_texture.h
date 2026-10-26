@@ -10,6 +10,11 @@
 #include <string>
 #include <vector>
 
+enum class TextureAddressMode {
+    Clamp,
+    Repeat
+};
+
 #include "materials/texture.h"
 
 class ImageTexture final : public Texture {
@@ -18,9 +23,12 @@ public:
     explicit ImageTexture(
         const std::string& filename,
         bool use_mipmaps = true,
-        bool decode_srgb = false
+        bool decode_srgb = false,
+        TextureAddressMode address_mode =
+            TextureAddressMode::Clamp
     )
-        : use_mipmaps_(use_mipmaps) {
+        : use_mipmaps_(use_mipmaps),
+          address_mode_(address_mode) {
         load(filename);
 
         if (decode_srgb) {
@@ -29,7 +37,6 @@ public:
 
         build_mipmaps();
     }
-
 
     // Default sampling uses bilinear filtering at full resolution.
     // The existing Texture interface does not provide UV derivatives,
@@ -199,8 +206,13 @@ public:
             return Vec3(1.0, 0.0, 1.0);
         }
 
-        u = std::clamp(u, 0.0, 1.0);
-        v = std::clamp(v, 0.0, 1.0);
+        if (address_mode_ == TextureAddressMode::Repeat) {
+            u -= std::floor(u);
+            v -= std::floor(v);
+        } else {
+            u = std::clamp(u, 0.0, 1.0);
+            v = std::clamp(v, 0.0, 1.0);
+        }
 
         const double max_lod =
             static_cast<double>(mipmaps_.size() - 1);
@@ -217,14 +229,24 @@ public:
             lod - static_cast<double>(level0);
 
         const Vec3 color0 =
-            bilinear_sample(mipmaps_[level0], u, v);
+            bilinear_sample(
+                mipmaps_[level0],
+                u,
+                v,
+                address_mode_
+            );
 
         if (level0 == level1) {
             return color0;
         }
 
         const Vec3 color1 =
-            bilinear_sample(mipmaps_[level1], u, v);
+            bilinear_sample(
+                mipmaps_[level1],
+                u,
+                v,
+                address_mode_
+            );
 
         return (1.0 - blend) * color0 + blend * color1;
     }
@@ -251,6 +273,8 @@ private:
     std::size_t width_ = 0;
     std::size_t height_ = 0;
     bool use_mipmaps_ = true;
+    TextureAddressMode address_mode_ =
+        TextureAddressMode::Clamp;
 
     // Original pixels are retained for compatibility with existing code.
     std::vector<Vec3> pixels_;
@@ -329,29 +353,76 @@ private:
     static Vec3 bilinear_sample(
         const MipLevel& level,
         double u,
-        double v
+        double v,
+        TextureAddressMode address_mode
     ) {
-        const double x =
-            u * static_cast<double>(level.width - 1);
+        if (address_mode == TextureAddressMode::Repeat) {
+            u -= std::floor(u);
+            v -= std::floor(v);
+        } else {
+            u = std::clamp(u, 0.0, 1.0);
+            v = std::clamp(v, 0.0, 1.0);
+        }
 
-        // Image rows run from top to bottom; OBJ v runs bottom to top.
+        const double x =
+            address_mode == TextureAddressMode::Repeat
+                ? u * static_cast<double>(level.width) - 0.5
+                : u * static_cast<double>(level.width - 1);
+
         const double y =
-            (1.0 - v) * static_cast<double>(level.height - 1);
+            address_mode == TextureAddressMode::Repeat
+                ? (1.0 - v) *
+                    static_cast<double>(level.height) - 0.5
+                : (1.0 - v) *
+                    static_cast<double>(level.height - 1);
+
+        const long long ix0 =
+            static_cast<long long>(std::floor(x));
+
+        const long long iy0 =
+            static_cast<long long>(std::floor(y));
+
+        const double tx =
+            x - static_cast<double>(ix0);
+
+        const double ty =
+            y - static_cast<double>(iy0);
+
+        auto resolve_index = [](
+            long long index,
+            std::size_t size,
+            TextureAddressMode mode
+        ) -> std::size_t {
+            const long long extent =
+                static_cast<long long>(size);
+
+            if (mode == TextureAddressMode::Repeat) {
+                const long long wrapped =
+                    ((index % extent) + extent) % extent;
+
+                return static_cast<std::size_t>(wrapped);
+            }
+
+            return static_cast<std::size_t>(
+                std::clamp(
+                    index,
+                    0LL,
+                    extent - 1
+                )
+            );
+        };
 
         const std::size_t x0 =
-            static_cast<std::size_t>(std::floor(x));
-
-        const std::size_t y0 =
-            static_cast<std::size_t>(std::floor(y));
+            resolve_index(ix0, level.width, address_mode);
 
         const std::size_t x1 =
-            std::min(x0 + 1, level.width - 1);
+            resolve_index(ix0 + 1, level.width, address_mode);
+
+        const std::size_t y0 =
+            resolve_index(iy0, level.height, address_mode);
 
         const std::size_t y1 =
-            std::min(y0 + 1, level.height - 1);
-
-        const double tx = x - static_cast<double>(x0);
-        const double ty = y - static_cast<double>(y0);
+            resolve_index(iy0 + 1, level.height, address_mode);
 
         const Vec3& c00 =
             level.pixels[y0 * level.width + x0];
