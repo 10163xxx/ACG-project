@@ -512,6 +512,192 @@ namespace {
 
         fs::remove_all(test_dir);
     }
+
+    void test_mtl_map_options() {
+        namespace fs = std::filesystem;
+
+        const fs::path test_dir =
+            fs::current_path() / "obj_mtl_map_options_test";
+
+        fs::create_directories(test_dir);
+
+        const fs::path texture_path =
+            test_dir / "gradient.ppm";
+
+        {
+            std::ofstream file(texture_path);
+
+            if (!file) {
+                throw std::runtime_error(
+                    "Failed to create MTL map-options test texture."
+                );
+            }
+
+            // Three horizontal texels: black, gray, white.
+            file << "P3\n";
+            file << "3 1\n";
+            file << "255\n";
+            file << "0 0 0\n";
+            file << "128 128 128\n";
+            file << "255 255 255\n";
+        }
+
+        std::istringstream input(
+            "newmtl baseline\n"
+            "Kd 1.0 1.0 1.0\n"
+            "map_Kd gradient.ppm\n"
+
+            "newmtl scaled\n"
+            "Kd 1.0 1.0 1.0\n"
+            "map_Kd -s 2 1 gradient.ppm\n"
+
+            "newmtl offset\n"
+            "Kd 1.0 1.0 1.0\n"
+            "map_Kd -o 0.25 0 gradient.ppm\n"
+
+            "newmtl clamp_on\n"
+            "Kd 1.0 1.0 1.0\n"
+            "map_Kd -clamp on gradient.ppm\n"
+
+            "newmtl clamp_off\n"
+            "Kd 1.0 1.0 1.0\n"
+            "map_Kd -clamp off gradient.ppm\n"
+
+            "newmtl bump_zero\n"
+            "Kd 0.8 0.8 0.8\n"
+            "bump -bm 0 gradient.ppm\n"
+
+            "newmtl bump_strong\n"
+            "Kd 0.8 0.8 0.8\n"
+            "bump -bm 3 gradient.ppm\n"
+        );
+
+        try {
+            const auto materials =
+                MtlLoader::load(input, test_dir);
+
+            assert(materials.count("baseline") == 1);
+            assert(materials.count("scaled") == 1);
+            assert(materials.count("offset") == 1);
+            assert(materials.count("clamp_on") == 1);
+            assert(materials.count("clamp_off") == 1);
+            assert(materials.count("bump_zero") == 1);
+            assert(materials.count("bump_strong") == 1);
+
+            HitRecord hit;
+            hit.point = Vec3(0.0, 0.0, 0.0);
+            hit.normal = Vec3(0.0, 0.0, 1.0);
+            hit.tangent = Vec3(1.0, 0.0, 0.0);
+            hit.bitangent = Vec3(0.0, 1.0, 0.0);
+
+            const Vec3 direction(0.0, 0.0, 1.0);
+
+            auto evaluate_color = [&](
+                const std::string& name,
+                double u
+            ) {
+                hit.u = u;
+                hit.v = 0.5;
+
+                return materials.at(name)->evaluate_bsdf(
+                    hit,
+                    direction,
+                    direction
+                );
+            };
+
+            auto difference = [](
+                const Vec3& a,
+                const Vec3& b
+            ) {
+                return
+                    std::abs(a.x - b.x)
+                    + std::abs(a.y - b.y)
+                    + std::abs(a.z - b.z);
+            };
+
+            // UV scale: u=0.25 becomes u=0.5.
+            const Vec3 baseline_color =
+                evaluate_color("baseline", 0.25);
+
+            const Vec3 scaled_color =
+                evaluate_color("scaled", 0.25);
+
+            assert(
+                difference(
+                    baseline_color,
+                    scaled_color
+                ) > 1e-6
+            );
+
+            // UV offset: u=0.25 becomes u=0.5.
+            const Vec3 offset_color =
+                evaluate_color("offset", 0.25);
+
+            assert(
+                difference(
+                    baseline_color,
+                    offset_color
+                ) > 1e-6
+            );
+
+            // Clamp preserves the last texel at u=1.
+            // Repeat wraps to the start and filters across the seam.
+            const Vec3 clamp_color =
+                evaluate_color("clamp_on", 1.0);
+
+            const Vec3 repeat_color =
+                evaluate_color("clamp_off", 1.0);
+
+            assert(
+                difference(
+                    clamp_color,
+                    repeat_color
+                ) > 1e-6
+            );
+
+            // A zero-strength bump map must preserve the
+            // geometric normal; a nonzero strength must perturb it.
+            hit.u = 0.5;
+            hit.v = 0.5;
+
+            const Ray incoming(
+                Vec3(0.0, 0.0, 1.0),
+                Vec3(0.0, 0.0, -1.0)
+            );
+
+            const Vec3 flat_normal =
+                materials.at("bump_zero")->shading_normal(
+                    incoming,
+                    hit
+                );
+
+            const Vec3 perturbed_normal =
+                materials.at("bump_strong")->shading_normal(
+                    incoming,
+                    hit
+                );
+
+            assert(
+                difference(
+                    flat_normal,
+                    hit.normal
+                ) < 1e-8
+            );
+
+            assert(
+                difference(
+                    flat_normal,
+                    perturbed_normal
+                ) > 1e-6
+            );
+        } catch (...) {
+            fs::remove_all(test_dir);
+            throw;
+        }
+
+        fs::remove_all(test_dir);
+    }
 }
 
 int main() {
@@ -521,6 +707,7 @@ int main() {
     test_imported_mesh_in_scene_with_other_objects();
     test_obj_mtl_diffuse_texture();
     test_mtl_metallic_and_roughness();
+    test_mtl_map_options();
 
     std::cout << "OBJ integration tests passed.\n";
     return 0;

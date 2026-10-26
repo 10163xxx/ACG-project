@@ -61,6 +61,126 @@ namespace {
         ));
     }
 
+    void test_uv_checker_filtering() {
+        const Vec3 color_a(1.0, 0.0, 0.0);
+        const Vec3 color_b(0.0, 0.0, 1.0);
+
+        UVCheckerTexture texture(
+            2.0,
+            color_a,
+            color_b
+        );
+
+        // With no footprint information, the checker remains sharp.
+        const Vec3 sharp = texture.value(
+            0.1,
+            0.1,
+            Vec3()
+        );
+
+        assert(color_equal(sharp, color_a));
+
+        // A large footprint covers complete checker periods.
+        // The filtered result should converge to the average color.
+        const Vec3 filtered = texture.value(
+            0.1,
+            0.1,
+            Vec3(),
+            1.0, 0.0,
+            0.0, 1.0
+        );
+
+        assert(color_equal(
+            filtered,
+            Vec3(0.5, 0.0, 0.5)
+        ));
+
+        // A ray-cone footprint should also filter the checker
+        // when UV differentials are unavailable.
+        const Vec3 cone_filtered =
+            texture.value_with_cone(
+                0.1,
+                0.1,
+                Vec3(),
+                0.0, 0.0,
+                0.0, 0.0,
+                false,
+                1.0,
+                true,
+                Vec3(1.0, 0.0, 0.0),
+                Vec3(0.0, 1.0, 0.0),
+                true
+            );
+
+        assert(color_equal(
+            cone_filtered,
+            Vec3(0.5, 0.0, 0.5)
+        ));
+    }
+
+    void test_uv_normal_texture_filtering() {
+        UVNormalTexture texture(8.0);
+
+        // No footprint information preserves point sampling.
+        const Vec3 sharp = texture.value(
+            0.125,
+            0.125,
+            Vec3()
+        );
+
+        // A large footprint should suppress high-frequency
+        // normal variation and converge toward a flat normal.
+        const Vec3 filtered = texture.value(
+            0.125,
+            0.125,
+            Vec3(),
+            1.0, 0.0,
+            0.0, 1.0
+        );
+
+        assert(std::abs(
+            filtered.x - 0.5
+        ) < 1e-8);
+
+        assert(std::abs(
+            filtered.y - 0.5
+        ) < 1e-8);
+
+        assert(filtered.z > 0.99);
+
+        // Filtering should remain finite for large footprints.
+        assert(std::isfinite(sharp.x));
+        assert(std::isfinite(sharp.y));
+        assert(std::isfinite(sharp.z));
+
+        // The ray-cone fallback should produce the same
+        // flat result for this large footprint.
+        const Vec3 cone_filtered =
+            texture.value_with_cone(
+                0.125,
+                0.125,
+                Vec3(),
+                0.0, 0.0,
+                0.0, 0.0,
+                false,
+                1.0,
+                true,
+                Vec3(1.0, 0.0, 0.0),
+                Vec3(0.0, 1.0, 0.0),
+                true
+            );
+
+        assert(std::abs(
+            cone_filtered.x - 0.5
+        ) < 1e-8);
+
+        assert(std::abs(
+            cone_filtered.y - 0.5
+        ) < 1e-8);
+
+        assert(cone_filtered.z > 0.99);
+    }
+
     void test_uv_gradient() {
         const Vec3 bottom(0.0, 0.0, 0.0);
         const Vec3 top(1.0, 0.5, 0.25);
@@ -542,6 +662,8 @@ namespace {
 int main() {
     test_solid_color();
     test_uv_checker();
+    test_uv_checker_filtering();
+    test_uv_normal_texture_filtering();
     test_uv_gradient();
     test_lambertian_uses_texture();
     test_normal_mapping();
