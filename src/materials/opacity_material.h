@@ -1,33 +1,45 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 
 #include "materials/material.h"
+#include "materials/texture.h"
 #include "core/random.h"
 
 class OpacityMaterial final : public Material {
 public:
     OpacityMaterial(
         std::shared_ptr<const Material> base_material,
-        double opacity
+        double opacity,
+        std::shared_ptr<const Texture> opacity_texture = nullptr
     )
         : base_material_(std::move(base_material)),
-          opacity_(std::clamp(opacity, 0.0, 1.0)) {
+          opacity_(std::clamp(opacity, 0.0, 1.0)),
+          opacity_texture_(std::move(opacity_texture)) {
         if (!base_material_) {
             throw std::invalid_argument(
                 "OpacityMaterial requires a base material."
             );
         }
+
+        if (!std::isfinite(opacity)) {
+            throw std::invalid_argument(
+                "Opacity must be finite."
+            );
+        }
     }
 
     Vec3 emitted(const HitRecord& hit) const override {
-        return base_material_->emitted(hit) * opacity_;
+        return base_material_->emitted(hit) * opacity_at(hit);
     }
 
     bool is_emissive() const override {
-        return opacity_ > 0.0 && base_material_->is_emissive();
+        return opacity_ > 0.0 &&
+               base_material_->is_emissive();
     }
 
     Vec3 evaluate_bsdf(
@@ -39,7 +51,7 @@ public:
             hit,
             outgoing_direction,
             incoming_direction
-        ) * opacity_;
+        ) * opacity_at(hit);
     }
 
     double scattering_pdf(
@@ -62,10 +74,11 @@ public:
     }
 
     bool supports_direct_lighting() const override {
-        // A partially transparent surface cannot be treated as a fully
-        // opaque blocker by the current direct-lighting shadow-ray code.
-        // Disable NEE for this wrapper; path sampling handles both branches.
+        // The current shadow-ray implementation treats surfaces
+        // as opaque blockers. Avoid that assumption when alpha
+        // varies across a texture.
         return opacity_ >= 1.0 &&
+               !opacity_texture_ &&
                base_material_->supports_direct_lighting();
     }
 
@@ -75,20 +88,17 @@ public:
         Vec3& attenuation,
         Ray& scattered
     ) const override {
-        if (opacity_ <= 0.0) {
+        const double opacity = opacity_at(hit);
+
+        if (opacity <= 0.0 ||
+            Random::random_double() >= opacity) {
+            // Transparent branch: continue through the surface.
             attenuation = Vec3(1.0, 1.0, 1.0);
             scattered = Ray(hit.point, incoming.direction);
             return true;
         }
 
-        if (opacity_ < 1.0 &&
-            Random::random_double() >= opacity_) {
-            // Alpha/transparency branch: continue in the original direction.
-            attenuation = Vec3(1.0, 1.0, 1.0);
-            scattered = Ray(hit.point, incoming.direction);
-            return true;
-        }
-
+        // Opaque branch: let the underlying material scatter.
         return base_material_->scatter(
             incoming,
             hit,
@@ -100,4 +110,44 @@ public:
 private:
     std::shared_ptr<const Material> base_material_;
     double opacity_;
+    std::shared_ptr<const Texture> opacity_texture_;
+
+    double opacity_at(const HitRecord& hit) const {
+        if (!opacity_texture_) {
+            return opacity_;
+        }
+
+        const Vec3 color = opacity_texture_->value_with_cone(
+            hit.u,
+            hit.v,
+            hit.point,
+            hit.dudx,
+            hit.dvdx,
+            hit.dudy,
+            hit.dvdy,
+            hit.has_uv_differentials,
+            hit.ray_cone_width,
+            hit.has_ray_cone,
+            hit.dpdu,
+            hit.dpdv,
+            hit.has_uv_parameterization
+        );
+
+        // MTL map_d is interpreted as a grayscale opacity map:
+        // white is opaque and black is transparent.
+        const double map_opacity =
+            0.2126 * color.x +
+            0.7152 * color.y +
+            0.0722 * color.z;
+
+        if (!std::isfinite(map_opacity)) {
+            return 0.0;
+        }
+
+        return opacity_ * std::clamp(
+            map_opacity,
+            0.0,
+            1.0
+        );
+    }
 };

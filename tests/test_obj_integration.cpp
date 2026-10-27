@@ -570,6 +570,14 @@ namespace {
             "newmtl bump_strong\n"
             "Kd 0.8 0.8 0.8\n"
             "bump -bm 3 gradient.ppm\n"
+
+            "newmtl opacity_map\n"
+            "Kd 0.8 0.8 0.8\n"
+            "map_d gradient.ppm\n"
+
+            "newmtl emission_constant\n"
+            "Kd 0.5 0.5 0.5\n"
+            "Ke 2.0 1.0 0.5\n"
         );
 
         try {
@@ -583,6 +591,7 @@ namespace {
             assert(materials.count("clamp_off") == 1);
             assert(materials.count("bump_zero") == 1);
             assert(materials.count("bump_strong") == 1);
+            assert(materials.count("opacity_map") == 1);
 
             HitRecord hit;
             hit.point = Vec3(0.0, 0.0, 0.0);
@@ -615,6 +624,28 @@ namespace {
                     + std::abs(a.y - b.y)
                     + std::abs(a.z - b.z);
             };
+
+            // A black map_d texel must be transparent;
+            // a white texel must preserve the base BSDF.
+            const Vec3 transparent_color =
+                evaluate_color("opacity_map", 0.0);
+
+            const Vec3 opaque_color =
+                evaluate_color("opacity_map", 1.0);
+
+            assert(
+                difference(
+                    transparent_color,
+                    Vec3(0.0, 0.0, 0.0)
+                ) < 1e-8
+            );
+
+            assert(
+                difference(
+                    opaque_color,
+                    Vec3(0.0, 0.0, 0.0)
+                ) > 1e-6
+            );
 
             // UV scale: u=0.25 becomes u=0.5.
             const Vec3 baseline_color =
@@ -691,6 +722,20 @@ namespace {
                     perturbed_normal
                 ) > 1e-6
             );
+
+            assert(materials.at("emission_constant")->is_emissive());
+
+            HitRecord emission_hit;
+            emission_hit.front_face = true;
+
+            const Vec3 emitted =
+                materials.at("emission_constant")->emitted(
+                    emission_hit
+                );
+
+            assert(std::abs(emitted.x - 2.0) < 1e-8);
+            assert(std::abs(emitted.y - 1.0) < 1e-8);
+            assert(std::abs(emitted.z - 0.5) < 1e-8);
         } catch (...) {
             fs::remove_all(test_dir);
             throw;

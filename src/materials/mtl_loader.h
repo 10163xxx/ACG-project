@@ -15,6 +15,7 @@
 #include "materials/principled.h"
 #include "materials/dielectric.h"
 #include "materials/opacity_material.h"
+#include "materials/emissive_mapped_material.h"
 #include "materials/image_texture.h"
 #include "materials/textured_material.h"
 #include "materials/normal_mapped_lambertian.h"
@@ -36,6 +37,7 @@ struct MtlMapOptions {
 
 struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
+    Vec3 emission = Vec3(0.0, 0.0, 0.0);
     Vec3 specular = Vec3(0.04, 0.04, 0.04);
     double shininess = 10.0;
     double metallic = 0.0;
@@ -46,6 +48,8 @@ struct MtlProperties {
     int illumination_model = 2;
 
     MtlMapOptions diffuse_map;
+    MtlMapOptions opacity_map;
+    MtlMapOptions emission_map;
     MtlMapOptions metallic_map;
     MtlMapOptions roughness_map;
     MtlMapOptions normal_map;
@@ -300,7 +304,7 @@ public:
 
             std::shared_ptr<const Material> base_material;
 
-                    auto make_map_texture = [&](
+            auto make_map_texture = [&](
                 const MtlMapOptions& map,
                 bool decode_srgb
             ) -> std::shared_ptr<const Texture> {
@@ -424,21 +428,38 @@ public:
                     );
             }
 
-            // Normal maps remain linear data textures.
-            if (!properties.normal_map.filename.empty()) {
-                auto normal_texture = make_map_texture(
-                    properties.normal_map,
-                    false
-                );
+            // Emission maps are color textures and use linear radiance.
+            if (!properties.emission_map.filename.empty() ||
+                properties.emission.x > 0.0 ||
+                properties.emission.y > 0.0 ||
+                properties.emission.z > 0.0) {
+                std::shared_ptr<const Texture> emission_texture;
+
+                if (!properties.emission_map.filename.empty()) {
+                    emission_texture = make_map_texture(
+                        properties.emission_map,
+                        true
+                    );
+                }
 
                 base_material =
-                    std::make_shared<NormalMappedMaterial>(
+                    std::make_shared<EmissiveMappedMaterial>(
                         base_material,
-                        normal_texture
+                        properties.emission,
+                        emission_texture
                     );
             }
 
-            // Preserve the existing opacity handling.
+            // MTL map_d is a linear data texture, not a color map.
+            std::shared_ptr<const Texture> opacity_texture;
+
+            if (!properties.opacity_map.filename.empty()) {
+                opacity_texture = make_map_texture(
+                    properties.opacity_map,
+                    false
+                );
+            }
+
             const double opacity =
                 std::clamp(
                     properties.opacity,
@@ -446,11 +467,12 @@ public:
                     1.0
                 );
 
-            if (opacity < 1.0) {
+            if (opacity < 1.0 || opacity_texture) {
                 materials[current_name] =
                     std::make_shared<OpacityMaterial>(
                         base_material,
-                        opacity
+                        opacity,
+                        opacity_texture
                     );
             } else {
                 materials[current_name] = base_material;
@@ -488,6 +510,30 @@ public:
                     std::max(0.0, properties.diffuse.y);
                 properties.diffuse.z =
                     std::max(0.0, properties.diffuse.z);
+            } else if (command == "Ke") {
+                Vec3 emission;
+
+                if (stream >>
+                    emission.x >>
+                    emission.y >>
+                    emission.z) {
+                    if (std::isfinite(emission.x) &&
+                        std::isfinite(emission.y) &&
+                        std::isfinite(emission.z) &&
+                        emission.x >= 0.0 &&
+                        emission.y >= 0.0 &&
+                        emission.z >= 0.0) {
+                        properties.emission = emission;
+                    } else {
+                        throw std::runtime_error(
+                            "MTL Ke values must be finite and non-negative."
+                        );
+                    }
+                } else {
+                    throw std::runtime_error(
+                        "MTL Ke requires three numeric values."
+                    );
+                }
             } else if (command == "Ks") {
                 stream >>
                     properties.specular.x >>
@@ -546,6 +592,12 @@ public:
                 stream >> properties.illumination_model;
             } else if (command == "map_Kd") {
                 properties.diffuse_map =
+                    read_map_options(stream);
+            } else if (command == "map_Ke") {
+                properties.emission_map =
+                    read_map_options(stream);
+            } else if (command == "map_d") {
+                properties.opacity_map =
                     read_map_options(stream);
             } else if (command == "map_Pm") {
                 properties.metallic_map =
