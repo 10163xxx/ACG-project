@@ -11,6 +11,7 @@
 #include "materials/normal_mapped_lambertian.h"
 #include "materials/image_texture.h"
 #include "materials/texture_transform.h"
+#include "materials/procedural_texture.h"
 
 namespace {
     bool approximately_equal(double a, double b) {
@@ -660,6 +661,58 @@ namespace {
 
         std::remove(filename);
     }
+
+    void test_perlin_noise_texture() {
+        const Vec3 color_a(0.05, 0.10, 0.20);
+        const Vec3 color_b(0.90, 0.75, 0.30);
+
+        PerlinNoiseTexture first(
+            color_a,
+            color_b,
+            2.0,
+            5,
+            12345
+        );
+
+        PerlinNoiseTexture second(
+            color_a,
+            color_b,
+            2.0,
+            5,
+            12345
+        );
+
+        const Vec3 p(0.37, 1.24, -0.81);
+
+        const Vec3 a = first.value(
+            0.0,
+            0.0,
+            p
+        );
+
+        const Vec3 b = second.value(
+            0.0,
+            0.0,
+            p
+        );
+
+        // The same seed and input must produce the same color.
+        assert(color_equal(a, b));
+
+        // Each output channel must remain within its color range.
+        assert(a.x >= color_a.x && a.x <= color_b.x);
+        assert(a.y >= color_a.y && a.y <= color_b.y);
+        assert(a.z >= color_a.z && a.z <= color_b.z);
+
+        // Moving through 3D space should change the noise value.
+        const Vec3 nearby = first.value(
+            0.0,
+            0.0,
+            Vec3(0.91, 1.24, -0.81)
+        );
+
+        assert(!color_equal(a, nearby));
+    }
 }
 
 int main() {
@@ -675,6 +728,7 @@ int main() {
     test_image_texture_srgb_decoding();
     test_image_texture_mipmap();
     test_texture_transform_and_address_modes();
+    test_perlin_noise_texture();
 
     std::cout << "Texture tests passed.\n";
     return 0;

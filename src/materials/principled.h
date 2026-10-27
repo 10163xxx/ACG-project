@@ -646,10 +646,20 @@ private:
             return metallic_;
         }
 
-        const Vec3 value = metallic_texture_->value(
+        const Vec3 value = metallic_texture_->value_with_cone(
             hit.u,
             hit.v,
-            hit.point
+            hit.point,
+            hit.dudx,
+            hit.dvdx,
+            hit.dudy,
+            hit.dvdy,
+            hit.has_uv_differentials,
+            hit.ray_cone_width,
+            hit.has_ray_cone,
+            hit.dpdu,
+            hit.dpdv,
+            hit.has_uv_parameterization
         );
 
         return std::clamp(value.x, 0.0, 1.0);
@@ -660,10 +670,20 @@ private:
             return roughness_;
         }
 
-        const Vec3 value = roughness_texture_->value(
+        const Vec3 value = roughness_texture_->value_with_cone(
             hit.u,
             hit.v,
-            hit.point
+            hit.point,
+            hit.dudx,
+            hit.dvdx,
+            hit.dudy,
+            hit.dvdy,
+            hit.has_uv_differentials,
+            hit.ray_cone_width,
+            hit.has_ray_cone,
+            hit.dpdu,
+            hit.dpdv,
+            hit.has_uv_parameterization
         );
 
         return std::clamp(value.x, 0.045, 1.0);
