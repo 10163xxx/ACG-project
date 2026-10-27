@@ -188,12 +188,14 @@ public:
 
             Vec3 attenuation;
             Ray scattered;
+            ScatterSampleInfo scatter_info;
 
-            if (!hit.material->scatter(
+            if (!hit.material->scatter_with_info(
                     ray,
                     hit,
                     attenuation,
-                    scattered)) {
+                    scattered,
+                    scatter_info)) {
                 break;
             }
 
@@ -208,9 +210,12 @@ public:
             }
 
             previous_scatter_used_nee =
-                hit.is_volume
-                    ? true
-                    : hit.material->supports_direct_lighting();
+                !scatter_info.is_straight_through
+                && (
+                    hit.is_volume
+                        ? true
+                        : hit.material->supports_direct_lighting()
+                );
 
             previous_scatter_point = hit.point;
 

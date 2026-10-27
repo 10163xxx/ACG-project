@@ -69,11 +69,12 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        return base_material_->scattering_pdf(
-            hit,
-            outgoing_direction,
-            incoming_direction
-        );
+        return opacity_at(hit)
+            * base_material_->scattering_pdf(
+                hit,
+                outgoing_direction,
+                incoming_direction
+            );
     }
 
     Vec3 shading_normal(
@@ -84,12 +85,7 @@ public:
     }
 
     bool supports_direct_lighting() const override {
-        // The current shadow-ray implementation treats surfaces
-        // as opaque blockers. Avoid that assumption when alpha
-        // varies across a texture.
-        return opacity_ >= 1.0 &&
-               !opacity_texture_ &&
-               base_material_->supports_direct_lighting();
+        return base_material_->supports_direct_lighting();
     }
 
     bool scatter(
@@ -98,17 +94,40 @@ public:
         Vec3& attenuation,
         Ray& scattered
     ) const override {
+        ScatterSampleInfo info;
+
+        return scatter_with_info(
+            incoming,
+            hit,
+            attenuation,
+            scattered,
+            info
+        );
+    }
+
+    bool scatter_with_info(
+        const Ray& incoming,
+        const HitRecord& hit,
+        Vec3& attenuation,
+        Ray& scattered,
+        ScatterSampleInfo& info
+    ) const override {
         const double opacity = opacity_at(hit);
 
         if (opacity <= 0.0 ||
             Random::random_double() >= opacity) {
-            // Transparent branch: continue through the surface.
+            // This is a discrete straight-through event,
+            // not a direction sampled from the underlying BSDF.
+            info.is_straight_through = true;
+
             attenuation = Vec3(1.0, 1.0, 1.0);
             scattered = Ray(hit.point, incoming.direction);
+
             return true;
         }
 
-        // Opaque branch: let the underlying material scatter.
+        info.is_straight_through = false;
+
         return base_material_->scatter(
             incoming,
             hit,

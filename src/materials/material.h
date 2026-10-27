@@ -4,6 +4,12 @@
 #include "core/vec3.h"
 #include "geometry/hit_record.h"
 
+struct ScatterSampleInfo {
+    // True when the ray passes straight through a surface
+    // without sampling the underlying BSDF.
+    bool is_straight_through = false;
+};
+
 class Material {
 public:
     virtual ~Material() = default;
@@ -80,4 +86,23 @@ public:
         Vec3& attenuation,
         Ray& scattered
     ) const = 0;
+
+    // Extended sampling interface. Existing materials retain
+    // their original behavior unless they override this method.
+    virtual bool scatter_with_info(
+        const Ray& incoming,
+        const HitRecord& hit,
+        Vec3& attenuation,
+        Ray& scattered,
+        ScatterSampleInfo& info
+    ) const {
+        info.is_straight_through = false;
+
+        return scatter(
+            incoming,
+            hit,
+            attenuation,
+            scattered
+        );
+    }
 };
