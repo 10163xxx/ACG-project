@@ -11,6 +11,7 @@
 #include "materials/dielectric.h"
 #include "materials/diffuse_light.h"
 #include "materials/principled.h"
+#include "materials/procedural_texture.h"
 
 inline void add_showcase_box(
     HittableList& world,
@@ -150,10 +151,19 @@ inline HittableList make_showcase_scene() {
         light_material
     ));
 
-    // Pedestals.
+    // Pedestals with a 3D procedural stone texture.
+    auto pedestal_texture =
+        std::make_shared<PerlinNoiseTexture>(
+            Vec3(0.04, 0.05, 0.07),
+            Vec3(0.85, 0.72, 0.50),
+            2.4,
+            5,
+            20261027
+        );
+
     auto pedestal_material =
         std::make_shared<Lambertian>(
-            Vec3(0.36, 0.34, 0.31)
+            pedestal_texture
         );
 
     add_showcase_box(
