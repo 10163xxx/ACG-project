@@ -18,6 +18,23 @@ public:
         return false;
     }
 
+    // Whether this surface blocks a shadow ray completely.
+    // Ordinary materials are opaque by default.
+    virtual bool blocks_shadow(const HitRecord& hit) const {
+        (void)hit;
+        return true;
+    }
+
+    // Fraction of shadow-ray energy transmitted through this surface.
+    // Opaque materials return 1 here because blocking is handled
+    // separately by blocks_shadow().
+    virtual double shadow_transmittance(
+        const HitRecord& hit
+    ) const {
+        (void)hit;
+        return 1.0;
+    }
+
     // Evaluate the BSDF for directions pointing away from the surface.
     // Non-BSDF materials return black by default.
     virtual Vec3 evaluate_bsdf(

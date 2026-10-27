@@ -71,6 +71,7 @@ public:
 
     bool is_emissive() const override {
         return base_material_->is_emissive() ||
+               emission_texture_ != nullptr ||
                emission_.x > 0.0 ||
                emission_.y > 0.0 ||
                emission_.z > 0.0;

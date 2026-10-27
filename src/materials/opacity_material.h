@@ -42,6 +42,16 @@ public:
                base_material_->is_emissive();
     }
 
+    bool blocks_shadow(const HitRecord& hit) const override {
+        return opacity_at(hit) >= 1.0;
+    }
+
+    double shadow_transmittance(
+        const HitRecord& hit
+    ) const override {
+        return 1.0 - opacity_at(hit);
+    }
+
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,

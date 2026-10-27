@@ -578,6 +578,15 @@ namespace {
             "newmtl emission_constant\n"
             "Kd 0.5 0.5 0.5\n"
             "Ke 2.0 1.0 0.5\n"
+
+            "newmtl emission_map_only\n"
+            "Kd 0.5 0.5 0.5\n"
+            "map_Ke gradient.ppm\n"
+
+            "newmtl emission_explicit_black\n"
+            "Kd 0.5 0.5 0.5\n"
+            "Ke 0.0 0.0 0.0\n"
+            "map_Ke gradient.ppm\n"
         );
 
         try {
@@ -592,6 +601,13 @@ namespace {
             assert(materials.count("bump_zero") == 1);
             assert(materials.count("bump_strong") == 1);
             assert(materials.count("opacity_map") == 1);
+            assert(
+                materials.count("emission_map_only") == 1
+            );
+
+            assert(
+                materials.count("emission_explicit_black") == 1
+            );
 
             HitRecord hit;
             hit.point = Vec3(0.0, 0.0, 0.0);
@@ -736,6 +752,51 @@ namespace {
             assert(std::abs(emitted.x - 2.0) < 1e-8);
             assert(std::abs(emitted.y - 1.0) < 1e-8);
             assert(std::abs(emitted.z - 0.5) < 1e-8);
+
+            // map_Ke without Ke uses a white emission multiplier.
+            HitRecord map_emission_hit;
+            map_emission_hit.front_face = true;
+            map_emission_hit.u = 1.0;
+            map_emission_hit.v = 0.5;
+
+            const Vec3 map_only_emission =
+                materials.at("emission_map_only")->emitted(
+                    map_emission_hit
+                );
+
+            assert(
+                std::abs(map_only_emission.x - 1.0) < 1e-6
+            );
+
+            assert(
+                std::abs(map_only_emission.y - 1.0) < 1e-6
+            );
+
+            assert(
+                std::abs(map_only_emission.z - 1.0) < 1e-6
+            );
+
+            assert(
+                materials.at("emission_map_only")->is_emissive()
+            );
+
+            // An explicitly black Ke must not be overridden by map_Ke.
+            const Vec3 explicit_black_emission =
+                materials.at("emission_explicit_black")->emitted(
+                    map_emission_hit
+                );
+
+            assert(
+                std::abs(explicit_black_emission.x) < 1e-8
+            );
+
+            assert(
+                std::abs(explicit_black_emission.y) < 1e-8
+            );
+
+            assert(
+                std::abs(explicit_black_emission.z) < 1e-8
+            );
         } catch (...) {
             fs::remove_all(test_dir);
             throw;

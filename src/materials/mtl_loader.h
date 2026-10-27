@@ -38,6 +38,7 @@ struct MtlMapOptions {
 struct MtlProperties {
     Vec3 diffuse = Vec3(0.8, 0.8, 0.8);
     Vec3 emission = Vec3(0.0, 0.0, 0.0);
+    bool has_emission = false;
     Vec3 specular = Vec3(0.04, 0.04, 0.04);
     double shininess = 10.0;
     double metallic = 0.0;
@@ -429,23 +430,30 @@ public:
             }
 
             // Emission maps are color textures and use linear radiance.
-            if (!properties.emission_map.filename.empty() ||
-                properties.emission.x > 0.0 ||
-                properties.emission.y > 0.0 ||
-                properties.emission.z > 0.0) {
+            const bool has_emission_map =
+                !properties.emission_map.filename.empty();
+
+            if (has_emission_map || properties.has_emission) {
                 std::shared_ptr<const Texture> emission_texture;
 
-                if (!properties.emission_map.filename.empty()) {
+                if (has_emission_map) {
                     emission_texture = make_map_texture(
                         properties.emission_map,
                         true
                     );
                 }
 
+                // A map_Ke without Ke uses white as its multiplier.
+                // An explicit Ke 0 0 0 must remain black.
+                const Vec3 emission_color =
+                    properties.has_emission
+                        ? properties.emission
+                        : Vec3(1.0, 1.0, 1.0);
+
                 base_material =
                     std::make_shared<EmissiveMappedMaterial>(
                         base_material,
-                        properties.emission,
+                        emission_color,
                         emission_texture
                     );
             }
@@ -524,6 +532,7 @@ public:
                         emission.y >= 0.0 &&
                         emission.z >= 0.0) {
                         properties.emission = emission;
+                        properties.has_emission = true;
                     } else {
                         throw std::runtime_error(
                             "MTL Ke values must be finite and non-negative."

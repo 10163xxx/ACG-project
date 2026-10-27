@@ -4,6 +4,7 @@
 #include "core/interval.h"
 #include "geometry/aabb.h"
 #include "geometry/hit_record.h"
+#include "materials/material.h"
 
 #include <vector>
 
@@ -43,28 +44,59 @@ public:
 
     // Find an opaque surface only.
     // Participating-medium scattering events are not occluders.
+    // Find the nearest fully opaque surface.
+    // Transparent surfaces do not block the ray completely.
     virtual bool hit_surface(
         const Ray& ray,
         const Interval& ray_t,
         HitRecord& record
     ) const {
-        if (!hit(ray, ray_t, record)) {
-            return false;
+        std::vector<HitRecord> intersections;
+        all_intersections(ray, ray_t, intersections);
+
+        for (const HitRecord& intersection : intersections) {
+            if (intersection.is_volume) {
+                continue;
+            }
+
+            if (!intersection.material ||
+                intersection.material->blocks_shadow(
+                    intersection
+                )) {
+                record = intersection;
+                return true;
+            }
         }
 
-        return !record.is_volume;
+        return false;
     }
 
     virtual double transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const {
-        (void)ray;
-        (void)ray_t;
+        std::vector<HitRecord> intersections;
+        all_intersections(ray, ray_t, intersections);
 
-        // Opaque surfaces are handled by hit_surface().
-        // Objects without a participating medium do not attenuate light.
-        return 1.0;
+        double result = 1.0;
+
+        for (const HitRecord& intersection : intersections) {
+            if (intersection.is_volume ||
+                !intersection.material) {
+                continue;
+            }
+
+            result *=
+                intersection.material->shadow_transmittance(
+                    intersection
+                );
+
+            if (result <= 1e-12) {
+                return 0.0;
+            }
+        }
+
+        return result;
     }
 
     virtual AABB bounding_box() const = 0;
