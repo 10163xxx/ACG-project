@@ -116,13 +116,15 @@ public:
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
-        Ray& scattered
+        Ray& scattered,
+        ScatterSampleInfo& info
     ) const override {
         return base_material_->scatter(
             incoming,
             hit,
             attenuation,
-            scattered
+            scattered,
+            info
         );
     }
 

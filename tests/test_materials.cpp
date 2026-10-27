@@ -25,12 +25,13 @@ int main() {
 
     Vec3 attenuation;
     Ray scattered;
+    ScatterSampleInfo scatter_info;
 
     // 1. Lambertian
     Lambertian diffuse(Vec3(0.8, 0.3, 0.2));
 
     const bool diffuse_ok =
-        diffuse.scatter(incoming, hit, attenuation, scattered);
+        diffuse.scatter(incoming, hit, attenuation, scattered, scatter_info);
 
     assert(diffuse_ok);
     assert(std::abs(attenuation.x - 0.8) < 1e-9);
@@ -107,7 +108,7 @@ int main() {
     Metal mirror(Vec3(0.9, 0.9, 0.9), 0.0);
 
     const bool metal_ok =
-        mirror.scatter(incoming, hit, attenuation, scattered);
+        mirror.scatter(incoming, hit, attenuation, scattered, scatter_info);
 
     assert(metal_ok);
     assert(dot(scattered.direction, hit.normal) > 0.0);
@@ -119,7 +120,7 @@ int main() {
     Dielectric glass(1.5);
 
     const bool glass_ok =
-        glass.scatter(incoming, hit, attenuation, scattered);
+        glass.scatter(incoming, hit, attenuation, scattered, scatter_info);
 
     assert(glass_ok);
     assert(std::abs(attenuation.x - 1.0) < 1e-9);

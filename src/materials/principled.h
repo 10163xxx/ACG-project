@@ -76,8 +76,10 @@ public:
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
-        Ray& scattered
+        Ray& scattered,
+        ScatterSampleInfo& info
     ) const override {
+        info.is_straight_through = false;
         const Vec3 n = normalize(hit.normal);
         const Vec3 wo = normalize(-incoming.direction);
 

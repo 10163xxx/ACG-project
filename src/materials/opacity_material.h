@@ -92,23 +92,6 @@ public:
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
-        Ray& scattered
-    ) const override {
-        ScatterSampleInfo info;
-
-        return scatter_with_info(
-            incoming,
-            hit,
-            attenuation,
-            scattered,
-            info
-        );
-    }
-
-    bool scatter_with_info(
-        const Ray& incoming,
-        const HitRecord& hit,
-        Vec3& attenuation,
         Ray& scattered,
         ScatterSampleInfo& info
     ) const override {
@@ -116,8 +99,6 @@ public:
 
         if (opacity <= 0.0 ||
             Random::random_double() >= opacity) {
-            // This is a discrete straight-through event,
-            // not a direction sampled from the underlying BSDF.
             info.is_straight_through = true;
 
             attenuation = Vec3(1.0, 1.0, 1.0);
@@ -132,7 +113,8 @@ public:
             incoming,
             hit,
             attenuation,
-            scattered
+            scattered,
+            info
         );
     }
 

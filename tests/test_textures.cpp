@@ -243,9 +243,10 @@ namespace {
 
         Vec3 attenuation;
         Ray scattered;
+        ScatterSampleInfo scatter_info;
 
         const bool scattered_ok = material.scatter(
-            incoming, hit, attenuation, scattered
+            incoming, hit, attenuation, scattered, scatter_info
         );
 
         assert(scattered_ok);
@@ -382,6 +383,7 @@ namespace {
 
         Vec3 attenuation;
         Ray scattered;
+        ScatterSampleInfo scatter_info;
 
         int valid_samples = 0;
         int rejected_samples = 0;
@@ -391,7 +393,8 @@ namespace {
                 incoming,
                 hit,
                 attenuation,
-                scattered
+                scattered,
+                scatter_info
             );
 
             if (!ok) {

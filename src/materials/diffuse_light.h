@@ -33,8 +33,10 @@ public:
         const Ray&,
         const HitRecord&,
         Vec3&,
-        Ray&
+        Ray&,
+        ScatterSampleInfo& info
     ) const override {
+        info.is_straight_through = false;
         return false;
     }
 

@@ -77,32 +77,13 @@ public:
         return false;
     }
 
-    // Returns true if the incoming ray scatters.
-    // attenuation stores the throughput color multiplier.
-    // scattered stores the outgoing ray.
+    // Samples the next ray and reports whether it passes
+    // straight through without sampling the underlying BSDF.
     virtual bool scatter(
-        const Ray& incoming,
-        const HitRecord& hit,
-        Vec3& attenuation,
-        Ray& scattered
-    ) const = 0;
-
-    // Extended sampling interface. Existing materials retain
-    // their original behavior unless they override this method.
-    virtual bool scatter_with_info(
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
         Ray& scattered,
         ScatterSampleInfo& info
-    ) const {
-        info.is_straight_through = false;
-
-        return scatter(
-            incoming,
-            hit,
-            attenuation,
-            scattered
-        );
-    }
+    ) const = 0;
 };

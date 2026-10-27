@@ -196,7 +196,8 @@ public:
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
-        Ray& scattered
+        Ray& scattered,
+        ScatterSampleInfo& info
     ) const override {
         const Vec3 geometric_normal =
             normalize_or(
@@ -211,9 +212,14 @@ public:
                 incoming,
                 mapped_hit,
                 attenuation,
-                scattered
+                scattered,
+                info
             )) {
             return false;
+        }
+
+        if (info.is_straight_through) {
+            return true;
         }
 
         const Vec3 direction =

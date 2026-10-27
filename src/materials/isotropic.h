@@ -14,8 +14,10 @@ public:
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
-        Ray& scattered
+        Ray& scattered,
+        ScatterSampleInfo& info
     ) const override {
+        info.is_straight_through = false;
         (void)incoming;
 
         constexpr double PI = 3.14159265358979323846;

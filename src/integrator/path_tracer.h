@@ -190,7 +190,7 @@ public:
             Ray scattered;
             ScatterSampleInfo scatter_info;
 
-            if (!hit.material->scatter_with_info(
+            if (!hit.material->scatter(
                     ray,
                     hit,
                     attenuation,

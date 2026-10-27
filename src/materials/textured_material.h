@@ -76,15 +76,21 @@ public:
         const Ray& incoming,
         const HitRecord& hit,
         Vec3& attenuation,
-        Ray& scattered
+        Ray& scattered,
+        ScatterSampleInfo& info
     ) const override {
         if (!base_material_->scatter(
                 incoming,
                 hit,
                 attenuation,
-                scattered
+                scattered,
+                info
             )) {
             return false;
+        }
+
+        if (info.is_straight_through) {
+            return true;
         }
 
         attenuation = attenuation * texture_color(hit);
