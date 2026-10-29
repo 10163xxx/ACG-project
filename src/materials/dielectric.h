@@ -98,7 +98,10 @@ public:
         );
 
         const double fresnel =
-            reflectance(cos_theta, refraction_ratio);
+            fresnel_reflectance(
+                cos_theta,
+                refraction_ratio
+            );
 
         const double tint =
             (tint_.x + tint_.y + tint_.z) / 3.0;
@@ -122,5 +125,60 @@ private:
 
         return r0 + (1.0 - r0)
             * std::pow(1.0 - cosine, 5.0);
+    }
+
+    static double fresnel_reflectance(
+        double cos_theta_i,
+        double eta_i_over_eta_t
+    ) {
+        const double sin_theta_i = std::sqrt(
+            std::max(
+                0.0,
+                1.0 - cos_theta_i * cos_theta_i
+            )
+        );
+
+        const double sin_theta_t =
+            eta_i_over_eta_t * sin_theta_i;
+
+        // Total internal reflection.
+        if (sin_theta_t >= 1.0) {
+            return 1.0;
+        }
+
+        const double cos_theta_t = std::sqrt(
+            std::max(
+                0.0,
+                1.0 - sin_theta_t * sin_theta_t
+            )
+        );
+
+        const double rs_numerator =
+            eta_i_over_eta_t * cos_theta_i
+            - cos_theta_t;
+
+        const double rs_denominator =
+            eta_i_over_eta_t * cos_theta_i
+            + cos_theta_t;
+
+        const double rp_numerator =
+            cos_theta_i
+            - eta_i_over_eta_t * cos_theta_t;
+
+        const double rp_denominator =
+            cos_theta_i
+            + eta_i_over_eta_t * cos_theta_t;
+
+        const double rs =
+            rs_numerator / rs_denominator;
+
+        const double rp =
+            rp_numerator / rp_denominator;
+
+        return std::clamp(
+            0.5 * (rs * rs + rp * rp),
+            0.0,
+            1.0
+        );
     }
 };
