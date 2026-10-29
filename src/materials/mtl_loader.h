@@ -45,6 +45,7 @@ struct MtlProperties {
     double roughness = 1.0;
     bool has_roughness = false;
     double index_of_refraction = 1.0;
+    Vec3 absorption = Vec3(0.0, 0.0, 0.0);
     double opacity = 1.0;
     int illumination_model = 2;
 
@@ -367,7 +368,8 @@ public:
                 base_material =
                     std::make_shared<Dielectric>(
                         glass_ior,
-                        glass_tint
+                        glass_tint,
+                        properties.absorption
                     );
             } else {
                 const Vec3 dielectric_f0(
@@ -577,7 +579,37 @@ public:
                     }
                 }
             } else if (command == "Ni") {
-                stream >> properties.index_of_refraction;
+                if (!(stream >> properties.index_of_refraction) ||
+                    !std::isfinite(properties.index_of_refraction) ||
+                    properties.index_of_refraction <= 0.0) {
+                    throw std::runtime_error(
+                        "MTL Ni must be positive and finite."
+                    );
+                }
+            } else if (command == "absorption") {
+                Vec3 absorption;
+
+                if (!(stream >>
+                    absorption.x >>
+                    absorption.y >>
+                    absorption.z)) {
+                    throw std::runtime_error(
+                        "MTL absorption requires three numeric values."
+                    );
+                }
+
+                if (!std::isfinite(absorption.x) ||
+                    !std::isfinite(absorption.y) ||
+                    !std::isfinite(absorption.z) ||
+                    absorption.x < 0.0 ||
+                    absorption.y < 0.0 ||
+                    absorption.z < 0.0) {
+                    throw std::runtime_error(
+                        "MTL absorption values must be finite and non-negative."
+                    );
+                }
+
+                properties.absorption = absorption;
             } else if (command == "d") {
                 stream >> properties.opacity;
 
