@@ -1004,9 +1004,11 @@ static Vec3 estimate_direct_lighting_single(
         const double weight =
             cos_surface
             * mis_weight
-            * shadow_transmittance
             / light_pdf;
 
-        return light_emission * bsdf * weight;
+        return light_emission
+            * bsdf
+            * shadow_transmittance
+            * weight;
     }
 };
