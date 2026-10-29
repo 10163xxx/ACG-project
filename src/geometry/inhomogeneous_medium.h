@@ -123,14 +123,14 @@ public:
         return false;
     }
 
-    double transmittance(
+    Vec3 transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const override {
         const double ray_length = ray.direction.length();
 
         if (!std::isfinite(ray_length) || ray_length <= 0.0) {
-            return 1.0;
+            return Vec3(1.0, 1.0, 1.0);
         }
 
         const std::vector<Interval> intervals =
@@ -168,12 +168,12 @@ public:
                 result *= 1.0 - local_density / density_;
 
                 if (result <= 1e-12) {
-                    return 0.0;
+                    return Vec3(0.0, 0.0, 0.0);
                 }
             }
         }
 
-        return result;
+        return Vec3(result, result, result);
     }
 
     AABB bounding_box() const override {

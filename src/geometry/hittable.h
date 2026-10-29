@@ -71,14 +71,14 @@ public:
         return false;
     }
 
-    virtual double transmittance(
+    virtual Vec3 transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const {
         std::vector<HitRecord> intersections;
         all_intersections(ray, ray_t, intersections);
 
-        double result = 1.0;
+        Vec3 result(1.0, 1.0, 1.0);
 
         for (const HitRecord& intersection : intersections) {
             if (intersection.is_volume ||
@@ -86,14 +86,14 @@ public:
                 continue;
             }
 
-            result *=
-                intersection.material->shadow_transmittance(
+            result = result
+                * intersection.material->shadow_transmittance(
                     intersection,
                     ray.direction
                 );
 
-            if (result <= 1e-12) {
-                return 0.0;
+            if (result.near_zero()) {
+                return Vec3(0.0, 0.0, 0.0);
             }
         }
 

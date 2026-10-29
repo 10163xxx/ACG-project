@@ -128,7 +128,7 @@ public:
         return false;
     }
 
-    double transmittance(
+    Vec3 transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const override {
@@ -145,7 +145,9 @@ public:
                 (interval.max - interval.min) * ray_length;
         }
 
-        return std::exp(-density_ * total_distance);
+        double result = std::exp(-density_ * total_distance);
+
+        return Vec3(result, result, result);
     }
 
     AABB bounding_box() const override {

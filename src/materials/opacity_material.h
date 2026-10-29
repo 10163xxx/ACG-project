@@ -46,12 +46,20 @@ public:
         return opacity_at(hit) >= 1.0;
     }
 
-    double shadow_transmittance(
+    Vec3 shadow_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction
     ) const override {
         (void)ray_direction;
-        return 1.0 - opacity_at(hit);
+
+        const double transmittance =
+            1.0 - opacity_at(hit);
+
+        return Vec3(
+            transmittance,
+            transmittance,
+            transmittance
+        );
     }
 
     Vec3 evaluate_bsdf(

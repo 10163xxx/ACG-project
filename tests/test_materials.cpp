@@ -121,14 +121,22 @@ int main() {
 
     assert(!glass.blocks_shadow(hit));
 
-    const double glass_shadow_transmittance =
+    const Vec3 glass_shadow_transmittance =
         glass.shadow_transmittance(
             hit,
             Vec3(0.0, -1.0, 0.0)
         );
 
     assert(std::abs(
-        glass_shadow_transmittance - 0.96
+        glass_shadow_transmittance.x - 0.96
+    ) < 1e-9);
+
+    assert(std::abs(
+        glass_shadow_transmittance.y - 0.96
+    ) < 1e-9);
+
+    assert(std::abs(
+        glass_shadow_transmittance.z - 0.96
     ) < 1e-9);
 
     const bool glass_ok =

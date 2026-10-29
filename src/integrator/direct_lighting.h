@@ -300,13 +300,13 @@ static Vec3 estimate_volume_point_lighting(
                 continue;
             }
 
-            const double transmittance =
+            const Vec3 transmittance =
                 world.transmittance(
                     shadow_ray,
                     shadow_interval
                 );
 
-            if (transmittance <= MIN_TRANSMITTANCE) {
+            if (transmittance.near_zero()) {
                 continue;
             }
 
@@ -368,13 +368,13 @@ static Vec3 estimate_volume_environment_lighting(
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        const double transmittance =
+        const Vec3 transmittance =
             world.transmittance(
                 shadow_ray,
                 shadow_interval
             );
 
-        if (transmittance <= MIN_TRANSMITTANCE) {
+        if (transmittance.near_zero()) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -517,13 +517,13 @@ static Vec3 estimate_volume_area_lighting(
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        const double transmittance =
+        const Vec3 transmittance =
             world.transmittance(
                 shadow_ray,
                 shadow_interval
             );
 
-        if (transmittance <= MIN_TRANSMITTANCE) {
+        if (transmittance.near_zero()) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -622,13 +622,13 @@ static Vec3 estimate_environment_lighting(
 
         // Volumes attenuate the shadow ray instead of acting
         // as opaque blockers.
-        const double shadow_transmittance =
+        const Vec3 shadow_transmittance =
             world.transmittance(
                 shadow_ray,
                 shadow_interval
             );
 
-        if (shadow_transmittance <= MIN_TRANSMITTANCE) {
+        if (shadow_transmittance.near_zero()) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -749,13 +749,13 @@ static Vec3 estimate_point_lighting(
             }
 
             // Participating media attenuate the light.
-            const double shadow_transmittance =
+            const Vec3 shadow_transmittance =
                 world.transmittance(
                     shadow_ray,
                     shadow_interval
                 );
 
-            if (shadow_transmittance <= MIN_TRANSMITTANCE) {
+            if (shadow_transmittance.near_zero()) {
                 continue;
             }
 
@@ -962,13 +962,13 @@ static Vec3 estimate_direct_lighting_single(
         }
 
         // Media attenuate the sampled light along its shadow ray.
-        const double shadow_transmittance =
+        const Vec3 shadow_transmittance =
             world.transmittance(
                 shadow_ray,
                 shadow_interval
             );
 
-        if (shadow_transmittance <= MIN_TRANSMITTANCE) {
+        if (shadow_transmittance.near_zero()) {
             return Vec3(0.0, 0.0, 0.0);
         }
 

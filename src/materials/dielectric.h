@@ -82,7 +82,7 @@ public:
         return false;
     }
 
-    double shadow_transmittance(
+    Vec3 shadow_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction
     ) const override {
@@ -103,10 +103,7 @@ public:
                 refraction_ratio
             );
 
-        const double tint =
-            (tint_.x + tint_.y + tint_.z) / 3.0;
-
-        return (1.0 - fresnel) * tint;
+        return tint_ * (1.0 - fresnel);
     }
 
 private:

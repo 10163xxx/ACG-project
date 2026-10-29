@@ -94,18 +94,19 @@ public:
         return hit_anything;
     }
 
-    double transmittance(
+    Vec3 transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const override {
-        double total_transmittance = 1.0;
+        Vec3 total_transmittance(1.0, 1.0, 1.0);
 
         for (const auto& object : objects_) {
-            total_transmittance *=
-                object->transmittance(ray, ray_t);
+            total_transmittance =
+                total_transmittance
+                * object->transmittance(ray, ray_t);
 
-            if (total_transmittance <= 1e-12) {
-                return 0.0;
+            if (total_transmittance.near_zero()) {
+                return Vec3(0.0, 0.0, 0.0);
             }
         }
 

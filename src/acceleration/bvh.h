@@ -159,25 +159,23 @@ public:
         return false;
     }
 
-    double transmittance(
+    Vec3 transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const override {
         if (!box_.hit(ray, ray_t)) {
-            return 1.0;
+            return Vec3(1.0, 1.0, 1.0);
         }
 
         if (is_leaf_) {
-            double result = 1.0;
+            Vec3 result(1.0, 1.0, 1.0);
 
             for (const auto& object : leaf_objects_) {
-                result *= object->transmittance(
-                    ray,
-                    ray_t
-                );
+                result = result
+                    * object->transmittance(ray, ray_t);
 
-                if (result <= 1e-12) {
-                    return 0.0;
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
                 }
             }
 

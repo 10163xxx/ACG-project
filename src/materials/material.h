@@ -34,13 +34,13 @@ public:
     // Fraction of shadow-ray energy transmitted through this surface.
     // Opaque materials return 1 here because blocking is handled
     // separately by blocks_shadow().
-    virtual double shadow_transmittance(
+    virtual Vec3 shadow_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction
     ) const {
         (void)hit;
         (void)ray_direction;
-        return 1.0;
+        return Vec3(1.0, 1.0, 1.0);
     }
 
     // Evaluate the BSDF for directions pointing away from the surface.
