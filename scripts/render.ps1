@@ -2,7 +2,7 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Config = "Release",
 
-    [ValidateSet("Showcase", "UVTest", "VolumeTest", "MipmapTest", "MipmapTestNoFilter", "OBJ")]
+    [ValidateSet("Showcase", "UVTest", "VolumeTest", "InhomogeneousVolumeTest", "MipmapTest", "MipmapTestNoFilter", "OBJ")]
     [string]$Scene = "Showcase",
 
     [string]$ObjPath = "assets\models\test_model.obj",
@@ -53,6 +53,12 @@ switch ($Scene) {
         $Ppm = Join-Path $ProjectRoot "results\renders\volume_test.ppm"
         $Jpg = Join-Path $ProjectRoot "results\renders\volume_test.jpg"
         $RenderArgs = @("--volume-test")
+    }
+
+    "InhomogeneousVolumeTest" {
+        $Ppm = Join-Path $ProjectRoot "results\renders\inhomogeneous_volume_test.ppm"
+        $Jpg = Join-Path $ProjectRoot "results\renders\inhomogeneous_volume_test.jpg"
+        $RenderArgs = @("--inhomogeneous-volume-test")
     }
 
     "OBJ" {

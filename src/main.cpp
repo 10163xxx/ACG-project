@@ -10,6 +10,7 @@
 #include "camera/camera.h"
 #include "core/random.h"
 #include "geometry/constant_medium.h"
+#include "geometry/inhomogeneous_medium.h"
 #include "geometry/obj_loader.h"
 #include "geometry/sphere.h"
 #include "integrator/path_tracer.h"
@@ -33,6 +34,8 @@ int main(int argc, char* argv[]) {
 
     const bool uv_test = mode == "--uv-test";
     const bool volume_test = mode == "--volume-test";
+    const bool inhomogeneous_volume_test =
+        mode == "--inhomogeneous-volume-test";
     const bool obj_test = mode == "--obj";
     const bool mipmap_test = mode == "--mipmap-test";
     const bool mipmap_test_no_filter =
@@ -47,6 +50,7 @@ int main(int argc, char* argv[]) {
     if (!mode.empty() &&
         mode != "--uv-test" &&
         mode != "--volume-test" &&
+        mode != "--inhomogeneous-volume-test" &&
         mode != "--obj" &&
         mode != "--mipmap-test" &&
         mode != "--mipmap-test-lod0") {
@@ -56,6 +60,7 @@ int main(int argc, char* argv[]) {
             << "  renderer\n"
             << "  renderer --uv-test\n"
             << "  renderer --volume-test\n"
+            << "  renderer --inhomogeneous-volume-test\n"
             << "  renderer --obj <path-to-model.obj>\n"
             << "  renderer --mipmap-test\n"
             << "  renderer --mipmap-test-lod0\n";
@@ -78,7 +83,7 @@ int main(int argc, char* argv[]) {
         image_height = 240;
         samples_per_pixel = 16;
         max_depth = 8;
-    } else if (volume_test) {
+    } else if (volume_test || inhomogeneous_volume_test) {
         image_width = 320;
         image_height = 270;
         samples_per_pixel = 128;
@@ -100,6 +105,10 @@ int main(int argc, char* argv[]) {
     } else if (uv_test) {
         output_file =
             OutputPaths::RenderDirectory + "uv_test.ppm";
+    } else if (inhomogeneous_volume_test) {
+        output_file =
+            OutputPaths::RenderDirectory
+            + "inhomogeneous_volume_test.ppm";
     } else if (volume_test) {
         output_file =
             OutputPaths::RenderDirectory + "volume_test.ppm";
@@ -198,20 +207,30 @@ int main(int argc, char* argv[]) {
     } else {
         scene = make_showcase_scene();
 
-        if (volume_test) {
+        if (volume_test || inhomogeneous_volume_test) {
             auto boundary = std::make_shared<Sphere>(
                 Vec3(0.0, 1.5, -1.8),
                 1.05,
                 nullptr
             );
 
-            scene.add(
-                std::make_shared<ConstantMedium>(
-                    boundary,
-                    0.9,
-                    Vec3(0.85, 0.92, 1.0)
-                )
-            );
+            if (inhomogeneous_volume_test) {
+                scene.add(
+                    std::make_shared<InhomogeneousMedium>(
+                        boundary,
+                        0.9,
+                        Vec3(0.85, 0.92, 1.0)
+                    )
+                );
+            } else {
+                scene.add(
+                    std::make_shared<ConstantMedium>(
+                        boundary,
+                        0.9,
+                        Vec3(0.85, 0.92, 1.0)
+                    )
+                );
+            }
         }
     }
 
