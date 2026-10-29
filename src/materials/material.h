@@ -35,9 +35,11 @@ public:
     // Opaque materials return 1 here because blocking is handled
     // separately by blocks_shadow().
     virtual double shadow_transmittance(
-        const HitRecord& hit
+        const HitRecord& hit,
+        const Vec3& ray_direction
     ) const {
         (void)hit;
+        (void)ray_direction;
         return 1.0;
     }
 

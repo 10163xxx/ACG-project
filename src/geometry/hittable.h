@@ -88,7 +88,8 @@ public:
 
             result *=
                 intersection.material->shadow_transmittance(
-                    intersection
+                    intersection,
+                    ray.direction
                 );
 
             if (result <= 1e-12) {

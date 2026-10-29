@@ -83,15 +83,27 @@ public:
     }
 
     double shadow_transmittance(
-        const HitRecord& hit
+        const HitRecord& hit,
+        const Vec3& ray_direction
     ) const override {
-        (void)hit;
+        const double refraction_ratio =
+            hit.front_face ? (1.0 / ir_) : ir_;
 
-        return (
-            tint_.x
-            + tint_.y
-            + tint_.z
-        ) / 3.0;
+        const Vec3 direction = normalize(ray_direction);
+
+        const double cos_theta = std::clamp(
+            std::abs(dot(direction, hit.normal)),
+            0.0,
+            1.0
+        );
+
+        const double fresnel =
+            reflectance(cos_theta, refraction_ratio);
+
+        const double tint =
+            (tint_.x + tint_.y + tint_.z) / 3.0;
+
+        return (1.0 - fresnel) * tint;
     }
 
 private:

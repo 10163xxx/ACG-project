@@ -47,8 +47,10 @@ public:
     }
 
     double shadow_transmittance(
-        const HitRecord& hit
+        const HitRecord& hit,
+        const Vec3& ray_direction
     ) const override {
+        (void)ray_direction;
         return 1.0 - opacity_at(hit);
     }
 
