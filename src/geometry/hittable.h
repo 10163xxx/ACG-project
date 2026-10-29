@@ -90,13 +90,13 @@ public:
         std::vector<ActiveMedium> active_media;
 
         const double direction_length = ray.direction.length();
+        const bool closed_volume = is_closed_volume();
 
-        // Apply Beer-Lambert attenuation over a world-space distance.
         const auto apply_absorption = [&result](
             const Material* material,
             double distance
         ) {
-            if (distance <= 0.0) {
+            if (material == nullptr || distance <= 0.0) {
                 return;
             }
 
@@ -121,6 +121,7 @@ public:
             const Material* material =
                 intersection.material.get();
 
+            // Evaluate transmission at every surface independently.
             result = result
                 * material->shadow_transmittance(
                     intersection,
@@ -129,6 +130,11 @@ public:
 
             if (result.near_zero()) {
                 return Vec3(0.0, 0.0, 0.0);
+            }
+
+            // Open surfaces have no inferred interior absorption.
+            if (!closed_volume) {
+                continue;
             }
 
             if (intersection.front_face) {
@@ -140,47 +146,44 @@ public:
                 continue;
             }
 
-            bool matched_entry = false;
-
-            for (std::size_t i = active_media.size(); i > 0; --i) {
-                const std::size_t index = i - 1;
-
-                if (active_media[index].material != material) {
-                    continue;
-                }
-
-                const double distance = std::max(
-                    0.0,
-                    intersection.t - active_media[index].entry_t
-                ) * direction_length;
-
-                apply_absorption(material, distance);
-
-                active_media.erase(
-                    active_media.begin() + index
-                );
-
-                matched_entry = true;
-                break;
-            }
-
-            // A back-face hit without a matching entry can indicate
-            // that the ray interval begins inside a closed object.
-            if (!matched_entry && is_closed_volume()) {
+            if (active_media.empty()) {
+                // The ray interval may begin inside this closed
+                // volume, before its exit boundary is encountered.
                 const double distance = std::max(
                     0.0,
                     intersection.t - ray_t.min
                 ) * direction_length;
 
                 apply_absorption(material, distance);
+
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+
+                continue;
             }
+
+            // Pair boundaries by geometric traversal order rather
+            // than material pointer. Different OBJ faces may use
+            // different materials on the entry and exit boundaries.
+            const ActiveMedium medium = active_media.back();
+            active_media.pop_back();
+
+            const double distance = std::max(
+                0.0,
+                intersection.t - medium.entry_t
+            ) * direction_length;
+
+            // Use the entry material's absorption coefficient for
+            // the interior segment.
+            apply_absorption(medium.material, distance);
 
             if (result.near_zero()) {
                 return Vec3(0.0, 0.0, 0.0);
             }
         }
 
-        // The interval may end while the ray is still inside a medium.
+        // The ray interval can end before it exits the volume.
         for (const ActiveMedium& medium : active_media) {
             const double distance = std::max(
                 0.0,
