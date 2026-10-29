@@ -77,6 +77,23 @@ public:
         return true;
     }
 
+    bool blocks_shadow(const HitRecord& hit) const override {
+        (void)hit;
+        return false;
+    }
+
+    double shadow_transmittance(
+        const HitRecord& hit
+    ) const override {
+        (void)hit;
+
+        return (
+            tint_.x
+            + tint_.y
+            + tint_.z
+        ) / 3.0;
+    }
+
 private:
     double ir_;
     Vec3 tint_;

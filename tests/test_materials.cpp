@@ -119,6 +119,9 @@ int main() {
     // 3. Dielectric
     Dielectric glass(1.5);
 
+    assert(!glass.blocks_shadow(hit));
+    assert(std::abs(glass.shadow_transmittance(hit) - 1.0) < 1e-9);
+
     const bool glass_ok =
         glass.scatter(incoming, hit, attenuation, scattered, scatter_info);
 
