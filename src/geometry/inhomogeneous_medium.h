@@ -185,14 +185,14 @@ private:
     double density_;
     std::shared_ptr<const Material> phase_function_;
 
-    // The local density is guaranteed to remain in
-    // [0.1 * density_, density_], so density_ is a valid
-    // majorant for both tracking algorithms.
+    // The local density stays in [0.1 * density_, density_],
+    // so density_ remains a valid majorant.
     double density_at(const Vec3& point) const {
-        const double pattern =
+        const double pattern = (
             std::sin(3.7 * point.x)
-            * std::sin(4.3 * point.y)
-            * std::sin(3.1 * point.z);
+            + std::sin(4.3 * point.y)
+            + std::sin(3.1 * point.z)
+        ) / 3.0;
 
         const double density_factor =
             0.55 + 0.45 * pattern;
