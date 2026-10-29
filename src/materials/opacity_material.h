@@ -42,6 +42,10 @@ public:
                base_material_->is_emissive();
     }
 
+    Vec3 shadow_absorption_coefficient() const override {
+        return base_material_->shadow_absorption_coefficient();
+    }
+
     bool blocks_shadow(const HitRecord& hit) const override {
         return opacity_at(hit) >= 1.0;
     }

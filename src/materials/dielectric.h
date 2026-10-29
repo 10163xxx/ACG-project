@@ -74,6 +74,8 @@ public:
 
         Vec3 direction;
 
+        info.is_transmission = false;
+
         if (
             cannot_refract ||
             reflectance(cos_theta, refraction_ratio)
@@ -86,6 +88,8 @@ public:
                 hit.normal,
                 refraction_ratio
             );
+
+            info.is_transmission = true;
         }
 
         scattered = Ray(hit.point, direction);

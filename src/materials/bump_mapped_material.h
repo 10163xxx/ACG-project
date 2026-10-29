@@ -132,6 +132,10 @@ public:
         return base_material_->is_emissive();
     }
 
+    Vec3 shadow_absorption_coefficient() const override {
+        return base_material_->shadow_absorption_coefficient();
+    }
+
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,

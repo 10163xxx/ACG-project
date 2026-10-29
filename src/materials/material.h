@@ -8,6 +8,10 @@ struct ScatterSampleInfo {
     // True when the ray passes straight through a surface
     // without sampling the underlying BSDF.
     bool is_straight_through = false;
+
+    // True only when a dielectric ray actually refracts
+    // across the surface instead of reflecting.
+    bool is_transmission = false;
 };
 
 class Material {

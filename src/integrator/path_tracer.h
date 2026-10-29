@@ -53,6 +53,8 @@ public:
 
         Vec3 throughput(1.0, 1.0, 1.0);
         Vec3 radiance(0.0, 0.0, 0.0);
+        bool inside_absorbing_medium = false;
+        Vec3 active_absorption(0.0, 0.0, 0.0);
 
         const Interval ray_interval(
             0.001,
@@ -104,6 +106,32 @@ public:
                     * environment_weight;
 
                 break;
+            }
+
+            // Apply Beer-Lambert absorption over the segment
+            // traveled inside the current dielectric medium.
+            if (inside_absorbing_medium) {
+                const double segment_distance =
+                    hit.t * ray.direction.length();
+
+                if (std::isfinite(segment_distance) &&
+                    segment_distance >= 0.0) {
+                    throughput = throughput * Vec3(
+                        std::exp(
+                            -active_absorption.x * segment_distance
+                        ),
+                        std::exp(
+                            -active_absorption.y * segment_distance
+                        ),
+                        std::exp(
+                            -active_absorption.z * segment_distance
+                        )
+                    );
+                }
+
+                if (throughput.near_zero()) {
+                    break;
+                }
             }
 
             // Advance the ray-cone radius to the hit point.
@@ -197,6 +225,22 @@ public:
                     scattered,
                     scatter_info)) {
                 break;
+            }
+
+            // Update the active absorbing medium only when
+            // the dielectric ray actually crosses the boundary.
+            if (scatter_info.is_transmission) {
+                if (hit.front_face) {
+                    inside_absorbing_medium = true;
+
+                    active_absorption =
+                        hit.material->shadow_absorption_coefficient();
+                } else {
+                    inside_absorbing_medium = false;
+
+                    active_absorption =
+                        Vec3(0.0, 0.0, 0.0);
+                }
             }
 
             // Carry the cone footprint from the hit point
