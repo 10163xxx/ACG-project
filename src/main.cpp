@@ -12,9 +12,11 @@
 #include "geometry/constant_medium.h"
 #include "geometry/inhomogeneous_medium.h"
 #include "geometry/obj_loader.h"
+#include "geometry/quad.h"
 #include "geometry/sphere.h"
 #include "integrator/path_tracer.h"
 #include "materials/environment_map.h"
+#include "materials/diffuse_light.h"
 #include "materials/lambertian.h"
 #include "materials/image_texture.h"
 #include "materials/point_light.h"
@@ -204,33 +206,61 @@ int main(int argc, char* argv[]) {
         );
     } else if (obj_test) {
         scene = make_obj_scene(obj_path);
+    } else if (inhomogeneous_volume_test) {
+        auto floor_material =
+            std::make_shared<Lambertian>(
+                Vec3(0.75, 0.75, 0.75)
+            );
+
+        scene.add(std::make_shared<Quad>(
+            Vec3(-4.0, 0.0, 2.0),
+            Vec3(8.0, 0.0, 0.0),
+            Vec3(0.0, 0.0, -8.0),
+            floor_material
+        ));
+
+        auto light_material =
+            std::make_shared<DiffuseLight>(
+                Vec3(12.0, 12.0, 12.0)
+            );
+
+        scene.add(std::make_shared<Quad>(
+            Vec3(-1.5, 3.8, -2.8),
+            Vec3(3.0, 0.0, 0.0),
+            Vec3(0.0, 0.0, 2.0),
+            light_material
+        ));
+
+        auto boundary = std::make_shared<Sphere>(
+            Vec3(0.0, 1.5, -1.8),
+            1.05,
+            nullptr
+        );
+
+        scene.add(
+            std::make_shared<InhomogeneousMedium>(
+                boundary,
+                0.9,
+                Vec3(0.85, 0.92, 1.0)
+            )
+        );
     } else {
         scene = make_showcase_scene();
 
-        if (volume_test || inhomogeneous_volume_test) {
+        if (volume_test) {
             auto boundary = std::make_shared<Sphere>(
                 Vec3(0.0, 1.5, -1.8),
                 1.05,
                 nullptr
             );
 
-            if (inhomogeneous_volume_test) {
-                scene.add(
-                    std::make_shared<InhomogeneousMedium>(
-                        boundary,
-                        0.9,
-                        Vec3(0.85, 0.92, 1.0)
-                    )
-                );
-            } else {
-                scene.add(
-                    std::make_shared<ConstantMedium>(
-                        boundary,
-                        0.9,
-                        Vec3(0.85, 0.92, 1.0)
-                    )
-                );
-            }
+            scene.add(
+                std::make_shared<ConstantMedium>(
+                    boundary,
+                    0.9,
+                    Vec3(0.85, 0.92, 1.0)
+                )
+            );
         }
     }
 
