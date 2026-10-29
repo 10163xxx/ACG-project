@@ -46,6 +46,10 @@ public:
         return base_material_->shadow_absorption_coefficient();
     }
 
+    double index_of_refraction() const override {
+        return base_material_->index_of_refraction();
+    }
+
     bool blocks_shadow(const HitRecord& hit) const override {
         return opacity_at(hit) >= 1.0;
     }

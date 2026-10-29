@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
+#include <memory>
 
 #include "core/ray.h"
 #include "core/interval.h"
@@ -19,6 +20,13 @@
 #include "integrator/direct_lighting.h"
 
 class PathTracer {
+private:
+    struct ActiveMedium {
+        const Material* material;
+        double ior;
+        Vec3 absorption;
+    };
+
 public:
     explicit PathTracer(
         int max_depth = 20,
@@ -53,8 +61,7 @@ public:
 
         Vec3 throughput(1.0, 1.0, 1.0);
         Vec3 radiance(0.0, 0.0, 0.0);
-        bool inside_absorbing_medium = false;
-        Vec3 active_absorption(0.0, 0.0, 0.0);
+        std::vector<ActiveMedium> active_media;
 
         const Interval ray_interval(
             0.001,
@@ -108,23 +115,29 @@ public:
                 break;
             }
 
-            // Apply Beer-Lambert absorption over the segment
-            // traveled inside the current dielectric medium.
-            if (inside_absorbing_medium) {
+            // Apply Beer-Lambert absorption from every active medium.
+            if (!active_media.empty()) {
                 const double segment_distance =
                     hit.t * ray.direction.length();
 
                 if (std::isfinite(segment_distance) &&
                     segment_distance >= 0.0) {
+                    Vec3 total_absorption(0.0, 0.0, 0.0);
+
+                    for (const ActiveMedium& medium : active_media) {
+                        total_absorption =
+                            total_absorption + medium.absorption;
+                    }
+
                     throughput = throughput * Vec3(
                         std::exp(
-                            -active_absorption.x * segment_distance
+                            -total_absorption.x * segment_distance
                         ),
                         std::exp(
-                            -active_absorption.y * segment_distance
+                            -total_absorption.y * segment_distance
                         ),
                         std::exp(
-                            -active_absorption.z * segment_distance
+                            -total_absorption.z * segment_distance
                         )
                     );
                 }
@@ -218,6 +231,32 @@ public:
             Ray scattered;
             ScatterSampleInfo scatter_info;
 
+            // Determine the refractive indices on both sides
+            // of the current boundary.
+            if (hit.front_face) {
+                scatter_info.incident_ior =
+                    active_media.empty()
+                        ? 1.0
+                        : active_media.back().ior;
+
+                scatter_info.transmitted_ior =
+                    hit.material->index_of_refraction();
+            } else {
+                scatter_info.incident_ior =
+                    hit.material->index_of_refraction();
+
+                scatter_info.transmitted_ior = 1.0;
+
+                for (auto it = active_media.rbegin();
+                     it != active_media.rend();
+                     ++it) {
+                    if (it->material != hit.material.get()) {
+                        scatter_info.transmitted_ior = it->ior;
+                        break;
+                    }
+                }
+            }
+
             if (!hit.material->scatter(
                     ray,
                     hit,
@@ -227,19 +266,27 @@ public:
                 break;
             }
 
-            // Update the active absorbing medium only when
-            // the dielectric ray actually crosses the boundary.
+            // Change medium state only after actual refraction.
+            // Reflection must leave the stack unchanged.
             if (scatter_info.is_transmission) {
                 if (hit.front_face) {
-                    inside_absorbing_medium = true;
-
-                    active_absorption =
-                        hit.material->shadow_absorption_coefficient();
+                    active_media.push_back({
+                        hit.material.get(),
+                        hit.material->index_of_refraction(),
+                        hit.material->shadow_absorption_coefficient()
+                    });
                 } else {
-                    inside_absorbing_medium = false;
+                    // Remove the matching medium, searching from
+                    // the most recently entered boundary.
+                    for (auto it = active_media.end();
+                         it != active_media.begin();) {
+                        --it;
 
-                    active_absorption =
-                        Vec3(0.0, 0.0, 0.0);
+                        if (it->material == hit.material.get()) {
+                            active_media.erase(it);
+                            break;
+                        }
+                    }
                 }
             }
 

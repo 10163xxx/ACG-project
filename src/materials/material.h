@@ -12,6 +12,11 @@ struct ScatterSampleInfo {
     // True only when a dielectric ray actually refracts
     // across the surface instead of reflecting.
     bool is_transmission = false;
+
+    // The refractive indices on the two sides of the boundary.
+    // PathTracer sets these before calling scatter().
+    double incident_ior = 1.0;
+    double transmitted_ior = 0.0;
 };
 
 class Material {
@@ -39,6 +44,10 @@ public:
     // Zero means the material has no volumetric absorption.
     virtual Vec3 shadow_absorption_coefficient() const {
         return Vec3(0.0, 0.0, 0.0);
+    }
+
+    virtual double index_of_refraction() const {
+        return 1.0;
     }
 
     // Fraction of shadow-ray energy transmitted through this surface.

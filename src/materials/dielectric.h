@@ -51,8 +51,20 @@ public:
         info.is_straight_through = false;
         attenuation = tint_;
 
-        const double refraction_ratio =
-            hit.front_face ? (1.0 / ir_) : ir_;
+        double refraction_ratio;
+
+        if (std::isfinite(info.incident_ior) &&
+            std::isfinite(info.transmitted_ior) &&
+            info.incident_ior > 0.0 &&
+            info.transmitted_ior > 0.0) {
+            refraction_ratio =
+                info.incident_ior / info.transmitted_ior;
+        } else {
+            // Fallback for callers that do not provide
+            // the surrounding medium state.
+            refraction_ratio =
+                hit.front_face ? (1.0 / ir_) : ir_;
+        }
 
         const Vec3 unit_direction =
             normalize(incoming.direction);
@@ -103,6 +115,10 @@ public:
 
     Vec3 shadow_absorption_coefficient() const override {
         return absorption_;
+    }
+
+    double index_of_refraction() const override {
+        return ir_;
     }
 
     Vec3 shadow_transmittance(
