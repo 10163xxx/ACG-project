@@ -91,14 +91,38 @@ public:
 
         const double direction_length = ray.direction.length();
 
+        // Apply Beer-Lambert attenuation over a world-space distance.
+        const auto apply_absorption = [&result](
+            const Material* material,
+            double distance
+        ) {
+            if (distance <= 0.0) {
+                return;
+            }
+
+            const Vec3 absorption =
+                material->shadow_absorption_coefficient();
+
+            const Vec3 attenuation(
+                std::exp(-absorption.x * distance),
+                std::exp(-absorption.y * distance),
+                std::exp(-absorption.z * distance)
+            );
+
+            result = result * attenuation;
+        };
+
         for (const HitRecord& intersection : intersections) {
             if (intersection.is_volume ||
                 !intersection.material) {
                 continue;
             }
 
+            const Material* material =
+                intersection.material.get();
+
             result = result
-                * intersection.material->shadow_transmittance(
+                * material->shadow_transmittance(
                     intersection,
                     ray.direction
                 );
@@ -107,16 +131,16 @@ public:
                 return Vec3(0.0, 0.0, 0.0);
             }
 
-            const Material* material =
-                intersection.material.get();
-
             if (intersection.front_face) {
                 active_media.push_back({
                     material,
                     intersection.t
                 });
+
                 continue;
             }
+
+            bool matched_entry = false;
 
             for (std::size_t i = active_media.size(); i > 0; --i) {
                 const std::size_t index = i - 1;
@@ -130,30 +154,54 @@ public:
                     intersection.t - active_media[index].entry_t
                 ) * direction_length;
 
-                const Vec3 absorption =
-                    material->shadow_absorption_coefficient();
-
-                const Vec3 attenuation(
-                    std::exp(-absorption.x * distance),
-                    std::exp(-absorption.y * distance),
-                    std::exp(-absorption.z * distance)
-                );
-
-                result = result * attenuation;
+                apply_absorption(material, distance);
 
                 active_media.erase(
                     active_media.begin() + index
                 );
 
-                if (result.near_zero()) {
-                    return Vec3(0.0, 0.0, 0.0);
-                }
-
+                matched_entry = true;
                 break;
+            }
+
+            // A back-face hit without a matching entry can indicate
+            // that the ray interval begins inside a closed object.
+            if (!matched_entry && is_closed_volume()) {
+                const double distance = std::max(
+                    0.0,
+                    intersection.t - ray_t.min
+                ) * direction_length;
+
+                apply_absorption(material, distance);
+            }
+
+            if (result.near_zero()) {
+                return Vec3(0.0, 0.0, 0.0);
+            }
+        }
+
+        // The interval may end while the ray is still inside a medium.
+        for (const ActiveMedium& medium : active_media) {
+            const double distance = std::max(
+                0.0,
+                ray_t.max - medium.entry_t
+            ) * direction_length;
+
+            apply_absorption(medium.material, distance);
+
+            if (result.near_zero()) {
+                return Vec3(0.0, 0.0, 0.0);
             }
         }
 
         return result;
+    }
+
+    // Whether this geometry is a verified closed volume.
+    // Open surfaces must not infer an entry point when a ray
+    // encounters a back face without a matching front face.
+    virtual bool is_closed_volume() const {
+        return false;
     }
 
     virtual AABB bounding_box() const = 0;

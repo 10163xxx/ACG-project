@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "acceleration/bvh.h"
 #include "geometry/hittable.h"
@@ -17,6 +18,52 @@ class TriangleMesh : public Hittable {
 public:
     using Face = std::array<std::size_t, 3>;
     using FaceUV = std::array<std::size_t, 3>;
+
+    static bool has_closed_topology(
+        const std::vector<Face>& faces
+    ) {
+        struct EdgeUse {
+            std::size_t count = 0;
+            int orientation_sum = 0;
+        };
+
+        std::map<std::pair<std::size_t, std::size_t>, EdgeUse>
+            edges;
+
+        for (const Face& face : faces) {
+            for (std::size_t i = 0; i < 3; ++i) {
+                const std::size_t from = face[i];
+                const std::size_t to = face[(i + 1) % 3];
+
+                if (from == to) {
+                    return false;
+                }
+
+                const bool forward = from < to;
+
+                const auto key = forward
+                    ? std::make_pair(from, to)
+                    : std::make_pair(to, from);
+
+                EdgeUse& use = edges[key];
+                ++use.count;
+                use.orientation_sum += forward ? 1 : -1;
+
+                if (use.count > 2) {
+                    return false;
+                }
+            }
+        }
+
+        for (const auto& entry : edges) {
+            if (entry.second.count != 2 ||
+                entry.second.orientation_sum != 0) {
+                return false;
+            }
+        }
+
+        return !edges.empty();
+    }
 
     TriangleMesh(
         const std::vector<Vec3>& vertices,
@@ -59,6 +106,8 @@ public:
                 "TriangleMesh material face count does not match face count."
             );
         }
+
+        is_closed_volume_ = has_closed_topology(faces);
 
         triangles_.reserve(faces.size());
         cumulative_areas_.reserve(faces.size());
@@ -208,6 +257,10 @@ public:
         intersections = std::move(unique_intersections);
     }
 
+    bool is_closed_volume() const override {
+        return is_closed_volume_;
+    }
+
     AABB bounding_box() const override {
         return bvh_->bounding_box();
     }
@@ -288,6 +341,7 @@ private:
     std::vector<double> cumulative_areas_;
 
     double total_area_ = 0.0;
+    bool is_closed_volume_ = false;
 
     std::shared_ptr<const Hittable> bvh_;
 };

@@ -155,6 +155,10 @@ public:
         return true;
     }
 
+    bool is_closed_volume() const override {
+        return true;
+    }
+
     AABB bounding_box() const override {
         const Vec3 radius_vec(
             radius_,
