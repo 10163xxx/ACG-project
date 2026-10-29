@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
 
         auto light_material =
             std::make_shared<DiffuseLight>(
-                Vec3(12.0, 12.0, 12.0)
+                Vec3(4.0, 4.0, 4.0)
             );
 
         scene.add(std::make_shared<Quad>(
@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
         scene.add(
             std::make_shared<InhomogeneousMedium>(
                 boundary,
-                0.9,
+                0.55,
                 Vec3(0.85, 0.92, 1.0)
             )
         );
@@ -282,6 +282,16 @@ int main(int argc, char* argv[]) {
     const std::vector<std::size_t> light_indices =
         DirectLighting::collect_light_indices(scene);
 
+    const std::vector<PointLight>* active_point_lights =
+        inhomogeneous_volume_test
+            ? nullptr
+            : &point_lights;
+
+    const EnvironmentMap* active_environment =
+        inhomogeneous_volume_test
+            ? nullptr
+            : &environment;
+
     for (int y = 0; y < image_height; ++y) {
         std::cerr
             << "\rRendering row "
@@ -316,8 +326,8 @@ int main(int argc, char* argv[]) {
                         ray,
                         world,
                         scene,
-                        &point_lights,
-                        &environment,
+                        active_point_lights,
+                        active_environment,
                         &light_indices
                     );
             }
