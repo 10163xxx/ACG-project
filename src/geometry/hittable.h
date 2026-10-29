@@ -7,6 +7,8 @@
 #include "materials/material.h"
 
 #include <vector>
+#include <algorithm>
+#include <cmath>
 
 class Hittable {
 public:
@@ -80,6 +82,15 @@ public:
 
         Vec3 result(1.0, 1.0, 1.0);
 
+        struct ActiveMedium {
+            const Material* material;
+            double entry_t;
+        };
+
+        std::vector<ActiveMedium> active_media;
+
+        const double direction_length = ray.direction.length();
+
         for (const HitRecord& intersection : intersections) {
             if (intersection.is_volume ||
                 !intersection.material) {
@@ -94,6 +105,51 @@ public:
 
             if (result.near_zero()) {
                 return Vec3(0.0, 0.0, 0.0);
+            }
+
+            const Material* material =
+                intersection.material.get();
+
+            if (intersection.front_face) {
+                active_media.push_back({
+                    material,
+                    intersection.t
+                });
+                continue;
+            }
+
+            for (std::size_t i = active_media.size(); i > 0; --i) {
+                const std::size_t index = i - 1;
+
+                if (active_media[index].material != material) {
+                    continue;
+                }
+
+                const double distance = std::max(
+                    0.0,
+                    intersection.t - active_media[index].entry_t
+                ) * direction_length;
+
+                const Vec3 absorption =
+                    material->shadow_absorption_coefficient();
+
+                const Vec3 attenuation(
+                    std::exp(-absorption.x * distance),
+                    std::exp(-absorption.y * distance),
+                    std::exp(-absorption.z * distance)
+                );
+
+                result = result * attenuation;
+
+                active_media.erase(
+                    active_media.begin() + index
+                );
+
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+
+                break;
             }
         }
 

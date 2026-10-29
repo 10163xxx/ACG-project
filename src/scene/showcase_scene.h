@@ -207,7 +207,11 @@ inline HittableList make_showcase_scene() {
 
     // Glass sphere.
     auto glass_material =
-        std::make_shared<Dielectric>(1.5);
+        std::make_shared<Dielectric>(
+            1.5,
+            Vec3(1.0, 1.0, 1.0),
+            Vec3(0.8, 0.15, 0.05)
+        );
 
     world.add(std::make_shared<Sphere>(
         Vec3(0.0, 0.44, -2.45),

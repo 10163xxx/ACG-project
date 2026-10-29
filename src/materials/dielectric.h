@@ -11,17 +11,32 @@ class Dielectric : public Material {
 public:
     explicit Dielectric(
         double index_of_refraction,
-        const Vec3& tint = Vec3(1.0, 1.0, 1.0)
+        const Vec3& tint = Vec3(1.0, 1.0, 1.0),
+        const Vec3& absorption = Vec3(0.0, 0.0, 0.0)
     )
         : ir_(index_of_refraction),
           tint_(
               std::clamp(tint.x, 0.0, 1.0),
               std::clamp(tint.y, 0.0, 1.0),
               std::clamp(tint.z, 0.0, 1.0)
-          ) {
+          ),
+          absorption_(absorption) {
         if (!std::isfinite(ir_) || ir_ <= 0.0) {
             throw std::invalid_argument(
                 "Index of refraction must be positive and finite."
+            );
+        }
+
+        if (
+            !std::isfinite(absorption_.x) ||
+            !std::isfinite(absorption_.y) ||
+            !std::isfinite(absorption_.z) ||
+            absorption_.x < 0.0 ||
+            absorption_.y < 0.0 ||
+            absorption_.z < 0.0
+        ) {
+            throw std::invalid_argument(
+                "Absorption coefficients must be finite and non-negative."
             );
         }
     }
@@ -82,6 +97,10 @@ public:
         return false;
     }
 
+    Vec3 shadow_absorption_coefficient() const override {
+        return absorption_;
+    }
+
     Vec3 shadow_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction
@@ -109,6 +128,7 @@ public:
 private:
     double ir_;
     Vec3 tint_;
+    Vec3 absorption_;
 
     static double reflectance(
         double cosine,

@@ -31,6 +31,12 @@ public:
         return true;
     }
 
+    // RGB absorption coefficient per world-space distance unit.
+    // Zero means the material has no volumetric absorption.
+    virtual Vec3 shadow_absorption_coefficient() const {
+        return Vec3(0.0, 0.0, 0.0);
+    }
+
     // Fraction of shadow-ray energy transmitted through this surface.
     // Opaque materials return 1 here because blocking is handled
     // separately by blocks_shadow().
