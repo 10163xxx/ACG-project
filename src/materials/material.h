@@ -50,6 +50,12 @@ public:
         return 1.0;
     }
 
+    // True only for materials that define a closed dielectric boundary.
+    // Material wrappers must forward this capability.
+    virtual bool is_medium_boundary() const {
+        return false;
+    }
+
     // Fraction of shadow-ray energy transmitted through this surface.
     // Opaque materials return 1 here because blocking is handled
     // separately by blocks_shadow().

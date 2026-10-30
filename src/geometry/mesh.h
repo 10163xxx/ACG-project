@@ -239,6 +239,59 @@ public:
 
         total_area_ = accumulated_area;
 
+        if (is_closed_volume_) {
+            Vec3 bounds_min = vertices.front();
+            Vec3 bounds_max = vertices.front();
+
+            for (const Vec3& vertex : vertices) {
+                bounds_min = Vec3(
+                    std::min(bounds_min.x, vertex.x),
+                    std::min(bounds_min.y, vertex.y),
+                    std::min(bounds_min.z, vertex.z)
+                );
+
+                bounds_max = Vec3(
+                    std::max(bounds_max.x, vertex.x),
+                    std::max(bounds_max.y, vertex.y),
+                    std::max(bounds_max.z, vertex.z)
+                );
+            }
+
+            const Vec3 extent = bounds_max - bounds_min;
+            const double scale = std::max({
+                extent.x,
+                extent.y,
+                extent.z
+            });
+
+            if (!std::isfinite(scale) || scale <= 0.0) {
+                throw std::invalid_argument(
+                    "Closed TriangleMesh has invalid bounds."
+                );
+            }
+
+            double signed_volume_six = 0.0;
+
+            for (const Face& face : faces) {
+                const Vec3& v0 = vertices[face[0]];
+                const Vec3& v1 = vertices[face[1]];
+                const Vec3& v2 = vertices[face[2]];
+
+                signed_volume_six +=
+                    dot(v0, cross(v1, v2));
+            }
+
+            const double volume_tolerance =
+                1e-12 * scale * scale * scale * 6.0;
+
+            if (!std::isfinite(signed_volume_six) ||
+                signed_volume_six <= volume_tolerance) {
+                throw std::invalid_argument(
+                    "Closed TriangleMesh must have outward-facing winding."
+                );
+            }
+        }
+
         // Reuse the project's existing SAH BVH implementation.
         std::vector<std::shared_ptr<const Hittable>> objects;
         objects.reserve(triangles_.size());
@@ -255,34 +308,52 @@ public:
         const Interval& ray_t,
         HitRecord& record
     ) const override {
-        return bvh_->hit(ray, ray_t, record);
-    }
+        HitRecord mesh_record;
 
+        if (!bvh_->hit(ray, ray_t, mesh_record)) {
+            return false;
+        }
+
+        if (is_closed_volume_) {
+            mesh_record.medium_boundary = this;
+        }
+
+        record = mesh_record;
+        return true;
+    }
     void all_intersections(
         const Ray& ray,
         const Interval& ray_t,
         std::vector<HitRecord>& intersections
     ) const override {
+        std::vector<HitRecord> mesh_intersections;
+
         for (const auto& triangle : triangles_) {
             HitRecord record;
 
-            if (triangle->hit(ray, ray_t, record)) {
-                intersections.push_back(record);
+            if (!triangle->hit(ray, ray_t, record)) {
+                continue;
             }
+
+            if (is_closed_volume_) {
+                record.medium_boundary = this;
+            }
+
+            mesh_intersections.push_back(record);
         }
 
         std::sort(
-            intersections.begin(),
-            intersections.end(),
+            mesh_intersections.begin(),
+            mesh_intersections.end(),
             [](const HitRecord& a, const HitRecord& b) {
                 return a.t < b.t;
             }
         );
 
         std::vector<HitRecord> unique_intersections;
-        unique_intersections.reserve(intersections.size());
+        unique_intersections.reserve(mesh_intersections.size());
 
-        for (const HitRecord& record : intersections) {
+        for (const HitRecord& record : mesh_intersections) {
             if (unique_intersections.empty()) {
                 unique_intersections.push_back(record);
                 continue;
@@ -299,7 +370,11 @@ public:
             }
         }
 
-        intersections = std::move(unique_intersections);
+        intersections.insert(
+            intersections.end(),
+            unique_intersections.begin(),
+            unique_intersections.end()
+        );
     }
 
     bool is_closed_volume() const override {

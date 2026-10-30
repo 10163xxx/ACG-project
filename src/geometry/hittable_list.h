@@ -64,6 +64,28 @@ public:
         return hit_anything;
     }
 
+    void all_intersections(
+        const Ray& ray,
+        const Interval& ray_t,
+        std::vector<HitRecord>& intersections
+    ) const override {
+        for (const auto& object : objects_) {
+            object->all_intersections(
+                ray,
+                ray_t,
+                intersections
+            );
+        }
+
+        std::sort(
+            intersections.begin(),
+            intersections.end(),
+            [](const HitRecord& a, const HitRecord& b) {
+                return a.t < b.t;
+            }
+        );
+    }
+
     bool hit_surface(
         const Ray& ray,
         const Interval& ray_t,

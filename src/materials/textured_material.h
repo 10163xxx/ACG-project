@@ -44,6 +44,10 @@ public:
         return base_material_->index_of_refraction();
     }
 
+    bool is_medium_boundary() const override {
+        return base_material_->is_medium_boundary();
+    }
+
     bool blocks_shadow(const HitRecord& hit) const override {
         return base_material_->blocks_shadow(hit);
     }

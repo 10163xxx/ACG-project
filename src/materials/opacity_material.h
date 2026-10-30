@@ -26,6 +26,12 @@ public:
             );
         }
 
+        if (base_material_->is_medium_boundary()) {
+            throw std::invalid_argument(
+                "OpacityMaterial cannot wrap a medium-boundary material."
+            );
+        }
+
         if (!std::isfinite(opacity)) {
             throw std::invalid_argument(
                 "Opacity must be finite."

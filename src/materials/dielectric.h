@@ -121,6 +121,10 @@ public:
         return ir_;
     }
 
+    bool is_medium_boundary() const override {
+        return true;
+    }
+
     Vec3 shadow_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction

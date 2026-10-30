@@ -6,6 +6,7 @@
 #include "core/ray.h"
 
 class Material;
+class Hittable;
 
 struct HitRecord {
     Vec3 point;
@@ -61,6 +62,10 @@ struct HitRecord {
 
     // True only for a sampled event inside a participating medium.
     bool is_volume = false;
+
+    // Identifies the geometric object that owns this medium boundary.
+    // This is independent of the material assigned to the surface.
+    const Hittable* medium_boundary = nullptr;
 
     std::shared_ptr<const Material> material;
 

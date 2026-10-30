@@ -22,8 +22,8 @@
 class PathTracer {
 private:
     struct ActiveMedium {
-        const Material* material;
-        double ior;
+        const Hittable* boundary = nullptr;
+        double ior = 1.0;
         Vec3 absorption;
     };
 
@@ -115,30 +115,20 @@ public:
                 break;
             }
 
-            // Apply Beer-Lambert absorption from every active medium.
+            // Only the innermost active medium attenuates this segment.
             if (!active_media.empty()) {
                 const double segment_distance =
                     hit.t * ray.direction.length();
 
                 if (std::isfinite(segment_distance) &&
                     segment_distance >= 0.0) {
-                    Vec3 total_absorption(0.0, 0.0, 0.0);
-
-                    for (const ActiveMedium& medium : active_media) {
-                        total_absorption =
-                            total_absorption + medium.absorption;
-                    }
+                    const Vec3 absorption =
+                        active_media.back().absorption;
 
                     throughput = throughput * Vec3(
-                        std::exp(
-                            -total_absorption.x * segment_distance
-                        ),
-                        std::exp(
-                            -total_absorption.y * segment_distance
-                        ),
-                        std::exp(
-                            -total_absorption.z * segment_distance
-                        )
+                        std::exp(-absorption.x * segment_distance),
+                        std::exp(-absorption.y * segment_distance),
+                        std::exp(-absorption.z * segment_distance)
                     );
                 }
 
@@ -231,29 +221,56 @@ public:
             Ray scattered;
             ScatterSampleInfo scatter_info;
 
-            // Determine the refractive indices on both sides
-            // of the current boundary.
-            if (hit.front_face) {
+            // Resolve IOR transitions using geometric boundary identity.
+            if (hit.material->is_medium_boundary()) {
+                if (hit.medium_boundary == nullptr) {
+                    throw std::runtime_error(
+                        "Dielectric hit has no medium boundary identity."
+                    );
+                }
+
                 scatter_info.incident_ior =
                     active_media.empty()
                         ? 1.0
                         : active_media.back().ior;
 
-                scatter_info.transmitted_ior =
-                    hit.material->index_of_refraction();
-            } else {
-                scatter_info.incident_ior =
-                    hit.material->index_of_refraction();
+                if (hit.front_face) {
+                    const bool already_active =
+                        std::any_of(
+                            active_media.begin(),
+                            active_media.end(),
+                            [&hit](const ActiveMedium& medium) {
+                                return medium.boundary ==
+                                    hit.medium_boundary;
+                            }
+                        );
 
-                scatter_info.transmitted_ior = 1.0;
-
-                for (auto it = active_media.rbegin();
-                     it != active_media.rend();
-                     ++it) {
-                    if (it->material != hit.material.get()) {
-                        scatter_info.transmitted_ior = it->ior;
-                        break;
+                    if (already_active) {
+                        throw std::runtime_error(
+                            "A dielectric boundary was entered more than once."
+                        );
                     }
+
+                    scatter_info.transmitted_ior =
+                        hit.material->index_of_refraction();
+                } else {
+                    if (active_media.empty() ||
+                        active_media.back().boundary !=
+                            hit.medium_boundary) {
+                        throw std::runtime_error(
+                            "Dielectric boundaries are not properly nested."
+                        );
+                    }
+
+                    scatter_info.incident_ior =
+                        active_media.back().ior;
+
+                    scatter_info.transmitted_ior =
+                        active_media.size() > 1
+                            ? active_media[
+                                active_media.size() - 2
+                              ].ior
+                            : 1.0;
                 }
             }
 
@@ -266,27 +283,18 @@ public:
                 break;
             }
 
-            // Change medium state only after actual refraction.
-            // Reflection must leave the stack unchanged.
-            if (scatter_info.is_transmission) {
+            // Update the medium stack only after actual transmission.
+            // Reflection and total internal reflection leave it unchanged.
+            if (scatter_info.is_transmission &&
+                hit.material->is_medium_boundary()) {
                 if (hit.front_face) {
                     active_media.push_back({
-                        hit.material.get(),
+                        hit.medium_boundary,
                         hit.material->index_of_refraction(),
                         hit.material->shadow_absorption_coefficient()
                     });
                 } else {
-                    // Remove the matching medium, searching from
-                    // the most recently entered boundary.
-                    for (auto it = active_media.end();
-                         it != active_media.begin();) {
-                        --it;
-
-                        if (it->material == hit.material.get()) {
-                            active_media.erase(it);
-                            break;
-                        }
-                    }
+                    active_media.pop_back();
                 }
             }
 

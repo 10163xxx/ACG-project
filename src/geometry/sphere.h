@@ -115,6 +115,7 @@ public:
         compute_uv_differentials(ray, record);
 
         record.material = material_;
+        record.medium_boundary = this;
 
         return true;
     }
