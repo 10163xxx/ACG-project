@@ -51,23 +51,38 @@ public:
     }
 
     bool blocks_shadow(const HitRecord& hit) const override {
-        return opacity_at(hit) >= 1.0;
+        return opacity_at(hit) >= 1.0
+            && base_material_->blocks_shadow(hit);
     }
 
     Vec3 shadow_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction
     ) const override {
-        (void)ray_direction;
+        const double opacity = opacity_at(hit);
 
-        const double transmittance =
-            1.0 - opacity_at(hit);
-
-        return Vec3(
-            transmittance,
-            transmittance,
-            transmittance
+        const Vec3 hole_transmittance(
+            1.0 - opacity,
+            1.0 - opacity,
+            1.0 - opacity
         );
+
+        if (opacity <= 0.0) {
+            return Vec3(1.0, 1.0, 1.0);
+        }
+
+        Vec3 base_transmittance(0.0, 0.0, 0.0);
+
+        if (!base_material_->blocks_shadow(hit)) {
+            base_transmittance =
+                base_material_->shadow_transmittance(
+                    hit,
+                    ray_direction
+                );
+        }
+
+        return hole_transmittance
+            + opacity * base_transmittance;
     }
 
     Vec3 evaluate_bsdf(
