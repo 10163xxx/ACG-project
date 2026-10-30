@@ -77,6 +77,28 @@ public:
                emission_.z > 0.0;
     }
 
+    bool blocks_shadow(const HitRecord& hit) const override {
+        return base_material_->blocks_shadow(hit);
+    }
+
+    Vec3 shadow_absorption_coefficient() const override {
+        return base_material_->shadow_absorption_coefficient();
+    }
+
+    double index_of_refraction() const override {
+        return base_material_->index_of_refraction();
+    }
+
+    Vec3 shadow_transmittance(
+        const HitRecord& hit,
+        const Vec3& ray_direction
+    ) const override {
+        return base_material_->shadow_transmittance(
+            hit,
+            ray_direction
+        );
+    }
+
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,
