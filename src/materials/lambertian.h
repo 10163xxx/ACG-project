@@ -83,11 +83,6 @@ public:
             return false;
         }
 
-        if (dot(geometric_normal, outgoing) <= 0.0 ||
-            dot(normal, outgoing) <= 0.0) {
-            return false;
-        }
-
         const double pdf =
             scattering_pdf(
                 hit,
