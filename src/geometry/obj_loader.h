@@ -371,7 +371,8 @@ private:
                     group
                 );
 
-                accumulated_normals[key] = accumulated_normals[key] + weighted_normal;
+                accumulated_normals[key] =
+                    accumulated_normals[key] + weighted_normal;
             }
         }
 
@@ -389,7 +390,7 @@ private:
             }
         }
 
-        // Second pass: resolve each triangle corner.
+        // Second pass: resolve every triangle corner independently.
         for (std::size_t face_index = 0;
              face_index < parsed.faces.size();
              ++face_index) {
@@ -402,11 +403,31 @@ private:
             const auto& explicit_normals =
                 parsed.face_corner_has_normals[face_index];
 
+            const Vec3& a = parsed.vertices[face[0]];
+            const Vec3& b = parsed.vertices[face[1]];
+            const Vec3& c = parsed.vertices[face[2]];
+
+            const Vec3 cross_normal =
+                cross(b - a, c - a);
+
+            const double cross_length_squared =
+                cross_normal.length_squared();
+
+            if (!std::isfinite(cross_length_squared) ||
+                cross_length_squared < 1e-20) {
+                throw std::runtime_error(
+                    "Cannot generate normals for a degenerate OBJ face."
+                );
+            }
+
+            const Vec3 geometric_normal =
+                cross_normal / std::sqrt(cross_length_squared);
+
             TriangleMesh::FaceNormal resolved_indices = {
                 0, 0, 0
             };
 
-            bool has_resolved_normals = true;
+            bool has_any_shading_normal = false;
 
             for (std::size_t corner = 0;
                  corner < 3;
@@ -415,35 +436,36 @@ private:
                     resolved_indices[corner] =
                         parsed.face_normals[face_index][corner];
 
+                    has_any_shading_normal = true;
                     continue;
                 }
 
-                if (group.empty()) {
-                    has_resolved_normals = false;
-                    break;
-                }
+                Vec3 resolved_normal = geometric_normal;
 
-                const SmoothingKey key(
-                    face[corner],
-                    group
-                );
+                if (!group.empty()) {
+                    const SmoothingKey key(
+                        face[corner],
+                        group
+                    );
 
-                const auto it =
-                    accumulated_normals.find(key);
+                    const auto it =
+                        accumulated_normals.find(key);
 
-                if (it == accumulated_normals.end() ||
-                    it->second.length_squared() < 1e-20) {
-                    has_resolved_normals = false;
-                    break;
+                    if (it != accumulated_normals.end() &&
+                        it->second.length_squared() >= 1e-20) {
+                        resolved_normal = it->second;
+                    }
+
+                    has_any_shading_normal = true;
                 }
 
                 resolved_indices[corner] =
                     parsed.normals.size();
 
-                parsed.normals.push_back(it->second);
+                parsed.normals.push_back(resolved_normal);
             }
 
-            if (has_resolved_normals) {
+            if (has_any_shading_normal) {
                 parsed.face_normals[face_index] =
                     resolved_indices;
 

@@ -158,62 +158,27 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 geometric_normal =
-            normalize_or(
-                hit.normal,
-                Vec3(0.0, 1.0, 0.0)
-            );
-
         const Vec3 wo =
             normalize_or(
                 outgoing_direction,
-                geometric_normal
+                hit.normal
             );
 
         const Vec3 wi =
             normalize_or(
                 incoming_direction,
-                geometric_normal
+                hit.normal
             );
-
-        // Reject directions crossing the geometric surface.
-        if (dot(geometric_normal, wo) <= 0.0 ||
-            dot(geometric_normal, wi) <= 0.0) {
-            return Vec3(0.0, 0.0, 0.0);
-        }
 
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(hit);
         mapped_hit.has_shading_normal = true;
 
-        const Vec3 shading_normal =
-            normalize_or(
-                mapped_hit.get_shading_normal(),
-                geometric_normal
-            );
-
-        // Both directions must also lie in the shading hemisphere.
-        if (dot(shading_normal, wo) <= 0.0 ||
-            dot(shading_normal, wi) <= 0.0) {
-            return Vec3(0.0, 0.0, 0.0);
-        }
-
-        const Vec3 base_bsdf =
-            base_material_->evaluate_bsdf(
-                mapped_hit,
-                wo,
-                wi
-            );
-
-        const double correction =
-            shading_normal_correction(
-                geometric_normal,
-                shading_normal,
-                wo,
-                wi
-            );
-
-        return base_bsdf * correction;
+        return base_material_->evaluate_bsdf(
+            mapped_hit,
+            wo,
+            wi
+        );
     }
 
     double scattering_pdf(
@@ -221,50 +186,14 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 geometric_normal =
-            normalize_or(
-                hit.normal,
-                Vec3(0.0, 1.0, 0.0)
-            );
-
-        const Vec3 wo =
-            normalize_or(
-                outgoing_direction,
-                geometric_normal
-            );
-
-        const Vec3 wi =
-            normalize_or(
-                incoming_direction,
-                geometric_normal
-            );
-
-        // Reject directions crossing the geometric surface.
-        if (dot(geometric_normal, wo) <= 0.0 ||
-            dot(geometric_normal, wi) <= 0.0) {
-            return 0.0;
-        }
-
-        // Use the same mapped normal as BSDF evaluation and sampling.
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(hit);
         mapped_hit.has_shading_normal = true;
 
-        const Vec3 shading_normal =
-            normalize_or(
-                mapped_hit.get_shading_normal(),
-                geometric_normal
-            );
-
-        if (dot(shading_normal, wo) <= 0.0 ||
-            dot(shading_normal, wi) <= 0.0) {
-            return 0.0;
-        }
-
         return base_material_->scattering_pdf(
             mapped_hit,
-            wo,
-            wi
+            outgoing_direction,
+            incoming_direction
         );
     }
 
@@ -279,36 +208,9 @@ public:
         Ray& scattered,
         ScatterSampleInfo& info
     ) const override {
-        const Vec3 geometric_normal =
-            normalize_or(
-                hit.normal,
-                Vec3(0.0, 1.0, 0.0)
-            );
-
-        const Vec3 wo =
-            normalize_or(
-                -incoming.direction,
-                geometric_normal
-            );
-
-        if (dot(geometric_normal, wo) <= 0.0) {
-            return false;
-        }
-
-        // Use the same mapped normal used by BSDF evaluation and PDF.
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(hit);
         mapped_hit.has_shading_normal = true;
-
-        const Vec3 shading_normal =
-            normalize_or(
-                mapped_hit.get_shading_normal(),
-                geometric_normal
-            );
-
-        if (dot(shading_normal, wo) <= 0.0) {
-            return false;
-        }
 
         if (!base_material_->scatter(
                 incoming,
@@ -320,39 +222,11 @@ public:
             return false;
         }
 
-        if (info.is_straight_through) {
+        // Transmission and straight-through events are not
+        // reflection BSDF samples.
+        if (info.is_transmission || info.is_straight_through) {
             return true;
         }
-
-        const Vec3 wi =
-            normalize_or(
-                scattered.direction,
-                geometric_normal
-            );
-
-        // Reject directions outside either valid hemisphere.
-        if (dot(geometric_normal, wi) <= 1e-8 ||
-            dot(shading_normal, wi) <= 0.0) {
-            return false;
-        }
-
-        scattered = Ray(hit.point, wi);
-
-        // Recompute throughput using this material's BSDF and PDF.
-        const double pdf =
-            scattering_pdf(hit, wo, wi);
-
-        if (!std::isfinite(pdf) || pdf <= 1e-12) {
-            return false;
-        }
-
-        const Vec3 bsdf =
-            evaluate_bsdf(hit, wo, wi);
-
-        const double cos_shading =
-            std::max(0.0, dot(shading_normal, wi));
-
-        attenuation = bsdf * (cos_shading / pdf);
 
         return true;
     }

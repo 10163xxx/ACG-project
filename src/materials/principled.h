@@ -8,6 +8,7 @@
 #include "materials/material.h"
 #include "core/random.h"
 #include "materials/texture.h"
+#include "materials/shading_normal.h"
 
 class PrincipledBSDF final : public Material {
 public:
@@ -80,8 +81,19 @@ public:
         ScatterSampleInfo& info
     ) const override {
         info.is_straight_through = false;
-        const Vec3 n = normalize(hit.get_shading_normal());
-        const Vec3 wo = normalize(-incoming.direction);
+        const Vec3 geometric_normal =
+            normalize(hit.normal);
+
+        const Vec3 n =
+            normalize(hit.get_shading_normal());
+
+        const Vec3 wo =
+            normalize(-incoming.direction);
+
+        if (dot(geometric_normal, wo) <= 0.0 ||
+            dot(n, wo) <= 0.0) {
+            return false;
+        }
 
         if (dot(n, wo) <= 0.0) {
             return false;
@@ -112,7 +124,11 @@ public:
             wi = sample_cosine_hemisphere(n);
         }
 
-        if (dot(n, wi) <= 0.0) {
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                n,
+                wo,
+                wi)) {
             return false;
         }
 
@@ -138,9 +154,25 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 n = normalize(hit.get_shading_normal());
-        const Vec3 wo = normalize(outgoing_direction);
-        const Vec3 wi = normalize(incoming_direction);
+        const Vec3 geometric_normal =
+            normalize(hit.normal);
+
+        const Vec3 n =
+            normalize(hit.get_shading_normal());
+
+        const Vec3 wo =
+            normalize(outgoing_direction);
+
+        const Vec3 wi =
+            normalize(incoming_direction);
+
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                n,
+                wo,
+                wi)) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
 
         const double cos_o = dot(n, wo);
         const double cos_i = dot(n, wi);
@@ -220,7 +252,18 @@ public:
                 roughness
             );
 
-        return diffuse + specular + multiple_scattering;
+        const Vec3 base_bsdf =
+            diffuse + specular + multiple_scattering;
+
+        const double correction =
+            shading_normal::radiance_correction(
+                geometric_normal,
+                n,
+                wo,
+                wi
+            );
+
+        return base_bsdf * correction;
     }
 
     double scattering_pdf(
@@ -228,9 +271,25 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 n = normalize(hit.get_shading_normal());
-        const Vec3 wo = normalize(outgoing_direction);
-        const Vec3 wi = normalize(incoming_direction);
+        const Vec3 geometric_normal =
+            normalize(hit.normal);
+
+        const Vec3 n =
+            normalize(hit.get_shading_normal());
+
+        const Vec3 wo =
+            normalize(outgoing_direction);
+
+        const Vec3 wi =
+            normalize(incoming_direction);
+
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                n,
+                wo,
+                wi)) {
+            return 0.0;
+        }
 
         const double cos_o = dot(n, wo);
         const double cos_i = dot(n, wi);

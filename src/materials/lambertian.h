@@ -2,9 +2,12 @@
 
 #include <memory>
 #include <utility>
+#include <algorithm>
+#include <cmath>
 
 #include "materials/material.h"
 #include "materials/texture.h"
+#include "materials/shading_normal.h"
 #include "core/random.h"
 
 class Lambertian : public Material {
@@ -23,11 +26,25 @@ public:
         ScatterSampleInfo& info
     ) const override {
         info.is_straight_through = false;
-        (void)incoming;
 
-        const Vec3 normal = normalize(hit.get_shading_normal());
+        const Vec3 geometric_normal =
+            normalize(hit.normal);
 
-        // Construct an orthonormal basis around the normal.
+        const Vec3 normal =
+            normalize(hit.get_shading_normal());
+
+        const Vec3 outgoing =
+            normalize(-incoming.direction);
+
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                normal,
+                outgoing,
+                normal)) {
+            return false;
+        }
+
+        // Construct an orthonormal basis around the shading normal.
         const Vec3 helper =
             std::abs(normal.x) > 0.9
                 ? Vec3(0.0, 1.0, 0.0)
@@ -56,23 +73,37 @@ public:
             + local_y * bitangent
             + local_z * normal;
 
-        scattered = Ray(hit.point, normalize(scatter_direction));
+        const Vec3 incoming_direction =
+            normalize(scatter_direction);
 
-        attenuation = texture_->value_with_cone(
-            hit.u,
-            hit.v,
-            hit.point,
-            hit.dudx,
-            hit.dvdx,
-            hit.dudy,
-            hit.dvdy,
-            hit.has_uv_differentials,
-            hit.ray_cone_width,
-            hit.has_ray_cone,
-            hit.dpdu,
-            hit.dpdv,
-            hit.has_uv_parameterization
-        );
+        if (dot(geometric_normal, outgoing) <= 0.0 ||
+            dot(normal, outgoing) <= 0.0) {
+            return false;
+        }
+
+        const double pdf =
+            scattering_pdf(
+                hit,
+                outgoing,
+                incoming_direction
+            );
+
+        if (!std::isfinite(pdf) || pdf <= 1e-12) {
+            return false;
+        }
+
+        const Vec3 bsdf =
+            evaluate_bsdf(
+                hit,
+                outgoing,
+                incoming_direction
+            );
+
+        const double cosine =
+            std::max(0.0, dot(normal, incoming_direction));
+
+        attenuation = bsdf * (cosine / pdf);
+        scattered = Ray(hit.point, incoming_direction);
 
         return true;
     }
@@ -82,15 +113,23 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 normal = normalize(hit.get_shading_normal());
+        const Vec3 geometric_normal =
+            normalize(hit.normal);
 
-        const double cos_outgoing =
-            dot(normal, outgoing_direction);
+        const Vec3 normal =
+            normalize(hit.get_shading_normal());
 
-        const double cos_incoming =
-            dot(normal, incoming_direction);
+        const Vec3 outgoing =
+            normalize(outgoing_direction);
 
-        if (cos_outgoing <= 0.0 || cos_incoming <= 0.0) {
+        const Vec3 incoming =
+            normalize(incoming_direction);
+
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                normal,
+                outgoing,
+                incoming)) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -112,7 +151,15 @@ public:
             hit.has_uv_parameterization
         );
 
-        return albedo / PI;
+        const double correction =
+            shading_normal::radiance_correction(
+                geometric_normal,
+                normal,
+                outgoing,
+                incoming
+            );
+
+        return (albedo / PI) * correction;
     }
 
     double scattering_pdf(
@@ -120,24 +167,29 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 normal = normalize(hit.get_shading_normal());
-        const Vec3 outgoing = normalize(outgoing_direction);
-        const Vec3 incoming = normalize(incoming_direction);
+        const Vec3 geometric_normal =
+            normalize(hit.normal);
 
-        const double cos_outgoing = dot(normal, outgoing);
-        const double cos_incoming = dot(normal, incoming);
+        const Vec3 normal =
+            normalize(hit.get_shading_normal());
 
-        if (cos_outgoing <= 0.0 || cos_incoming <= 0.0) {
+        const Vec3 outgoing =
+            normalize(outgoing_direction);
+
+        const Vec3 incoming =
+            normalize(incoming_direction);
+
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                normal,
+                outgoing,
+                incoming)) {
             return 0.0;
         }
 
         constexpr double PI = 3.14159265358979323846;
 
-        return cos_incoming / PI;
-    }
-
-    bool supports_direct_lighting() const override {
-        return true;
+        return dot(normal, incoming) / PI;
     }
 
 private:

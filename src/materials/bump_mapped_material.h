@@ -145,22 +145,12 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        if (dot(hit.normal, outgoing_direction) <= 0.0 ||
-            dot(hit.normal, incoming_direction) <= 0.0) {
-            return Vec3(0.0, 0.0, 0.0);
-        }
-
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(
             Ray(hit.point, -outgoing_direction),
             hit
         );
         mapped_hit.has_shading_normal = true;
-
-        if (dot(mapped_hit.get_shading_normal(), outgoing_direction) <= 0.0 ||
-            dot(mapped_hit.get_shading_normal(), incoming_direction) <= 0.0) {
-            return Vec3(0.0, 0.0, 0.0);
-        }
 
         return base_material_->evaluate_bsdf(
             mapped_hit,
@@ -174,22 +164,12 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        if (dot(hit.normal, outgoing_direction) <= 0.0 ||
-            dot(hit.normal, incoming_direction) <= 0.0) {
-            return 0.0;
-        }
-
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(
             Ray(hit.point, -outgoing_direction),
             hit
         );
         mapped_hit.has_shading_normal = true;
-
-        if (dot(mapped_hit.get_shading_normal(), outgoing_direction) <= 0.0 ||
-            dot(mapped_hit.get_shading_normal(), incoming_direction) <= 0.0) {
-            return 0.0;
-        }
 
         return base_material_->scattering_pdf(
             mapped_hit,
@@ -209,12 +189,6 @@ public:
         Ray& scattered,
         ScatterSampleInfo& info
     ) const override {
-        const Vec3 geometric_normal =
-            normalize_or(
-                hit.normal,
-                Vec3(0.0, 1.0, 0.0)
-            );
-
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(incoming, hit);
         mapped_hit.has_shading_normal = true;
@@ -229,21 +203,10 @@ public:
             return false;
         }
 
-        if (info.is_straight_through) {
+        if (info.is_transmission || info.is_straight_through) {
             return true;
         }
 
-        const Vec3 direction =
-            normalize_or(
-                scattered.direction,
-                geometric_normal
-            );
-
-        if (dot(direction, geometric_normal) <= 1e-8) {
-            return false;
-        }
-
-        scattered = Ray(hit.point, direction);
         return true;
     }
 
