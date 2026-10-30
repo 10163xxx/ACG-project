@@ -18,7 +18,11 @@ public:
         const Vec3& uv_a = Vec3(0.0, 0.0, 0.0),
         const Vec3& uv_b = Vec3(1.0, 0.0, 0.0),
         const Vec3& uv_c = Vec3(0.0, 1.0, 0.0),
-        bool has_uv = false
+        bool has_uv = false,
+        const Vec3& normal_a = Vec3(0.0, 0.0, 0.0),
+        const Vec3& normal_b = Vec3(0.0, 0.0, 0.0),
+        const Vec3& normal_c = Vec3(0.0, 0.0, 0.0),
+        bool has_normals = false
     )
         : a_(a),
           b_(b),
@@ -29,6 +33,10 @@ public:
           uv_b_(uv_b),
           uv_c_(uv_c),
           has_uv_(has_uv),
+          normal_a_(normal_a),
+          normal_b_(normal_b),
+          normal_c_(normal_c),
+          has_normals_(has_normals),
           material_(std::move(material)) {
         const Vec3 normal = cross(edge1_, edge2_);
         const double normal_length = normal.length();
@@ -89,6 +97,31 @@ public:
         record.t = t;
         record.point = ray.at(t);
         record.set_face_normal(ray, normal_);
+
+        if (has_normals_) {
+            Vec3 interpolated_normal =
+                alpha * normal_a_ +
+                beta * normal_b_ +
+                gamma * normal_c_;
+
+            interpolated_normal = normalize_or(
+                interpolated_normal,
+                normal_
+            );
+
+            // Vertex normals must remain in the geometric hemisphere.
+            if (dot(interpolated_normal, normal_) < 0.0) {
+                interpolated_normal = -1.0 * interpolated_normal;
+            }
+
+            // Match the orientation of the face-forward geometric normal.
+            if (!record.front_face) {
+                interpolated_normal = -1.0 * interpolated_normal;
+            }
+
+            record.shading_normal = interpolated_normal;
+            record.has_shading_normal = true;
+        }
 
         if (has_uv_) {
             record.u =
@@ -166,6 +199,26 @@ public:
 
         sample.normal = normal_;
         sample.front_face = true;
+
+        if (has_normals_) {
+            Vec3 interpolated_normal =
+                alpha * normal_a_ +
+                beta * normal_b_ +
+                gamma * normal_c_;
+
+            interpolated_normal = normalize_or(
+                interpolated_normal,
+                normal_
+            );
+
+            if (dot(interpolated_normal, normal_) < 0.0) {
+                interpolated_normal = -1.0 * interpolated_normal;
+            }
+
+            sample.shading_normal = interpolated_normal;
+            sample.has_shading_normal = true;
+        }
+        
         sample.tangent = tangent_;
         sample.bitangent = bitangent_;
 
@@ -205,6 +258,12 @@ private:
     Vec3 uv_c_;
 
     bool has_uv_ = false;
+
+    Vec3 normal_a_;
+    Vec3 normal_b_;
+    Vec3 normal_c_;
+
+    bool has_normals_ = false;
 
     Vec3 edge1_;
     Vec3 edge2_;

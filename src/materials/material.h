@@ -91,7 +91,7 @@ public:
         const HitRecord& hit
     ) const {
         (void)incoming;
-        return hit.normal;
+        return hit.get_shading_normal();
     }
 
     virtual bool supports_direct_lighting() const {

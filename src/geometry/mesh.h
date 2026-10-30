@@ -18,6 +18,7 @@ class TriangleMesh : public Hittable {
 public:
     using Face = std::array<std::size_t, 3>;
     using FaceUV = std::array<std::size_t, 3>;
+    using FaceNormal = std::array<std::size_t, 3>;
 
     static bool has_closed_topology(
         const std::vector<Face>& faces
@@ -72,7 +73,10 @@ public:
         const std::vector<Vec3>& texcoords = {},
         const std::vector<FaceUV>& face_texcoords = {},
         const std::vector<bool>& face_has_uv = {},
-        const std::vector<std::shared_ptr<const Material>>& face_materials = {}
+        const std::vector<std::shared_ptr<const Material>>& face_materials = {},
+        const std::vector<Vec3>& normals = {},
+        const std::vector<FaceNormal>& face_normals = {},
+        const std::vector<bool>& face_has_normals = {}
     ) {
         if (vertices.empty()) {
             throw std::invalid_argument(
@@ -86,10 +90,17 @@ public:
             );
         }
 
-        if (!face_texcoords.empty() &&
-            face_texcoords.size() != faces.size()) {
+        if (!face_normals.empty() &&
+            face_normals.size() != faces.size()) {
             throw std::invalid_argument(
-                "TriangleMesh UV face count does not match face count."
+                "TriangleMesh normal face count does not match face count."
+            );
+        }
+
+        if (!face_has_normals.empty() &&
+            face_has_normals.size() != faces.size()) {
+            throw std::invalid_argument(
+                "TriangleMesh normal presence count does not match face count."
             );
         }
 
@@ -160,6 +171,36 @@ public:
                     ? material
                     : face_materials[i];
 
+            const bool has_normals = face_has_normals.empty()
+                ? !face_normals.empty()
+                : face_has_normals[i];
+
+            Vec3 normal_a;
+            Vec3 normal_b;
+            Vec3 normal_c;
+
+            if (has_normals) {
+                if (face_normals.empty()) {
+                    throw std::invalid_argument(
+                        "TriangleMesh face has normals but no normal indices were provided."
+                    );
+                }
+
+                const FaceNormal& normal_face = face_normals[i];
+
+                for (const std::size_t index : normal_face) {
+                    if (index >= normals.size()) {
+                        throw std::out_of_range(
+                            "TriangleMesh normal index is out of range."
+                        );
+                    }
+                }
+
+                normal_a = normals[normal_face[0]];
+                normal_b = normals[normal_face[1]];
+                normal_c = normals[normal_face[2]];
+            }
+
             auto triangle = std::make_shared<Triangle>(
                 vertices[face[0]],
                 vertices[face[1]],
@@ -168,7 +209,11 @@ public:
                 uv_a,
                 uv_b,
                 uv_c,
-                has_uv
+                has_uv,
+                normal_a,
+                normal_b,
+                normal_c,
+                has_normals
             );
 
             const double triangle_area = triangle->area();
