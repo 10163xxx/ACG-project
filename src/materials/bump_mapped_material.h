@@ -150,6 +150,20 @@ public:
         return base_material_->index_of_refraction();
     }
 
+    bool blocks_shadow(const HitRecord& hit) const override {
+        return base_material_->blocks_shadow(hit);
+    }
+
+    Vec3 shadow_transmittance(
+        const HitRecord& hit,
+        const Vec3& ray_direction
+    ) const override {
+        return base_material_->shadow_transmittance(
+            hit,
+            ray_direction
+        );
+    }
+
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,
