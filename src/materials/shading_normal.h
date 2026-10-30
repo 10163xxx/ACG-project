@@ -6,32 +6,47 @@
 
 namespace shading_normal {
 
+inline bool valid_reflection_outgoing_direction(
+    const Vec3& geometric_normal,
+    const Vec3& shading_normal,
+    const Vec3& outgoing_direction
+) {
+    const double wo_geometric =
+        dot(geometric_normal, outgoing_direction);
+
+    const double wo_shading =
+        dot(shading_normal, outgoing_direction);
+
+    return
+        std::isfinite(wo_geometric) &&
+        std::isfinite(wo_shading) &&
+        wo_geometric > 0.0 &&
+        wo_shading > 0.0;
+}
+
 inline bool valid_reflection_directions(
     const Vec3& geometric_normal,
     const Vec3& shading_normal,
     const Vec3& outgoing_direction,
     const Vec3& incoming_direction
 ) {
-    const double wo_geometric =
-        dot(geometric_normal, outgoing_direction);
+    if (!valid_reflection_outgoing_direction(
+            geometric_normal,
+            shading_normal,
+            outgoing_direction)) {
+        return false;
+    }
 
     const double wi_geometric =
         dot(geometric_normal, incoming_direction);
-
-    const double wo_shading =
-        dot(shading_normal, outgoing_direction);
 
     const double wi_shading =
         dot(shading_normal, incoming_direction);
 
     return
-        std::isfinite(wo_geometric) &&
         std::isfinite(wi_geometric) &&
-        std::isfinite(wo_shading) &&
         std::isfinite(wi_shading) &&
-        wo_geometric > 0.0 &&
         wi_geometric > 0.0 &&
-        wo_shading > 0.0 &&
         wi_shading > 0.0;
 }
 

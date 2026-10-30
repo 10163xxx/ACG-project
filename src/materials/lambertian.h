@@ -36,11 +36,10 @@ public:
         const Vec3 outgoing =
             normalize(-incoming.direction);
 
-        if (!shading_normal::valid_reflection_directions(
+        if (!shading_normal::valid_reflection_outgoing_direction(
                 geometric_normal,
                 normal,
-                outgoing,
-                normal)) {
+                outgoing)) {
             return false;
         }
 
@@ -75,6 +74,14 @@ public:
 
         const Vec3 incoming_direction =
             normalize(scatter_direction);
+
+        if (!shading_normal::valid_reflection_directions(
+                geometric_normal,
+                normal,
+                outgoing,
+                incoming_direction)) {
+            return false;
+        }
 
         if (dot(geometric_normal, outgoing) <= 0.0 ||
             dot(normal, outgoing) <= 0.0) {

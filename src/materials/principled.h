@@ -95,10 +95,6 @@ public:
             return false;
         }
 
-        if (dot(n, wo) <= 0.0) {
-            return false;
-        }
-
         const double metallic = metallic_at(hit);
         const double roughness = roughness_at(hit);
 
@@ -132,9 +128,10 @@ public:
             return false;
         }
 
-        const double pdf = scattering_pdf(hit, wo, wi);
+        const double pdf =
+            scattering_pdf(hit, wo, wi);
 
-        if (pdf <= 1e-12) {
+        if (!std::isfinite(pdf) || pdf <= 1e-12) {
             return false;
         }
 

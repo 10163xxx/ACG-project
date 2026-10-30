@@ -85,7 +85,8 @@ public:
     }
     
     // Returns the shading normal used for light transport.
-    // By default, materials use the geometric surface normal.
+    // By default, materials use the shading normal stored in HitRecord,
+    // which falls back to the geometric normal when none is provided.
     virtual Vec3 shading_normal(
         const Ray& incoming,
         const HitRecord& hit

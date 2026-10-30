@@ -251,47 +251,6 @@ private:
         return value / std::sqrt(length_squared);
     }
 
-    static double shading_normal_correction(
-        const Vec3& geometric_normal,
-        const Vec3& shading_normal,
-        const Vec3& wo,
-        const Vec3& wi
-    ) {
-        const double wi_geometric =
-            dot(wi, geometric_normal);
-
-        const double wo_geometric =
-            dot(wo, geometric_normal);
-
-        const double wi_shading =
-            dot(wi, shading_normal);
-
-        const double wo_shading =
-            dot(wo, shading_normal);
-
-        constexpr double EPSILON = 1e-8;
-
-        const double denominator =
-            wi_shading * wo_geometric;
-
-        if (!std::isfinite(denominator) ||
-            std::abs(denominator) < EPSILON) {
-            return 0.0;
-        }
-
-        const double correction =
-            std::abs(
-                (wi_geometric * wo_shading) /
-                denominator
-            );
-
-        if (!std::isfinite(correction)) {
-            return 0.0;
-        }
-
-        return correction;
-    }
-
     static Vec3 fallback_tangent(const Vec3& normal) {
         const Vec3 helper =
             std::abs(normal.y) < 0.8
