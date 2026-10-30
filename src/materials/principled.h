@@ -80,7 +80,7 @@ public:
         ScatterSampleInfo& info
     ) const override {
         info.is_straight_through = false;
-        const Vec3 n = normalize(hit.normal);
+        const Vec3 n = normalize(hit.get_shading_normal());
         const Vec3 wo = normalize(-incoming.direction);
 
         if (dot(n, wo) <= 0.0) {
@@ -138,7 +138,7 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 n = normalize(hit.normal);
+        const Vec3 n = normalize(hit.get_shading_normal());
         const Vec3 wo = normalize(outgoing_direction);
         const Vec3 wi = normalize(incoming_direction);
 
@@ -228,7 +228,7 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 n = normalize(hit.normal);
+        const Vec3 n = normalize(hit.get_shading_normal());
         const Vec3 wo = normalize(outgoing_direction);
         const Vec3 wi = normalize(incoming_direction);
 

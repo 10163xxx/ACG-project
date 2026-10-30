@@ -183,11 +183,12 @@ public:
         }
 
         HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(hit);
+        mapped_hit.shading_normal = mapped_normal(hit);
+        mapped_hit.has_shading_normal = true;
 
         const Vec3 shading_normal =
             normalize_or(
-                mapped_hit.normal,
+                mapped_hit.get_shading_normal(),
                 geometric_normal
             );
 
@@ -246,11 +247,12 @@ public:
 
         // Use the same mapped normal as BSDF evaluation and sampling.
         HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(hit);
+        mapped_hit.shading_normal = mapped_normal(hit);
+        mapped_hit.has_shading_normal = true;
 
         const Vec3 shading_normal =
             normalize_or(
-                mapped_hit.normal,
+                mapped_hit.get_shading_normal(),
                 geometric_normal
             );
 
@@ -295,11 +297,12 @@ public:
 
         // Use the same mapped normal used by BSDF evaluation and PDF.
         HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(hit);
+        mapped_hit.shading_normal = mapped_normal(hit);
+        mapped_hit.has_shading_normal = true;
 
         const Vec3 shading_normal =
             normalize_or(
-                mapped_hit.normal,
+                mapped_hit.get_shading_normal(),
                 geometric_normal
             );
 

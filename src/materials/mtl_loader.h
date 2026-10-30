@@ -460,6 +460,20 @@ public:
                     );
             }
 
+            // Normal maps are linear data textures.
+            if (!properties.normal_map.filename.empty()) {
+                auto normal_texture = make_map_texture(
+                    properties.normal_map,
+                    false
+                );
+
+                base_material =
+                    std::make_shared<NormalMappedMaterial>(
+                        base_material,
+                        normal_texture
+                    );
+            }
+
             // MTL map_d is a linear data texture, not a color map.
             std::shared_ptr<const Texture> opacity_texture;
 

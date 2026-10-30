@@ -25,7 +25,7 @@ public:
         info.is_straight_through = false;
         (void)incoming;
 
-        const Vec3 normal = normalize(hit.normal);
+        const Vec3 normal = normalize(hit.get_shading_normal());
 
         // Construct an orthonormal basis around the normal.
         const Vec3 helper =
@@ -82,11 +82,13 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
+        const Vec3 normal = normalize(hit.get_shading_normal());
+
         const double cos_outgoing =
-            dot(hit.normal, outgoing_direction);
+            dot(normal, outgoing_direction);
 
         const double cos_incoming =
-            dot(hit.normal, incoming_direction);
+            dot(normal, incoming_direction);
 
         if (cos_outgoing <= 0.0 || cos_incoming <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
@@ -118,7 +120,7 @@ public:
         const Vec3& outgoing_direction,
         const Vec3& incoming_direction
     ) const override {
-        const Vec3 normal = normalize(hit.normal);
+        const Vec3 normal = normalize(hit.get_shading_normal());
         const Vec3 outgoing = normalize(outgoing_direction);
         const Vec3 incoming = normalize(incoming_direction);
 

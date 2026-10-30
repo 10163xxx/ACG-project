@@ -11,6 +11,16 @@ struct HitRecord {
     Vec3 point;
     Vec3 normal;
 
+    // Shading normal is independent from the geometric surface normal.
+    Vec3 shading_normal;
+    bool has_shading_normal = false;
+
+    Vec3 get_shading_normal() const {
+        return has_shading_normal
+            ? shading_normal
+            : normal;
+    }
+
     // Tangent-space basis derived from the hit triangle's UVs.
     Vec3 tangent;
     Vec3 bitangent;

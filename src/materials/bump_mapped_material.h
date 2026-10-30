@@ -151,13 +151,14 @@ public:
         }
 
         HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(
+        mapped_hit.shading_normal = mapped_normal(
             Ray(hit.point, -outgoing_direction),
             hit
         );
+        mapped_hit.has_shading_normal = true;
 
-        if (dot(mapped_hit.normal, outgoing_direction) <= 0.0 ||
-            dot(mapped_hit.normal, incoming_direction) <= 0.0) {
+        if (dot(mapped_hit.get_shading_normal(), outgoing_direction) <= 0.0 ||
+            dot(mapped_hit.get_shading_normal(), incoming_direction) <= 0.0) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
@@ -179,13 +180,14 @@ public:
         }
 
         HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(
+        mapped_hit.shading_normal = mapped_normal(
             Ray(hit.point, -outgoing_direction),
             hit
         );
+        mapped_hit.has_shading_normal = true;
 
-        if (dot(mapped_hit.normal, outgoing_direction) <= 0.0 ||
-            dot(mapped_hit.normal, incoming_direction) <= 0.0) {
+        if (dot(mapped_hit.get_shading_normal(), outgoing_direction) <= 0.0 ||
+            dot(mapped_hit.get_shading_normal(), incoming_direction) <= 0.0) {
             return 0.0;
         }
 
@@ -214,7 +216,8 @@ public:
             );
 
         HitRecord mapped_hit = hit;
-        mapped_hit.normal = mapped_normal(incoming, hit);
+        mapped_hit.shading_normal = mapped_normal(incoming, hit);
+        mapped_hit.has_shading_normal = true;
 
         if (!base_material_->scatter(
                 incoming,
