@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "geometry/mesh.h"
 #include "materials/mtl_loader.h"
@@ -26,6 +27,12 @@ private:
 
         std::vector<bool> face_has_uv;
         std::vector<bool> face_has_normals;
+
+        // Per-corner explicit normal availability.
+        std::vector<std::array<bool, 3>> face_corner_has_normals;
+
+        // Empty string means smoothing is disabled.
+        std::vector<std::string> face_smoothing_groups;
 
         std::vector<std::string> face_material_names;
         std::vector<std::string> material_libraries;
@@ -163,6 +170,7 @@ private:
     static ParsedObj parse(std::istream& input) {
         ParsedObj parsed;
         std::string current_material;
+        std::string current_smoothing_group;
         std::string line;
 
         while (std::getline(input, line)) {
@@ -206,6 +214,16 @@ private:
                 }
             } else if (command == "usemtl") {
                 stream >> current_material;
+            } else if (command == "s") {
+                std::string group;
+
+                if (!(stream >> group) ||
+                    group == "off" ||
+                    group == "0") {
+                    current_smoothing_group.clear();
+                } else {
+                    current_smoothing_group = group;
+                }
             } else if (command == "f") {
                 std::vector<int> vertex_indices;
                 std::vector<int> texcoord_indices;
@@ -286,6 +304,12 @@ private:
 
                     parsed.face_has_normals.push_back(has_normals);
 
+                    parsed.face_corner_has_normals.push_back({
+                        vertex_has_normal[0],
+                        vertex_has_normal[i],
+                        vertex_has_normal[i + 1]
+                    });
+
                     if (has_normals) {
                         parsed.face_normals.push_back({
                             static_cast<std::size_t>(normal_indices[0]),
@@ -298,6 +322,10 @@ private:
                         });
                     }
 
+                    parsed.face_smoothing_groups.push_back(
+                        current_smoothing_group
+                    );
+
                     parsed.face_material_names.push_back(
                         current_material
                     );
@@ -308,11 +336,131 @@ private:
         return parsed;
     }
 
+    static void generate_smoothing_normals(
+        ParsedObj& parsed
+    ) {
+        using SmoothingKey =
+            std::pair<std::size_t, std::string>;
+
+        std::map<SmoothingKey, Vec3> accumulated_normals;
+
+        // First pass: accumulate area-weighted face normals.
+        for (std::size_t face_index = 0;
+             face_index < parsed.faces.size();
+             ++face_index) {
+            const std::string& group =
+                parsed.face_smoothing_groups[face_index];
+
+            if (group.empty()) {
+                continue;
+            }
+
+            const TriangleMesh::Face& face =
+                parsed.faces[face_index];
+
+            const Vec3& a = parsed.vertices[face[0]];
+            const Vec3& b = parsed.vertices[face[1]];
+            const Vec3& c = parsed.vertices[face[2]];
+
+            const Vec3 weighted_normal =
+                cross(b - a, c - a);
+
+            for (const std::size_t vertex_index : face) {
+                const SmoothingKey key(
+                    vertex_index,
+                    group
+                );
+
+                accumulated_normals[key] = accumulated_normals[key] + weighted_normal;
+            }
+        }
+
+        // Normalize the accumulated normals.
+        for (auto& entry : accumulated_normals) {
+            const double length_squared =
+                entry.second.length_squared();
+
+            if (!std::isfinite(length_squared) ||
+                length_squared < 1e-20) {
+                entry.second = Vec3(0.0, 0.0, 0.0);
+            } else {
+                entry.second =
+                    entry.second / std::sqrt(length_squared);
+            }
+        }
+
+        // Second pass: resolve each triangle corner.
+        for (std::size_t face_index = 0;
+             face_index < parsed.faces.size();
+             ++face_index) {
+            const std::string& group =
+                parsed.face_smoothing_groups[face_index];
+
+            const TriangleMesh::Face& face =
+                parsed.faces[face_index];
+
+            const auto& explicit_normals =
+                parsed.face_corner_has_normals[face_index];
+
+            TriangleMesh::FaceNormal resolved_indices = {
+                0, 0, 0
+            };
+
+            bool has_resolved_normals = true;
+
+            for (std::size_t corner = 0;
+                 corner < 3;
+                 ++corner) {
+                if (explicit_normals[corner]) {
+                    resolved_indices[corner] =
+                        parsed.face_normals[face_index][corner];
+
+                    continue;
+                }
+
+                if (group.empty()) {
+                    has_resolved_normals = false;
+                    break;
+                }
+
+                const SmoothingKey key(
+                    face[corner],
+                    group
+                );
+
+                const auto it =
+                    accumulated_normals.find(key);
+
+                if (it == accumulated_normals.end() ||
+                    it->second.length_squared() < 1e-20) {
+                    has_resolved_normals = false;
+                    break;
+                }
+
+                resolved_indices[corner] =
+                    parsed.normals.size();
+
+                parsed.normals.push_back(it->second);
+            }
+
+            if (has_resolved_normals) {
+                parsed.face_normals[face_index] =
+                    resolved_indices;
+
+                parsed.face_has_normals[face_index] = true;
+            } else {
+                parsed.face_has_normals[face_index] = false;
+            }
+        }
+    }
+
     static TriangleMesh build_mesh(
         ParsedObj parsed,
         std::shared_ptr<const Material> fallback_material,
         const MtlLoader::MaterialMap* materials
     ) {
+        generate_smoothing_normals(parsed);
+
         std::vector<std::shared_ptr<const Material>> face_materials;
         bool has_face_material = false;
 
