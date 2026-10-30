@@ -18,9 +18,15 @@ private:
     struct ParsedObj {
         std::vector<Vec3> vertices;
         std::vector<Vec3> texcoords;
+        std::vector<Vec3> normals;
+
         std::vector<TriangleMesh::Face> faces;
         std::vector<TriangleMesh::FaceUV> face_texcoords;
+        std::vector<TriangleMesh::FaceNormal> face_normals;
+
         std::vector<bool> face_has_uv;
+        std::vector<bool> face_has_normals;
+
         std::vector<std::string> face_material_names;
         std::vector<std::string> material_libraries;
     };
@@ -82,19 +88,28 @@ private:
         const std::string& token,
         std::size_t vertex_count,
         std::size_t texcoord_count,
+        std::size_t normal_count,
         int& vertex_index,
         int& texcoord_index,
-        bool& has_uv
+        int& normal_index,
+        bool& has_uv,
+        bool& has_normal
     ) {
         const std::size_t first_slash = token.find('/');
         const std::string vertex_token =
             token.substr(0, first_slash);
 
-        vertex_index = parse_index(vertex_token, vertex_count);
+        vertex_index = parse_index(
+            vertex_token,
+            vertex_count
+        );
+
+        texcoord_index = -1;
+        normal_index = -1;
+        has_uv = false;
+        has_normal = false;
 
         if (first_slash == std::string::npos) {
-            has_uv = false;
-            texcoord_index = -1;
             return;
         }
 
@@ -109,16 +124,40 @@ private:
                     : second_slash - first_slash - 1
             );
 
-        if (texcoord_token.empty()) {
-            has_uv = false;
-            texcoord_index = -1;
+        if (!texcoord_token.empty()) {
+            texcoord_index = parse_index(
+                texcoord_token,
+                texcoord_count
+            );
+
+            has_uv = true;
+        }
+
+        if (second_slash == std::string::npos) {
             return;
         }
 
-        texcoord_index =
-            parse_index(texcoord_token, texcoord_count);
+        const std::string normal_token =
+            token.substr(second_slash + 1);
 
-        has_uv = true;
+        if (normal_token.empty()) {
+            throw std::runtime_error(
+                "OBJ face vertex has an empty normal index: " + token
+            );
+        }
+
+        if (normal_token.find('/') != std::string::npos) {
+            throw std::runtime_error(
+                "Invalid OBJ face vertex: " + token
+            );
+        }
+
+        normal_index = parse_index(
+            normal_token,
+            normal_count
+        );
+
+        has_normal = true;
     }
 
     static ParsedObj parse(std::istream& input) {
@@ -148,6 +187,17 @@ private:
                 Vec3 texcoord(0.0, 0.0, 0.0);
                 stream >> texcoord.x >> texcoord.y;
                 parsed.texcoords.push_back(texcoord);
+            } else if (command == "vn") {
+                Vec3 normal;
+                stream >> normal.x >> normal.y >> normal.z;
+
+                if (!stream) {
+                    throw std::runtime_error(
+                        "Invalid OBJ vertex normal."
+                    );
+                }
+
+                parsed.normals.push_back(normal);
             } else if (command == "mtllib") {
                 std::string library;
 
@@ -159,29 +209,48 @@ private:
             } else if (command == "f") {
                 std::vector<int> vertex_indices;
                 std::vector<int> texcoord_indices;
+                std::vector<int> normal_indices;
+
                 std::vector<bool> vertex_has_uv;
+                std::vector<bool> vertex_has_normal;
 
                 std::string token;
 
                 while (stream >> token) {
                     int vertex_index = -1;
                     int texcoord_index = -1;
+                    int normal_index = -1;
+
                     bool has_uv = false;
+                    bool has_normal = false;
 
                     parse_face_vertex(
                         token,
                         parsed.vertices.size(),
                         parsed.texcoords.size(),
+                        parsed.normals.size(),
                         vertex_index,
                         texcoord_index,
-                        has_uv
+                        normal_index,
+                        has_uv,
+                        has_normal
                     );
 
                     vertex_indices.push_back(vertex_index);
                     texcoord_indices.push_back(texcoord_index);
+                    normal_indices.push_back(normal_index);
+
                     vertex_has_uv.push_back(has_uv);
+                    vertex_has_normal.push_back(has_normal);
                 }
 
+                if (vertex_indices.size() < 3) {
+                    throw std::runtime_error(
+                        "OBJ face must contain at least three vertices."
+                    );
+                }
+
+                // Triangulate polygons using a triangle fan.
                 for (std::size_t i = 1;
                      i + 1 < vertex_indices.size();
                      ++i) {
@@ -206,6 +275,25 @@ private:
                         });
                     } else {
                         parsed.face_texcoords.push_back({
+                            0, 0, 0
+                        });
+                    }
+
+                    const bool has_normals =
+                        vertex_has_normal[0] &&
+                        vertex_has_normal[i] &&
+                        vertex_has_normal[i + 1];
+
+                    parsed.face_has_normals.push_back(has_normals);
+
+                    if (has_normals) {
+                        parsed.face_normals.push_back({
+                            static_cast<std::size_t>(normal_indices[0]),
+                            static_cast<std::size_t>(normal_indices[i]),
+                            static_cast<std::size_t>(normal_indices[i + 1])
+                        });
+                    } else {
+                        parsed.face_normals.push_back({
                             0, 0, 0
                         });
                     }
@@ -257,7 +345,10 @@ private:
             std::move(parsed.texcoords),
             std::move(parsed.face_texcoords),
             std::move(parsed.face_has_uv),
-            face_materials
+            face_materials,
+            std::move(parsed.normals),
+            std::move(parsed.face_normals),
+            std::move(parsed.face_has_normals)
         );
     }
 
