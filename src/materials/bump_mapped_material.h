@@ -50,20 +50,30 @@ public:
                 Vec3(0.0, 1.0, 0.0)
             );
 
+        Vec3 base_normal =
+            normalize_or(
+                hit.get_shading_normal(),
+                geometric_normal
+            );
+
+        if (dot(base_normal, geometric_normal) < 0.0) {
+            base_normal = -1.0 * base_normal;
+        }
+
         Vec3 tangent =
             hit.tangent -
-            dot(hit.tangent, geometric_normal) *
-                geometric_normal;
+            dot(hit.tangent, base_normal) *
+                base_normal;
 
         tangent = normalize_or(
             tangent,
-            fallback_tangent(geometric_normal)
+            fallback_tangent(base_normal)
         );
 
         Vec3 bitangent =
             hit.bitangent -
-            dot(hit.bitangent, geometric_normal) *
-                geometric_normal -
+            dot(hit.bitangent, base_normal) *
+                base_normal -
             dot(hit.bitangent, tangent) * tangent;
 
         bitangent = normalize_or(
@@ -90,7 +100,7 @@ public:
             ) / (2.0 * UV_STEP);
 
         Vec3 world_normal =
-            geometric_normal
+            base_normal
             - strength_ * dhdu * tangent
             - strength_ * dhdv * bitangent;
 
