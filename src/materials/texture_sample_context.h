@@ -16,6 +16,12 @@ inline TextureSampleContext make_texture_sample_context(
     context.has_uv_differentials =
         hit.has_uv_differentials;
 
+    context.dpdx = hit.dpdx;
+    context.dpdy = hit.dpdy;
+
+    context.has_surface_differentials =
+        hit.has_surface_differentials;
+
     context.cone_width = hit.ray_cone_width;
     context.has_ray_cone = hit.has_ray_cone;
 

@@ -48,23 +48,16 @@ public:
     ) const override {
         double footprint = 0.0;
 
-        if (context.has_uv_differentials &&
-            context.has_uv_parameterization &&
-            std::isfinite(context.dudx) &&
-            std::isfinite(context.dvdx) &&
-            std::isfinite(context.dudy) &&
-            std::isfinite(context.dvdy)) {
-            const Vec3 dpdx =
-                context.dudx * context.dpdu +
-                context.dvdx * context.dpdv;
-
-            const Vec3 dpdy =
-                context.dudy * context.dpdu +
-                context.dvdy * context.dpdv;
-
+        if (context.has_surface_differentials &&
+            std::isfinite(context.dpdx.x) &&
+            std::isfinite(context.dpdx.y) &&
+            std::isfinite(context.dpdx.z) &&
+            std::isfinite(context.dpdy.x) &&
+            std::isfinite(context.dpdy.y) &&
+            std::isfinite(context.dpdy.z)) {
             footprint = std::max(
-                dpdx.length(),
-                dpdy.length()
+                context.dpdx.length(),
+                context.dpdy.length()
             );
         } else if (
             context.has_ray_cone &&
@@ -88,8 +81,7 @@ public:
             octave_frequency *= 2.0;
         }
 
-        // Retain a coarse component so distant surfaces do not
-        // collapse to an undefined or excessively sharp pattern.
+        // Retain at least one coarse octave.
         filtered_octaves = std::max(1, filtered_octaves);
 
         return evaluate(p, filtered_octaves);

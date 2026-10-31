@@ -13,6 +13,11 @@ struct TextureSampleContext {
 
     bool has_uv_differentials = false;
 
+    // World-space surface differentials per screen-space pixel.
+    Vec3 dpdx;
+    Vec3 dpdy;
+    bool has_surface_differentials = false;
+
     double cone_width = 0.0;
     bool has_ray_cone = false;
 
@@ -24,21 +29,27 @@ struct TextureSampleContext {
         double& width_u,
         double& width_v
     ) const {
-        if (has_uv_differentials) {
-            if (!std::isfinite(dudx) ||
-                !std::isfinite(dvdx) ||
-                !std::isfinite(dudy) ||
-                !std::isfinite(dvdy)) {
-                return false;
-            }
+        width_u = 0.0;
+        width_v = 0.0;
 
+        if (has_uv_differentials &&
+            std::isfinite(dudx) &&
+            std::isfinite(dvdx) &&
+            std::isfinite(dudy) &&
+            std::isfinite(dvdy)) {
             width_u =
                 std::abs(dudx) + std::abs(dudy);
 
             width_v =
                 std::abs(dvdx) + std::abs(dvdy);
 
-            return true;
+            if (std::isfinite(width_u) &&
+                std::isfinite(width_v)) {
+                return true;
+            }
+
+            width_u = 0.0;
+            width_v = 0.0;
         }
 
         if (!has_ray_cone ||
@@ -61,7 +72,7 @@ struct TextureSampleContext {
             !std::isfinite(determinant) ||
             g00 <= 0.0 ||
             g11 <= 0.0 ||
-            determinant <= 1e-20) {
+            determinant <= 1e-12 * g00 * g11) {
             return false;
         }
 
@@ -71,8 +82,14 @@ struct TextureSampleContext {
         width_v =
             cone_width * std::sqrt(g00 / determinant);
 
-        return std::isfinite(width_u) &&
-               std::isfinite(width_v);
+        if (!std::isfinite(width_u) ||
+            !std::isfinite(width_v)) {
+            width_u = 0.0;
+            width_v = 0.0;
+            return false;
+        }
+
+        return true;
     }
 };
 

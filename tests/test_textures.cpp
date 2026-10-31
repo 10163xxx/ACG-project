@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstdio>
 #include <fstream>
+#include <limits>
 
 #include "core/random.h"
 #include "materials/texture.h"
@@ -160,6 +161,50 @@ namespace {
 
         assert(color_equal(
             cone_filtered,
+            Vec3(0.5, 0.0, 0.5)
+        ));
+
+        // Invalid UV differentials must fall back to a valid ray cone.
+        TextureSampleContext invalid_uv_context =
+            make_cone_test_context(
+                1.0,
+                Vec3(1.0, 0.0, 0.0),
+                Vec3(0.0, 1.0, 0.0)
+            );
+
+        invalid_uv_context.has_uv_differentials = true;
+        invalid_uv_context.dudx =
+            std::numeric_limits<double>::quiet_NaN();
+
+        const Vec3 fallback_filtered = sample_texture(
+            texture,
+            0.1,
+            0.1,
+            Vec3(),
+            invalid_uv_context
+        );
+
+        assert(color_equal(
+            fallback_filtered,
+            cone_filtered
+        ));
+
+        // Small but valid UV parameterizations must not be
+        // rejected by an absolute determinant threshold.
+        const Vec3 small_scale_filtered = sample_texture(
+            texture,
+            0.1,
+            0.1,
+            Vec3(),
+            make_cone_test_context(
+                1e-8,
+                Vec3(1e-8, 0.0, 0.0),
+                Vec3(0.0, 1e-8, 0.0)
+            )
+        );
+
+        assert(color_equal(
+            small_scale_filtered,
             Vec3(0.5, 0.0, 0.5)
         ));
     }
@@ -702,6 +747,97 @@ namespace {
                 transformed_color,
                 Vec3(0.5, 0.5, 0.5)
             ));
+            // UV differentials must be transformed by the
+            // texture scale before reaching the wrapped texture.
+            auto checker = std::make_shared<UVCheckerTexture>(
+                4.0,
+                Vec3(1.0, 0.0, 0.0),
+                Vec3(0.0, 0.0, 1.0)
+            );
+
+            TextureTransform transformed_checker(
+                checker,
+                2.0,
+                3.0,
+                0.1,
+                0.2
+            );
+
+            TextureSampleContext original_context;
+            original_context.has_uv_differentials = true;
+            original_context.dudx = 0.1;
+            original_context.dvdx = 0.02;
+            original_context.dudy = 0.03;
+            original_context.dvdy = 0.1;
+
+            TextureSampleContext expected_context =
+                original_context;
+
+            expected_context.dudx *= 2.0;
+            expected_context.dudy *= 2.0;
+            expected_context.dvdx *= 3.0;
+            expected_context.dvdy *= 3.0;
+
+            const Vec3 transformed_filtered = sample_texture(
+                transformed_checker,
+                0.25,
+                0.35,
+                Vec3(),
+                original_context
+            );
+
+            const Vec3 directly_filtered = sample_texture(
+                *checker,
+                2.0 * 0.25 + 0.1,
+                3.0 * 0.35 + 0.2,
+                Vec3(),
+                expected_context
+            );
+
+            assert(color_equal(
+                transformed_filtered,
+                directly_filtered
+            ));
+
+            // Ray-cone UV footprints must account for the
+            // inverse UV parameterization scale.
+            TextureSampleContext original_cone_context;
+            original_cone_context.has_ray_cone = true;
+            original_cone_context.cone_width = 0.2;
+            original_cone_context.has_uv_parameterization = true;
+            original_cone_context.dpdu = Vec3(1.0, 0.0, 0.0);
+            original_cone_context.dpdv = Vec3(0.0, 1.0, 0.0);
+
+            TextureSampleContext expected_cone_context =
+                original_cone_context;
+
+            expected_cone_context.dpdu =
+                expected_cone_context.dpdu / 2.0;
+
+            expected_cone_context.dpdv =
+                expected_cone_context.dpdv / 3.0;
+
+            const Vec3 transformed_cone_filtered = sample_texture(
+                transformed_checker,
+                0.25,
+                0.35,
+                Vec3(),
+                original_cone_context
+            );
+
+            const Vec3 directly_cone_filtered = sample_texture(
+                *checker,
+                2.0 * 0.25 + 0.1,
+                3.0 * 0.35 + 0.2,
+                Vec3(),
+                expected_cone_context
+            );
+
+            assert(color_equal(
+                transformed_cone_filtered,
+                directly_cone_filtered
+            ));
+
         } catch (...) {
             std::remove(filename);
             throw;
@@ -763,6 +899,49 @@ namespace {
         );
 
         assert(!color_equal(a, nearby));
+
+        // Surface differentials must filter 3D Perlin noise
+        // even when no UV parameterization is available.
+        PerlinNoiseTexture filtered_texture(
+            color_a,
+            color_b,
+            2.0,
+            5,
+            12345
+        );
+
+        PerlinNoiseTexture single_octave_texture(
+            color_a,
+            color_b,
+            2.0,
+            1,
+            12345
+        );
+
+        TextureSampleContext surface_context;
+        surface_context.has_surface_differentials = true;
+        surface_context.dpdx = Vec3(1.0, 0.0, 0.0);
+        surface_context.dpdy = Vec3(0.0, 1.0, 0.0);
+
+        const Vec3 filtered_perlin = sample_texture(
+            filtered_texture,
+            0.0,
+            0.0,
+            p,
+            surface_context
+        );
+
+        const Vec3 single_octave_perlin = sample_texture(
+            single_octave_texture,
+            0.0,
+            0.0,
+            p
+        );
+
+        assert(color_equal(
+            filtered_perlin,
+            single_octave_perlin
+        ));
     }
 }
 
