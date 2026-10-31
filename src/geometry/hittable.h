@@ -4,11 +4,14 @@
 #include "core/interval.h"
 #include "geometry/aabb.h"
 #include "geometry/hit_record.h"
+#include "geometry/medium_state.h"
 #include "materials/material.h"
 
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <utility>
 
 class Hittable {
 public:
@@ -56,6 +59,14 @@ public:
         std::vector<HitRecord> intersections;
         all_intersections(ray, ray_t, intersections);
 
+        std::sort(
+            intersections.begin(),
+            intersections.end(),
+            [](const HitRecord& a, const HitRecord& b) {
+                return a.t < b.t;
+            }
+        );
+
         for (const HitRecord& intersection : intersections) {
             if (intersection.is_volume) {
                 continue;
@@ -88,13 +99,33 @@ public:
             }
         );
 
-        struct ActiveMedium {
-            const Hittable* boundary = nullptr;
-            double ior = 1.0;
-            Vec3 absorption;
-        };
+        // Reconstruct the medium state at the shadow-ray origin.
+        const Vec3 probe_direction = normalize(
+            Vec3(1.0, 0.3713906763541037, 0.6947465906068658)
+        );
 
-        std::vector<ActiveMedium> active_media;
+        const Ray probe_ray(
+            ray.origin,
+            probe_direction
+        );
+
+        std::vector<HitRecord> previous_intersections;
+
+        all_intersections(
+            probe_ray,
+            Interval(
+                -std::numeric_limits<double>::infinity(),
+                0.0
+            ),
+            previous_intersections
+        );
+
+        MediumState active_media;
+
+        if (!active_media.initialize_from_intersections(
+                std::move(previous_intersections))) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
 
         Vec3 result(1.0, 1.0, 1.0);
 
@@ -131,7 +162,7 @@ public:
 
             if (!active_media.empty()) {
                 apply_absorption(
-                    active_media.back().absorption,
+                    active_media.current_absorption(),
                     segment_distance
                 );
 
@@ -146,73 +177,11 @@ public:
                 intersection.material.get();
 
             if (material->is_medium_boundary()) {
-                if (intersection.medium_boundary == nullptr) {
-                    return Vec3(0.0, 0.0, 0.0);
-                }
+                MediumState::Transition transition;
 
-                double incident_ior = 1.0;
-                double transmitted_ior = 1.0;
-
-                if (intersection.front_face) {
-                    incident_ior =
-                        active_media.empty()
-                            ? 1.0
-                            : active_media.back().ior;
-
-                    transmitted_ior =
-                        material->index_of_refraction();
-
-                    const bool already_active =
-                        std::any_of(
-                            active_media.begin(),
-                            active_media.end(),
-                            [&intersection](const ActiveMedium& medium) {
-                                return medium.boundary ==
-                                    intersection.medium_boundary;
-                            }
-                        );
-
-                    if (already_active) {
-                        return Vec3(0.0, 0.0, 0.0);
-                    }
-                } else {
-                    if (active_media.empty()) {
-                        // The shadow ray starts inside this medium.
-                        // Its entry boundary lies before ray_t.min.
-                        incident_ior =
-                            material->index_of_refraction();
-
-                        transmitted_ior = 1.0;
-
-                        const double distance =
-                            std::max(
-                                0.0,
-                                intersection.t - ray_t.min
-                            ) * direction_length;
-
-                        apply_absorption(
-                            material->shadow_absorption_coefficient(),
-                            distance
-                        );
-                    } else {
-                        if (active_media.back().boundary !=
-                            intersection.medium_boundary) {
-                            return Vec3(0.0, 0.0, 0.0);
-                        }
-
-                        incident_ior =
-                            active_media.back().ior;
-
-                        transmitted_ior =
-                            active_media.size() > 1
-                                ? active_media[
-                                    active_media.size() - 2
-                                  ].ior
-                                : 1.0;
-                    }
-                }
-
-                if (result.near_zero()) {
+                if (!active_media.prepare_transition(
+                        intersection,
+                        transition)) {
                     return Vec3(0.0, 0.0, 0.0);
                 }
 
@@ -220,22 +189,18 @@ public:
                     * material->shadow_transmittance(
                         intersection,
                         ray.direction,
-                        incident_ior,
-                        transmitted_ior
+                        transition.incident_ior,
+                        transition.transmitted_ior
                     );
 
                 if (result.near_zero()) {
                     return Vec3(0.0, 0.0, 0.0);
                 }
 
-                if (intersection.front_face) {
-                    active_media.push_back({
-                        intersection.medium_boundary,
-                        transmitted_ior,
-                        material->shadow_absorption_coefficient()
-                    });
-                } else if (!active_media.empty()) {
-                    active_media.pop_back();
+                if (!active_media.commit_transition(
+                        intersection,
+                        transition)) {
+                    return Vec3(0.0, 0.0, 0.0);
                 }
 
                 continue;
@@ -264,7 +229,7 @@ public:
                 * direction_length;
 
             apply_absorption(
-                active_media.back().absorption,
+                active_media.current_absorption(),
                 remaining_distance
             );
         }

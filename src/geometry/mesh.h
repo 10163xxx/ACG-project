@@ -328,18 +328,16 @@ public:
     ) const override {
         std::vector<HitRecord> mesh_intersections;
 
-        for (const auto& triangle : triangles_) {
-            HitRecord record;
+        bvh_->all_intersections(
+            ray,
+            ray_t,
+            mesh_intersections
+        );
 
-            if (!triangle->hit(ray, ray_t, record)) {
-                continue;
-            }
-
-            if (is_closed_volume_) {
+        if (is_closed_volume_) {
+            for (HitRecord& record : mesh_intersections) {
                 record.medium_boundary = this;
             }
-
-            mesh_intersections.push_back(record);
         }
 
         std::sort(

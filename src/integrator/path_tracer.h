@@ -13,6 +13,7 @@
 #include "core/random.h"
 #include "geometry/hittable.h"
 #include "geometry/hittable_list.h"
+#include "geometry/medium_state.h"
 #include "materials/point_light.h"
 #include "materials/material.h"
 #include "materials/environment_map.h"
@@ -20,13 +21,6 @@
 #include "integrator/direct_lighting.h"
 
 class PathTracer {
-private:
-    struct ActiveMedium {
-        const Hittable* boundary = nullptr;
-        double ior = 1.0;
-        Vec3 absorption;
-    };
-
 public:
     explicit PathTracer(
         int max_depth = 20,
@@ -61,7 +55,34 @@ public:
 
         Vec3 throughput(1.0, 1.0, 1.0);
         Vec3 radiance(0.0, 0.0, 0.0);
-        std::vector<ActiveMedium> active_media;
+        MediumState active_media;
+
+        const Vec3 probe_direction = normalize(
+            Vec3(1.0, 0.3713906763541037, 0.6947465906068658)
+        );
+
+        const Ray probe_ray(
+            initial_ray.origin,
+            probe_direction
+        );
+
+        std::vector<HitRecord> previous_intersections;
+
+        world.all_intersections(
+            probe_ray,
+            Interval(
+                -std::numeric_limits<double>::infinity(),
+                0.0
+            ),
+            previous_intersections
+        );
+
+        if (!active_media.initialize_from_intersections(
+                std::move(previous_intersections))) {
+            throw std::runtime_error(
+                "Failed to initialize the camera ray medium state."
+            );
+        }
 
         const Interval ray_interval(
             0.001,
@@ -123,7 +144,7 @@ public:
                 if (std::isfinite(segment_distance) &&
                     segment_distance >= 0.0) {
                     const Vec3 absorption =
-                        active_media.back().absorption;
+                        active_media.current_absorption();
 
                     throughput = throughput * Vec3(
                         std::exp(-absorption.x * segment_distance),
@@ -221,57 +242,22 @@ public:
             Ray scattered;
             ScatterSampleInfo scatter_info;
 
-            // Resolve IOR transitions using geometric boundary identity.
+            MediumState::Transition medium_transition;
+
             if (hit.material->is_medium_boundary()) {
-                if (hit.medium_boundary == nullptr) {
+                if (!active_media.prepare_transition(
+                        hit,
+                        medium_transition)) {
                     throw std::runtime_error(
-                        "Dielectric hit has no medium boundary identity."
+                        "Dielectric medium boundary transition is invalid."
                     );
                 }
 
                 scatter_info.incident_ior =
-                    active_media.empty()
-                        ? 1.0
-                        : active_media.back().ior;
+                    medium_transition.incident_ior;
 
-                if (hit.front_face) {
-                    const bool already_active =
-                        std::any_of(
-                            active_media.begin(),
-                            active_media.end(),
-                            [&hit](const ActiveMedium& medium) {
-                                return medium.boundary ==
-                                    hit.medium_boundary;
-                            }
-                        );
-
-                    if (already_active) {
-                        throw std::runtime_error(
-                            "A dielectric boundary was entered more than once."
-                        );
-                    }
-
-                    scatter_info.transmitted_ior =
-                        hit.material->index_of_refraction();
-                } else {
-                    if (active_media.empty() ||
-                        active_media.back().boundary !=
-                            hit.medium_boundary) {
-                        throw std::runtime_error(
-                            "Dielectric boundaries are not properly nested."
-                        );
-                    }
-
-                    scatter_info.incident_ior =
-                        active_media.back().ior;
-
-                    scatter_info.transmitted_ior =
-                        active_media.size() > 1
-                            ? active_media[
-                                active_media.size() - 2
-                              ].ior
-                            : 1.0;
-                }
+                scatter_info.transmitted_ior =
+                    medium_transition.transmitted_ior;
             }
 
             if (!hit.material->scatter(
@@ -283,18 +269,16 @@ public:
                 break;
             }
 
-            // Update the medium stack only after actual transmission.
+            // Update the medium state only after actual transmission.
             // Reflection and total internal reflection leave it unchanged.
             if (scatter_info.is_transmission &&
                 hit.material->is_medium_boundary()) {
-                if (hit.front_face) {
-                    active_media.push_back({
-                        hit.medium_boundary,
-                        hit.material->index_of_refraction(),
-                        hit.material->shadow_absorption_coefficient()
-                    });
-                } else {
-                    active_media.pop_back();
+                if (!active_media.commit_transition(
+                        hit,
+                        medium_transition)) {
+                    throw std::runtime_error(
+                        "Failed to commit dielectric medium transition."
+                    );
                 }
             }
 

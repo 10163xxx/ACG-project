@@ -126,14 +126,6 @@ public:
                 intersections
             );
         }
-
-        std::sort(
-            intersections.begin(),
-            intersections.end(),
-            [](const HitRecord& a, const HitRecord& b) {
-                return a.t < b.t;
-            }
-        );
     }
 
     bool hit_surface(
