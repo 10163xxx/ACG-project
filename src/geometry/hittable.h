@@ -47,6 +47,62 @@ public:
         }
     }
 
+    bool initialize_medium_state(
+        const Vec3& origin,
+        MediumState& medium_state
+    ) const {
+        const std::vector<Vec3> probe_directions = {
+            normalize(Vec3(
+                1.0,
+                0.3713906763541037,
+                0.6947465906068658
+            )),
+            normalize(Vec3(
+                -0.5278640450004206,
+                1.0,
+                0.3183098861837907
+            )),
+            normalize(Vec3(
+                0.2718281828459045,
+                -0.6180339887498948,
+                1.0
+            )),
+            normalize(Vec3(
+                -1.0,
+                -0.4142135623730950,
+                0.7320508075688772
+            )),
+            normalize(Vec3(
+                0.5772156649015329,
+                1.0,
+                -0.7071067811865475
+            ))
+        };
+
+        for (const Vec3& direction : probe_directions) {
+            const Ray probe_ray(origin, direction);
+
+            std::vector<HitRecord> intersections;
+
+            all_intersections(
+                probe_ray,
+                Interval(
+                    -std::numeric_limits<double>::infinity(),
+                    0.0
+                ),
+                intersections
+            );
+
+            if (medium_state.initialize_from_intersections(
+                    std::move(intersections))) {
+                return true;
+            }
+        }
+
+        medium_state.clear();
+        return false;
+    }
+
     // Find an opaque surface only.
     // Participating-medium scattering events are not occluders.
     // Find the nearest fully opaque surface.
@@ -84,6 +140,20 @@ public:
         return false;
     }
 
+    // Transmittance contributed by participating media contained
+    // in this geometry hierarchy.
+    // Surface interfaces and dielectric absorption are handled
+    // separately by transmittance().
+    virtual Vec3 volume_transmittance(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const {
+        (void)ray;
+        (void)ray_t;
+
+        return Vec3(1.0, 1.0, 1.0);
+    }
+
     virtual Vec3 transmittance(
         const Ray& ray,
         const Interval& ray_t
@@ -100,34 +170,15 @@ public:
         );
 
         // Reconstruct the medium state at the shadow-ray origin.
-        const Vec3 probe_direction = normalize(
-            Vec3(1.0, 0.3713906763541037, 0.6947465906068658)
-        );
-
-        const Ray probe_ray(
-            ray.origin,
-            probe_direction
-        );
-
-        std::vector<HitRecord> previous_intersections;
-
-        all_intersections(
-            probe_ray,
-            Interval(
-                -std::numeric_limits<double>::infinity(),
-                0.0
-            ),
-            previous_intersections
-        );
-
         MediumState active_media;
 
-        if (!active_media.initialize_from_intersections(
-                std::move(previous_intersections))) {
+        if (!initialize_medium_state(
+                ray.origin,
+                active_media)) {
             return Vec3(0.0, 0.0, 0.0);
         }
 
-        Vec3 result(1.0, 1.0, 1.0);
+        Vec3 result = volume_transmittance(ray, ray_t);
 
         const double direction_length = ray.direction.length();
         double previous_t = ray_t.min;

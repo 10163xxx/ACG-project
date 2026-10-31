@@ -116,6 +116,16 @@ public:
         return false;
     }
 
+    void all_intersections(
+        const Ray& ray,
+        const Interval& ray_t,
+        std::vector<HitRecord>& intersections
+    ) const override {
+        (void)ray;
+        (void)ray_t;
+        (void)intersections;
+    }
+
     bool hit_surface(
         const Ray& ray,
         const Interval& ray_t,
@@ -128,7 +138,7 @@ public:
         return false;
     }
 
-    Vec3 transmittance(
+    Vec3 volume_transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const override {
@@ -145,7 +155,8 @@ public:
                 (interval.max - interval.min) * ray_length;
         }
 
-        double result = std::exp(-density_ * total_distance);
+        const double result =
+            std::exp(-density_ * total_distance);
 
         return Vec3(result, result, result);
     }

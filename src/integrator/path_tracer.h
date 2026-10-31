@@ -57,28 +57,9 @@ public:
         Vec3 radiance(0.0, 0.0, 0.0);
         MediumState active_media;
 
-        const Vec3 probe_direction = normalize(
-            Vec3(1.0, 0.3713906763541037, 0.6947465906068658)
-        );
-
-        const Ray probe_ray(
-            initial_ray.origin,
-            probe_direction
-        );
-
-        std::vector<HitRecord> previous_intersections;
-
-        world.all_intersections(
-            probe_ray,
-            Interval(
-                -std::numeric_limits<double>::infinity(),
-                0.0
-            ),
-            previous_intersections
-        );
-
-        if (!active_media.initialize_from_intersections(
-                std::move(previous_intersections))) {
+        if (!world.initialize_medium_state(
+                initial_ray.origin,
+                active_media)) {
             throw std::runtime_error(
                 "Failed to initialize the camera ray medium state."
             );

@@ -79,6 +79,26 @@ public:
         }
     }
 
+    Vec3 volume_transmittance(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const override {
+        Vec3 result(1.0, 1.0, 1.0);
+
+        for (const auto& object : objects_) {
+            result = result * object->volume_transmittance(
+                ray,
+                ray_t
+            );
+
+            if (result.near_zero()) {
+                return Vec3(0.0, 0.0, 0.0);
+            }
+        }
+
+        return result;
+    }
+
     bool hit_surface(
         const Ray& ray,
         const Interval& ray_t,

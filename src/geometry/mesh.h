@@ -120,6 +120,106 @@ public:
 
         is_closed_volume_ = has_closed_topology(faces);
 
+        const auto get_face_material = [&](
+            std::size_t face_index
+        ) -> const Material* {
+            const std::shared_ptr<const Material>& face_material =
+                face_materials.empty()
+                    ? material
+                    : face_materials[face_index];
+
+            return face_material.get();
+        };
+
+        bool has_medium_boundary = false;
+        bool has_non_medium_boundary = false;
+
+        double medium_ior = 1.0;
+        Vec3 medium_absorption(0.0, 0.0, 0.0);
+        bool has_reference_medium = false;
+
+        const auto approximately_equal = [](
+            double a,
+            double b
+        ) {
+            const double scale = std::max({
+                1.0,
+                std::abs(a),
+                std::abs(b)
+            });
+
+            return std::abs(a - b) <= 1e-10 * scale;
+        };
+
+        for (std::size_t i = 0; i < faces.size(); ++i) {
+            const Material* face_material =
+                get_face_material(i);
+
+            const bool is_medium_boundary =
+                face_material != nullptr &&
+                face_material->is_medium_boundary();
+
+            if (is_medium_boundary) {
+                has_medium_boundary = true;
+
+                const double ior =
+                    face_material->index_of_refraction();
+
+                const Vec3 absorption =
+                    face_material->shadow_absorption_coefficient();
+
+                if (!std::isfinite(ior) || ior <= 0.0 ||
+                    !std::isfinite(absorption.x) ||
+                    !std::isfinite(absorption.y) ||
+                    !std::isfinite(absorption.z) ||
+                    absorption.x < 0.0 ||
+                    absorption.y < 0.0 ||
+                    absorption.z < 0.0) {
+                    throw std::invalid_argument(
+                        "TriangleMesh has invalid dielectric medium properties."
+                    );
+                }
+
+                if (!has_reference_medium) {
+                    medium_ior = ior;
+                    medium_absorption = absorption;
+                    has_reference_medium = true;
+                } else if (
+                    !approximately_equal(ior, medium_ior) ||
+                    !approximately_equal(
+                        absorption.x,
+                        medium_absorption.x
+                    ) ||
+                    !approximately_equal(
+                        absorption.y,
+                        medium_absorption.y
+                    ) ||
+                    !approximately_equal(
+                        absorption.z,
+                        medium_absorption.z
+                    )
+                ) {
+                    throw std::invalid_argument(
+                        "All dielectric faces in a TriangleMesh must use identical IOR and absorption."
+                    );
+                }
+            } else {
+                has_non_medium_boundary = true;
+            }
+        }
+
+        if (has_medium_boundary && has_non_medium_boundary) {
+            throw std::invalid_argument(
+                "TriangleMesh cannot mix dielectric medium boundaries with ordinary surface materials."
+            );
+        }
+
+        if (has_medium_boundary && !is_closed_volume_) {
+            throw std::invalid_argument(
+                "An open TriangleMesh cannot be used as a dielectric medium boundary."
+            );
+        }
+
         triangles_.reserve(faces.size());
         cumulative_areas_.reserve(faces.size());
 

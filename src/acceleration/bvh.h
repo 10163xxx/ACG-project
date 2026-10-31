@@ -128,6 +128,44 @@ public:
         }
     }
 
+    Vec3 volume_transmittance(
+        const Ray& ray,
+        const Interval& ray_t
+    ) const override {
+        if (!box_.hit(ray, ray_t)) {
+            return Vec3(1.0, 1.0, 1.0);
+        }
+
+        if (is_leaf_) {
+            Vec3 result(1.0, 1.0, 1.0);
+
+            for (const auto& object : leaf_objects_) {
+                result = result * object->volume_transmittance(
+                    ray,
+                    ray_t
+                );
+
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+            }
+
+            return result;
+        }
+
+        const Vec3 left_transmittance =
+            left_->volume_transmittance(ray, ray_t);
+
+        if (left_transmittance.near_zero()) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const Vec3 right_transmittance =
+            right_->volume_transmittance(ray, ray_t);
+
+        return left_transmittance * right_transmittance;
+    }
+
     bool hit_surface(
         const Ray& ray,
         const Interval& ray_t,
