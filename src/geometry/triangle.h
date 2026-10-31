@@ -237,6 +237,12 @@ public:
             sample.v = gamma;
         }
 
+        // Keep sampled surface records consistent with ray-hit records.
+        sample.tangent = tangent_;
+        sample.bitangent = bitangent_;
+
+        compute_uv_parameterization(sample);
+
         sample.material = material_;
 
         pdf_area = 1.0 / area_;

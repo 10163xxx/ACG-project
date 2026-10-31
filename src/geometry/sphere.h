@@ -168,9 +168,47 @@ public:
             -PI * radius_ * cos_theta * sin_phi
         );
 
+        const double dpdu_length_squared =
+            sample.dpdu.length_squared();
+
+        const double dpdv_length_squared =
+            sample.dpdv.length_squared();
+
         sample.has_uv_parameterization =
-            sample.dpdu.length_squared() > 1e-20 &&
-            sample.dpdv.length_squared() > 1e-20;
+            std::isfinite(dpdu_length_squared) &&
+            std::isfinite(dpdv_length_squared) &&
+            dpdu_length_squared > 1e-20 &&
+            dpdv_length_squared > 1e-20;
+
+        // Construct the sampled tangent frame using the same
+        // UV orientation as the sphere ray-hit implementation.
+        Vec3 tangent = sample.dpdu;
+
+        if (!sample.has_uv_parameterization) {
+            const Vec3 helper =
+                std::abs(outward_normal.x) < 0.8
+                    ? Vec3(1.0, 0.0, 0.0)
+                    : Vec3(0.0, 1.0, 0.0);
+
+            tangent = cross(helper, outward_normal);
+        }
+
+        const double tangent_length_squared =
+            tangent.length_squared();
+
+        if (!std::isfinite(tangent_length_squared) ||
+            tangent_length_squared <= 1e-20) {
+            return false;
+        }
+
+        sample.tangent =
+            tangent / std::sqrt(tangent_length_squared);
+
+        sample.bitangent =
+            normalize(cross(
+                outward_normal,
+                sample.tangent
+            ));
 
         sample.material = material_;
 

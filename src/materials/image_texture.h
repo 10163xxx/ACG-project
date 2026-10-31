@@ -48,18 +48,10 @@ public:
             return sample(u, v, 0.0);
         }
 
-        double width_u = 0.0;
-        double width_v = 0.0;
-
-        if (!context.get_uv_footprint(width_u, width_v)) {
-            return sample(u, v, 0.0);
-        }
-
-        double footprint = 0.0;
-
+        // Anisotropic filtering requires screen-space UV derivatives.
+        // Ray-cone footprints do not provide an orientation, so they
+        // continue to use isotropic filtering.
         if (context.has_valid_uv_differentials()) {
-            // Preserve the original screen-space derivative
-            // footprint calculation.
             const double dx_u =
                 context.dudx * static_cast<double>(width_);
 
@@ -72,25 +64,169 @@ public:
             const double dy_v =
                 context.dvdy * static_cast<double>(height_);
 
-            const double footprint_x =
-                std::sqrt(dx_u * dx_u + dx_v * dx_v);
+            if (!std::isfinite(dx_u) ||
+                !std::isfinite(dx_v) ||
+                !std::isfinite(dy_u) ||
+                !std::isfinite(dy_v)) {
+                return sample(u, v, 0.0);
+            }
 
-            const double footprint_y =
-                std::sqrt(dy_u * dy_u + dy_v * dy_v);
+            // Construct the covariance matrix of the texture-space
+            // screen footprint:
+            //
+            // C = J * transpose(J)
+            //
+            // Its eigenvectors give the footprint directions, and
+            // its eigenvalues give the squared principal-axis lengths.
+            const double c00 =
+                dx_u * dx_u + dy_u * dy_u;
 
-            footprint =
-                std::max(footprint_x, footprint_y);
-        } else {
-            // Ray-cone footprint: convert UV extents into texels.
-            const double footprint_u =
-                width_u * static_cast<double>(width_);
+            const double c01 =
+                dx_u * dx_v + dy_u * dy_v;
 
-            const double footprint_v =
-                width_v * static_cast<double>(height_);
+            const double c11 =
+                dx_v * dx_v + dy_v * dy_v;
 
-            footprint =
-                std::max(footprint_u, footprint_v);
+            const double discriminant =
+                std::hypot(
+                    c00 - c11,
+                    2.0 * c01
+                );
+
+            const double major_squared =
+                0.5 * (
+                    c00 + c11 + discriminant
+                );
+
+            if (!std::isfinite(major_squared) ||
+                major_squared < 0.0) {
+                return sample(u, v, 0.0);
+            }
+
+            const double major_length =
+                std::sqrt(major_squared);
+
+            if (major_length <= 1e-8) {
+                return sample(u, v, 0.0);
+            }
+
+            // The determinant of J * transpose(J) is det(J)^2.
+            // This form is more stable than subtracting two nearly
+            // equal eigenvalues for highly anisotropic footprints.
+            const double jacobian_determinant =
+                dx_u * dy_v - dx_v * dy_u;
+
+            const double covariance_determinant =
+                jacobian_determinant *
+                jacobian_determinant;
+
+            const double minor_squared =
+                major_squared > 1e-20
+                    ? covariance_determinant / major_squared
+                    : 0.0;
+
+            const double minor_length =
+                std::sqrt(std::max(0.0, minor_squared));
+
+            if (!std::isfinite(minor_length)) {
+                return sample(u, v, 0.0);
+            }
+
+            constexpr double MAX_ANISOTROPY = 8.0;
+            constexpr std::size_t MAX_ANISOTROPIC_SAMPLES = 8;
+
+            // Clamp the anisotropy ratio. Beyond this limit, the
+            // remaining footprint is handled by a coarser mip level.
+            const double filtered_minor_length =
+                std::max(
+                    minor_length,
+                    major_length / MAX_ANISOTROPY
+                );
+
+            const double anisotropy =
+                major_length /
+                std::max(filtered_minor_length, 1e-8);
+
+            const std::size_t sample_count =
+                std::clamp(
+                    static_cast<std::size_t>(
+                        std::ceil(anisotropy)
+                    ),
+                    static_cast<std::size_t>(1),
+                    MAX_ANISOTROPIC_SAMPLES
+                );
+
+            // The minor axis determines the mip level.
+            const double lod =
+                std::max(
+                    0.0,
+                    std::log2(
+                        std::max(
+                            filtered_minor_length,
+                            1e-8
+                        )
+                    )
+                );
+
+            // Eigenvector corresponding to the major eigenvalue.
+            const double angle =
+                0.5 * std::atan2(
+                    2.0 * c01,
+                    c00 - c11
+                );
+
+            const double axis_u = std::cos(angle);
+            const double axis_v = std::sin(angle);
+
+            Vec3 accumulated_color(0.0, 0.0, 0.0);
+
+            for (std::size_t i = 0; i < sample_count; ++i) {
+                // Uniformly distribute samples over the major axis.
+                const double offset =
+                    (
+                        (static_cast<double>(i) + 0.5) /
+                        static_cast<double>(sample_count)
+                        - 0.5
+                    ) * major_length;
+
+                const double sample_u =
+                    u + axis_u * offset /
+                        static_cast<double>(width_);
+
+                const double sample_v =
+                    v + axis_v * offset /
+                        static_cast<double>(height_);
+
+                accumulated_color =
+                    accumulated_color +
+                    sample(
+                        sample_u,
+                        sample_v,
+                        lod
+                    );
+            }
+
+            return accumulated_color /
+                static_cast<double>(sample_count);
         }
+
+        // Ray-cone footprint: no screen-space orientation is
+        // available, so retain isotropic trilinear filtering.
+        double width_u = 0.0;
+        double width_v = 0.0;
+
+        if (!context.get_uv_footprint(width_u, width_v)) {
+            return sample(u, v, 0.0);
+        }
+
+        const double footprint_u =
+            width_u * static_cast<double>(width_);
+
+        const double footprint_v =
+            width_v * static_cast<double>(height_);
+
+        const double footprint =
+            std::max(footprint_u, footprint_v);
 
         if (!std::isfinite(footprint)) {
             return sample(u, v, 0.0);
