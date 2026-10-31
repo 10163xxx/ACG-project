@@ -614,6 +614,9 @@ namespace {
             hit.normal = Vec3(0.0, 0.0, 1.0);
             hit.tangent = Vec3(1.0, 0.0, 0.0);
             hit.bitangent = Vec3(0.0, 1.0, 0.0);
+            hit.dpdu = Vec3(1.0, 0.0, 0.0);
+            hit.dpdv = Vec3(0.0, 1.0, 0.0);
+            hit.has_uv_parameterization = true; 
 
             const Vec3 direction(0.0, 0.0, 1.0);
 

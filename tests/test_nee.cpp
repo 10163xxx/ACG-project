@@ -74,7 +74,7 @@ int main() {
 
     lit_scene.add(
         std::make_shared<Sphere>(
-            Vec3(2.0, 2.0, 1.5),
+            Vec3(0.0, 1.5, 2.5),
             0.5,
             light_material
         )

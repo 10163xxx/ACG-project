@@ -194,6 +194,10 @@ public:
         return dot(normal, incoming) / PI;
     }
 
+    bool supports_direct_lighting() const override {
+        return true;
+    }
+
 private:
     std::shared_ptr<const Texture> texture_;
 };

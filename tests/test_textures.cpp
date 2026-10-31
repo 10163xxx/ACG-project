@@ -373,7 +373,7 @@ namespace {
 
         // Strongly tilted tangent-space normal.
         auto normal_map = std::make_shared<SolidColor>(
-            Vec3(1.0, 0.5, 0.5));
+            Vec3(0.9, 0.5, 0.7));
 
         NormalMappedMaterial material(
             std::make_shared<Lambertian>(
