@@ -30,6 +30,12 @@ public:
             );
         }
 
+        if (!boundary_->is_closed_volume()) {
+            throw std::invalid_argument(
+                "ConstantMedium requires a closed volume boundary."
+            );
+        }
+
         if (!std::isfinite(density_) || density_ <= 0.0) {
             throw std::invalid_argument(
                 "Medium density must be finite and positive."

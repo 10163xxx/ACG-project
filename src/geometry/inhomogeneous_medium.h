@@ -30,6 +30,12 @@ public:
             );
         }
 
+        if (!boundary_->is_closed_volume()) {
+            throw std::invalid_argument(
+                "ConstantMedium requires a closed volume boundary."
+            );
+        }
+
         if (!std::isfinite(density_) || density_ <= 0.0) {
             throw std::invalid_argument(
                 "Medium density must be finite and positive."
@@ -111,6 +117,16 @@ public:
         return false;
     }
 
+    void all_intersections(
+        const Ray& ray,
+        const Interval& ray_t,
+        std::vector<HitRecord>& intersections
+    ) const override {
+        (void)ray;
+        (void)ray_t;
+        (void)intersections;
+    }
+
     bool hit_surface(
         const Ray& ray,
         const Interval& ray_t,
@@ -123,7 +139,7 @@ public:
         return false;
     }
 
-    Vec3 transmittance(
+    Vec3 volume_transmittance(
         const Ray& ray,
         const Interval& ray_t
     ) const override {
