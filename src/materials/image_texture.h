@@ -204,7 +204,11 @@ private:
         while (input.get(ch)) {
             if (std::isspace(
                     static_cast<unsigned char>(ch))) {
-                continue;
+                if (ch == '\r' && input.peek() == '\n') {
+                    input.get(ch);
+                }
+
+                break;
             }
 
             if (ch == '#') {

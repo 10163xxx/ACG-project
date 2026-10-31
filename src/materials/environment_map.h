@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <limits>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -33,11 +34,15 @@ public:
         bool format_supported = false;
 
         while (std::getline(file, line)) {
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
+
             if (line == "FORMAT=32-bit_rle_rgbe") {
                 format_supported = true;
             }
 
-            if (line.empty() || line == "\r") {
+            if (line.empty()) {
                 break;
             }
         }
@@ -64,7 +69,10 @@ public:
             );
         }
 
-        file.get(); // Consume the newline after the resolution line.
+        file.ignore(
+            std::numeric_limits<std::streamsize>::max(),
+            '\n'
+        );
 
         width_ = width;
         height_ = height;

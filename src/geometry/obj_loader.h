@@ -310,17 +310,17 @@ private:
                         vertex_has_normal[i + 1]
                     });
 
-                    if (has_normals) {
-                        parsed.face_normals.push_back({
-                            static_cast<std::size_t>(normal_indices[0]),
-                            static_cast<std::size_t>(normal_indices[i]),
-                            static_cast<std::size_t>(normal_indices[i + 1])
-                        });
-                    } else {
-                        parsed.face_normals.push_back({
-                            0, 0, 0
-                        });
-                    }
+                    parsed.face_normals.push_back({
+                        vertex_has_normal[0]
+                            ? static_cast<std::size_t>(normal_indices[0])
+                            : 0,
+                        vertex_has_normal[i]
+                            ? static_cast<std::size_t>(normal_indices[i])
+                            : 0,
+                        vertex_has_normal[i + 1]
+                            ? static_cast<std::size_t>(normal_indices[i + 1])
+                            : 0
+                    });
 
                     parsed.face_smoothing_groups.push_back(
                         current_smoothing_group

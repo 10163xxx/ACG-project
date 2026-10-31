@@ -90,6 +90,13 @@ public:
             );
         }
 
+        if (!face_texcoords.empty() &&
+            face_texcoords.size() != faces.size()) {
+            throw std::invalid_argument(
+                "TriangleMesh UV face count does not match face count."
+            );
+        }
+
         if (!face_normals.empty() &&
             face_normals.size() != faces.size()) {
             throw std::invalid_argument(

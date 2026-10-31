@@ -71,8 +71,11 @@ public:
         double octave_frequency = scale_;
 
         for (int octave = 0; octave < octaves_; ++octave) {
-            // Omit frequencies finer than the estimated footprint.
-            if (footprint > 0.0 &&
+            // Always retain the base octave.
+            // Only remove higher-frequency octaves when they exceed
+            // the estimated sampling footprint.
+            if (filtered_octaves > 0 &&
+                footprint > 0.0 &&
                 footprint * octave_frequency > 1.0) {
                 break;
             }
