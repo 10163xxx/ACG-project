@@ -18,9 +18,9 @@ public:
         : center_(center),
           radius_(radius),
           material_(std::move(material)) {
-        if (radius <= 0.0) {
+        if (!std::isfinite(radius_) || radius_ <= 0.0) {
             throw std::invalid_argument(
-                "Sphere radius must be positive."
+                "Sphere radius must be positive and finite."
             );
         }
     }
@@ -115,7 +115,11 @@ public:
     ) const override {
         constexpr double PI = 3.14159265358979323846;
 
-        if (u1 < 0.0 || u1 >= 1.0 ||
+        pdf_area = 0.0;
+
+        if (!std::isfinite(u1) ||
+            !std::isfinite(u2) ||
+            u1 < 0.0 || u1 >= 1.0 ||
             u2 < 0.0 || u2 >= 1.0) {
             return false;
         }

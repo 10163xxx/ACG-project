@@ -218,9 +218,6 @@ public:
             sample.shading_normal = interpolated_normal;
             sample.has_shading_normal = true;
         }
-        
-        sample.tangent = tangent_;
-        sample.bitangent = bitangent_;
 
         if (has_uv_) {
             sample.u =
