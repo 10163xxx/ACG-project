@@ -203,27 +203,7 @@ public:
         const Ray& ray,
         const Interval& ray_t
     ) const override {
-        if (!box_.hit(ray, ray_t)) {
-            return Vec3(1.0, 1.0, 1.0);
-        }
-
-        if (is_leaf_) {
-            Vec3 result(1.0, 1.0, 1.0);
-
-            for (const auto& object : leaf_objects_) {
-                result = result
-                    * object->transmittance(ray, ray_t);
-
-                if (result.near_zero()) {
-                    return Vec3(0.0, 0.0, 0.0);
-                }
-            }
-
-            return result;
-        }
-
-        return left_->transmittance(ray, ray_t)
-            * right_->transmittance(ray, ray_t);
+        return Hittable::transmittance(ray, ray_t);
     }
 
     AABB bounding_box() const override {

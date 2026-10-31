@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <vector>
 #include <utility>
+#include <algorithm>
 
 #include "geometry/hittable.h"
 
@@ -120,19 +121,7 @@ public:
         const Ray& ray,
         const Interval& ray_t
     ) const override {
-        Vec3 total_transmittance(1.0, 1.0, 1.0);
-
-        for (const auto& object : objects_) {
-            total_transmittance =
-                total_transmittance
-                * object->transmittance(ray, ray_t);
-
-            if (total_transmittance.near_zero()) {
-                return Vec3(0.0, 0.0, 0.0);
-            }
-        }
-
-        return total_transmittance;
+        return Hittable::transmittance(ray, ray_t);
     }
 
     AABB bounding_box() const override {

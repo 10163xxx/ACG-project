@@ -181,6 +181,20 @@ public:
         );
     }
 
+    Vec3 shadow_boundary_transmittance(
+        const HitRecord& hit,
+        const Vec3& ray_direction,
+        double incident_ior,
+        double transmitted_ior
+    ) const override {
+        return base_material_->shadow_boundary_transmittance(
+            hit,
+            ray_direction,
+            incident_ior,
+            transmitted_ior
+        );
+    }
+
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,

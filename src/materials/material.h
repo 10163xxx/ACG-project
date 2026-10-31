@@ -68,6 +68,23 @@ public:
         return Vec3(1.0, 1.0, 1.0);
     }
 
+    // Transmission through a dielectric boundary with the actual
+    // refractive indices on both sides of the interface.
+    virtual Vec3 shadow_boundary_transmittance(
+        const HitRecord& hit,
+        const Vec3& ray_direction,
+        double incident_ior,
+        double transmitted_ior
+    ) const {
+        (void)incident_ior;
+        (void)transmitted_ior;
+
+        return shadow_transmittance(
+            hit,
+            ray_direction
+        );
+    }
+
     // Evaluate the BSDF for directions pointing away from the surface.
     // Non-BSDF materials return black by default.
     virtual Vec3 evaluate_bsdf(

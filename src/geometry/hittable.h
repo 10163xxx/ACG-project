@@ -80,48 +80,171 @@ public:
         std::vector<HitRecord> intersections;
         all_intersections(ray, ray_t, intersections);
 
-        Vec3 result(1.0, 1.0, 1.0);
+        std::sort(
+            intersections.begin(),
+            intersections.end(),
+            [](const HitRecord& a, const HitRecord& b) {
+                return a.t < b.t;
+            }
+        );
 
         struct ActiveMedium {
-            const Material* material;
-            double entry_t;
+            const Hittable* boundary = nullptr;
+            double ior = 1.0;
+            Vec3 absorption;
         };
 
         std::vector<ActiveMedium> active_media;
 
-        const double direction_length = ray.direction.length();
-        const bool closed_volume = is_closed_volume();
+        Vec3 result(1.0, 1.0, 1.0);
 
-        const auto apply_absorption = [&result](
-            const Material* material,
+        const double direction_length = ray.direction.length();
+        double previous_t = ray_t.min;
+
+        const auto apply_absorption = [&](
+            const Vec3& absorption,
             double distance
         ) {
-            if (material == nullptr || distance <= 0.0) {
+            if (distance <= 0.0) {
                 return;
             }
 
-            const Vec3 absorption =
-                material->shadow_absorption_coefficient();
-
-            const Vec3 attenuation(
+            result = result * Vec3(
                 std::exp(-absorption.x * distance),
                 std::exp(-absorption.y * distance),
                 std::exp(-absorption.z * distance)
             );
-
-            result = result * attenuation;
         };
 
         for (const HitRecord& intersection : intersections) {
-            if (intersection.is_volume ||
-                !intersection.material) {
+            if (intersection.is_volume) {
                 continue;
             }
+
+            if (!intersection.material) {
+                continue;
+            }
+
+            const double segment_distance =
+                std::max(0.0, intersection.t - previous_t)
+                * direction_length;
+
+            if (!active_media.empty()) {
+                apply_absorption(
+                    active_media.back().absorption,
+                    segment_distance
+                );
+
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+            }
+
+            previous_t = intersection.t;
 
             const Material* material =
                 intersection.material.get();
 
-            // Evaluate transmission at every surface independently.
+            if (material->is_medium_boundary()) {
+                if (intersection.medium_boundary == nullptr) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+
+                double incident_ior = 1.0;
+                double transmitted_ior = 1.0;
+
+                if (intersection.front_face) {
+                    incident_ior =
+                        active_media.empty()
+                            ? 1.0
+                            : active_media.back().ior;
+
+                    transmitted_ior =
+                        material->index_of_refraction();
+
+                    const bool already_active =
+                        std::any_of(
+                            active_media.begin(),
+                            active_media.end(),
+                            [&intersection](const ActiveMedium& medium) {
+                                return medium.boundary ==
+                                    intersection.medium_boundary;
+                            }
+                        );
+
+                    if (already_active) {
+                        return Vec3(0.0, 0.0, 0.0);
+                    }
+                } else {
+                    if (active_media.empty()) {
+                        // The shadow ray starts inside this medium.
+                        // Its entry boundary lies before ray_t.min.
+                        incident_ior =
+                            material->index_of_refraction();
+
+                        transmitted_ior = 1.0;
+
+                        const double distance =
+                            std::max(
+                                0.0,
+                                intersection.t - ray_t.min
+                            ) * direction_length;
+
+                        apply_absorption(
+                            material->shadow_absorption_coefficient(),
+                            distance
+                        );
+                    } else {
+                        if (active_media.back().boundary !=
+                            intersection.medium_boundary) {
+                            return Vec3(0.0, 0.0, 0.0);
+                        }
+
+                        incident_ior =
+                            active_media.back().ior;
+
+                        transmitted_ior =
+                            active_media.size() > 1
+                                ? active_media[
+                                    active_media.size() - 2
+                                  ].ior
+                                : 1.0;
+                    }
+                }
+
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+
+                result = result
+                    * material->shadow_boundary_transmittance(
+                        intersection,
+                        ray.direction,
+                        incident_ior,
+                        transmitted_ior
+                    );
+
+                if (result.near_zero()) {
+                    return Vec3(0.0, 0.0, 0.0);
+                }
+
+                if (intersection.front_face) {
+                    active_media.push_back({
+                        intersection.medium_boundary,
+                        transmitted_ior,
+                        material->shadow_absorption_coefficient()
+                    });
+                } else if (!active_media.empty()) {
+                    active_media.pop_back();
+                }
+
+                continue;
+            }
+
+            if (material->blocks_shadow(intersection)) {
+                return Vec3(0.0, 0.0, 0.0);
+            }
+
             result = result
                 * material->shadow_transmittance(
                     intersection,
@@ -131,70 +254,17 @@ public:
             if (result.near_zero()) {
                 return Vec3(0.0, 0.0, 0.0);
             }
-
-            // Open surfaces have no inferred interior absorption.
-            if (!closed_volume) {
-                continue;
-            }
-
-            if (intersection.front_face) {
-                active_media.push_back({
-                    material,
-                    intersection.t
-                });
-
-                continue;
-            }
-
-            if (active_media.empty()) {
-                // The ray interval may begin inside this closed
-                // volume, before its exit boundary is encountered.
-                const double distance = std::max(
-                    0.0,
-                    intersection.t - ray_t.min
-                ) * direction_length;
-
-                apply_absorption(material, distance);
-
-                if (result.near_zero()) {
-                    return Vec3(0.0, 0.0, 0.0);
-                }
-
-                continue;
-            }
-
-            // Pair boundaries by geometric traversal order rather
-            // than material pointer. Different OBJ faces may use
-            // different materials on the entry and exit boundaries.
-            const ActiveMedium medium = active_media.back();
-            active_media.pop_back();
-
-            const double distance = std::max(
-                0.0,
-                intersection.t - medium.entry_t
-            ) * direction_length;
-
-            // Use the entry material's absorption coefficient for
-            // the interior segment.
-            apply_absorption(medium.material, distance);
-
-            if (result.near_zero()) {
-                return Vec3(0.0, 0.0, 0.0);
-            }
         }
 
-        // The ray interval can end before it exits the volume.
-        for (const ActiveMedium& medium : active_media) {
-            const double distance = std::max(
-                0.0,
-                ray_t.max - medium.entry_t
-            ) * direction_length;
+        if (!active_media.empty()) {
+            const double remaining_distance =
+                std::max(0.0, ray_t.max - previous_t)
+                * direction_length;
 
-            apply_absorption(medium.material, distance);
-
-            if (result.near_zero()) {
-                return Vec3(0.0, 0.0, 0.0);
-            }
+            apply_absorption(
+                active_media.back().absorption,
+                remaining_distance
+            );
         }
 
         return result;

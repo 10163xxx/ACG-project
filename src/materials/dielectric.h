@@ -149,6 +149,39 @@ public:
         return tint_ * (1.0 - fresnel);
     }
 
+    Vec3 shadow_boundary_transmittance(
+        const HitRecord& hit,
+        const Vec3& ray_direction,
+        double incident_ior,
+        double transmitted_ior
+    ) const override {
+        if (!std::isfinite(incident_ior) ||
+            !std::isfinite(transmitted_ior) ||
+            incident_ior <= 0.0 ||
+            transmitted_ior <= 0.0) {
+            return Vec3(0.0, 0.0, 0.0);
+        }
+
+        const double refraction_ratio =
+            incident_ior / transmitted_ior;
+
+        const Vec3 direction = normalize(ray_direction);
+
+        const double cos_theta = std::clamp(
+            std::abs(dot(direction, hit.normal)),
+            0.0,
+            1.0
+        );
+
+        const double fresnel =
+            fresnel_reflectance(
+                cos_theta,
+                refraction_ratio
+            );
+
+        return tint_ * (1.0 - fresnel);
+    }
+
 private:
     double ir_;
     Vec3 tint_;
