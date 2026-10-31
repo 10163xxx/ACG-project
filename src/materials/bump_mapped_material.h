@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -58,31 +57,40 @@ public:
             base_normal = -1.0 * base_normal;
         }
 
-        Vec3 tangent =
-            hit.tangent -
-            dot(hit.tangent, base_normal) *
-                base_normal;
+        // A valid UV parameterization is required to convert
+        // the UV height gradient into a world-space gradient.
+        if (!hit.has_uv_parameterization) {
+            return base_normal;
+        }
 
-        tangent = normalize_or(
-            tangent,
-            fallback_tangent(base_normal)
-        );
+        // Project the UV parameterization directions onto the
+        // current shading-normal tangent plane.
+        const Vec3 dpdu =
+            hit.dpdu -
+            dot(hit.dpdu, base_normal) * base_normal;
 
-        Vec3 bitangent =
-            hit.bitangent -
-            dot(hit.bitangent, base_normal) *
-                base_normal -
-            dot(hit.bitangent, tangent) * tangent;
+        const Vec3 dpdv =
+            hit.dpdv -
+            dot(hit.dpdv, base_normal) * base_normal;
 
-        bitangent = normalize_or(
-            bitangent,
-            normalize_or(
-                cross(geometric_normal, tangent),
-                Vec3(0.0, 0.0, 1.0)
-            )
-        );
+        const double g00 = dot(dpdu, dpdu);
+        const double g01 = dot(dpdu, dpdv);
+        const double g11 = dot(dpdv, dpdv);
 
-        // Central differences estimate the height gradient in UV space.
+        const double determinant =
+            g00 * g11 - g01 * g01;
+
+        if (!std::isfinite(g00) ||
+            !std::isfinite(g01) ||
+            !std::isfinite(g11) ||
+            !std::isfinite(determinant) ||
+            g00 <= 1e-20 ||
+            g11 <= 1e-20 ||
+            determinant <= 1e-12 * g00 * g11) {
+            return base_normal;
+        }
+
+        // Estimate the height gradient in UV space.
         constexpr double UV_STEP = 1e-3;
 
         const double dhdu =
@@ -97,10 +105,36 @@ public:
                 height(hit.u, hit.v - UV_STEP, hit)
             ) / (2.0 * UV_STEP);
 
+        if (!std::isfinite(dhdu) ||
+            !std::isfinite(dhdv)) {
+            return base_normal;
+        }
+
+        // Solve the Gram system:
+        //
+        // [dot(dpdu, dpdu)  dot(dpdu, dpdv)] [a] = [dhdu]
+        // [dot(dpdu, dpdv)  dot(dpdv, dpdv)] [b]   [dhdv]
+        //
+        // The world-space gradient is a * dpdu + b * dpdv.
+        const double a =
+            (dhdu * g11 - dhdv * g01) /
+            determinant;
+
+        const double b =
+            (dhdv * g00 - dhdu * g01) /
+            determinant;
+
+        const Vec3 world_gradient =
+            a * dpdu + b * dpdv;
+
+        if (!std::isfinite(world_gradient.x) ||
+            !std::isfinite(world_gradient.y) ||
+            !std::isfinite(world_gradient.z)) {
+            return base_normal;
+        }
+
         Vec3 world_normal =
-            base_normal
-            - strength_ * dhdu * tangent
-            - strength_ * dhdv * bitangent;
+            base_normal - strength_ * world_gradient;
 
         world_normal = normalize_or(
             world_normal,
@@ -246,17 +280,5 @@ private:
         }
 
         return value / std::sqrt(length_squared);
-    }
-
-    static Vec3 fallback_tangent(const Vec3& normal) {
-        const Vec3 helper =
-            std::abs(normal.y) < 0.8
-                ? Vec3(0.0, 1.0, 0.0)
-                : Vec3(1.0, 0.0, 0.0);
-
-        return normalize_or(
-            cross(helper, normal),
-            Vec3(1.0, 0.0, 0.0)
-        );
     }
 };

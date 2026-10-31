@@ -220,6 +220,42 @@ private:
             dpdu_length_squared > 1e-20 &&
             dpdv_length_squared > 1e-20;
 
+        // Construct the tangent frame from the sphere's UV
+        // parameterization.
+        Vec3 tangent =
+            record.dpdu -
+            dot(record.dpdu, record.normal) *
+                record.normal;
+
+        double tangent_length_squared =
+            tangent.length_squared();
+
+        if (!std::isfinite(tangent_length_squared) ||
+            tangent_length_squared < 1e-20) {
+            // The UV tangent is singular at the sphere poles.
+            // Use a stable fallback direction there.
+            const Vec3 helper =
+                std::abs(record.normal.x) < 0.8
+                    ? Vec3(1.0, 0.0, 0.0)
+                    : Vec3(0.0, 1.0, 0.0);
+
+            tangent = cross(helper, record.normal);
+
+            tangent_length_squared =
+                tangent.length_squared();
+        }
+
+        record.tangent =
+            tangent / std::sqrt(tangent_length_squared);
+
+        // Preserve the UV orientation and face-forward
+        // convention used by the triangle tangent frame.
+        record.bitangent =
+            normalize(cross(
+                record.normal,
+                record.tangent
+            ));
+
         compute_uv_differentials(ray, record);
 
         record.material = material_;
