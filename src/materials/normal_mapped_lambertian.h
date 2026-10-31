@@ -8,15 +8,16 @@
 
 #include "materials/material.h"
 #include "materials/texture.h"
+#include "materials/material_decorator.h"
 
-class NormalMappedMaterial final : public Material {
+class NormalMappedMaterial final : public MaterialDecorator {
 public:
     NormalMappedMaterial(
         std::shared_ptr<const Material> base_material,
         std::shared_ptr<const Texture> normal_map,
         double normal_strength = 1.0
     )
-        : base_material_(std::move(base_material)),
+        : MaterialDecorator(std::move(base_material)),
           normal_map_(std::move(normal_map)),
           normal_strength_(
               std::clamp(
@@ -27,11 +28,6 @@ public:
                   1.0
               )
           ) {
-        if (!base_material_) {
-            throw std::invalid_argument(
-                "NormalMappedMaterial requires a base material."
-            );
-        }
 
         if (!normal_map_) {
             throw std::invalid_argument(
@@ -147,54 +143,6 @@ public:
         return mapped_normal(hit);
     }
 
-    Vec3 emitted(const HitRecord& hit) const override {
-        return base_material_->emitted(hit);
-    }
-
-    bool is_emissive() const override {
-        return base_material_->is_emissive();
-    }
-
-    Vec3 shadow_absorption_coefficient() const override {
-        return base_material_->shadow_absorption_coefficient();
-    }
-
-    double index_of_refraction() const override {
-        return base_material_->index_of_refraction();
-    }
-
-    bool is_medium_boundary() const override {
-        return base_material_->is_medium_boundary();
-    }
-
-    bool blocks_shadow(const HitRecord& hit) const override {
-        return base_material_->blocks_shadow(hit);
-    }
-
-    Vec3 shadow_transmittance(
-        const HitRecord& hit,
-        const Vec3& ray_direction
-    ) const override {
-        return base_material_->shadow_transmittance(
-            hit,
-            ray_direction
-        );
-    }
-
-    Vec3 shadow_boundary_transmittance(
-        const HitRecord& hit,
-        const Vec3& ray_direction,
-        double incident_ior,
-        double transmitted_ior
-    ) const override {
-        return base_material_->shadow_boundary_transmittance(
-            hit,
-            ray_direction,
-            incident_ior,
-            transmitted_ior
-        );
-    }
-
     Vec3 evaluate_bsdf(
         const HitRecord& hit,
         const Vec3& outgoing_direction,
@@ -239,10 +187,6 @@ public:
         );
     }
 
-    bool supports_direct_lighting() const override {
-        return base_material_->supports_direct_lighting();
-    }
-
     bool scatter(
         const Ray& incoming,
         const HitRecord& hit,
@@ -274,7 +218,6 @@ public:
     }
 
 private:
-    std::shared_ptr<const Material> base_material_;
     std::shared_ptr<const Texture> normal_map_;
     double normal_strength_ = 1.0;
 
