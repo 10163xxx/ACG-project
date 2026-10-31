@@ -82,6 +82,11 @@ public:
         ScatterSampleInfo& info
     ) const override {
         info.is_straight_through = false;
+        info.is_transmission = false;
+
+        info.ray_cone_spread_scale = 1.0;
+        info.ray_cone_spread_add = 0.0;
+
         const Vec3 geometric_normal =
             normalize(hit.normal);
 
@@ -117,8 +122,17 @@ public:
                 );
 
             wi = normalize(reflect(-wo, half_vector));
+
+            // GGX reflection broadens the ray cone according
+            // to the sampled material roughness.
+            info.ray_cone_spread_add =
+                0.5 * roughness;
         } else {
             wi = sample_cosine_hemisphere(n);
+
+            // Diffuse sampling produces a broader angular
+            // distribution than glossy reflection.
+            info.ray_cone_spread_add = 0.5;
         }
 
         if (!shading_normal::valid_reflection_directions(

@@ -39,6 +39,14 @@ int main() {
     assert(std::abs(attenuation.z - 0.2) < 1e-9);
     assert(dot(scattered.direction, hit.normal) > 0.0);
 
+    assert(std::abs(
+        scatter_info.ray_cone_spread_scale - 1.0
+    ) < 1e-12);
+
+    assert(std::abs(
+        scatter_info.ray_cone_spread_add - 0.5
+    ) < 1e-12);
+
     // 1b. Lambertian BSDF evaluation
     constexpr double PI = 3.14159265358979323846;
 
@@ -116,6 +124,14 @@ int main() {
     assert(std::abs(scattered.direction.y - 1.0) < 1e-9);
     assert(std::abs(scattered.direction.z) < 1e-9);
 
+    assert(std::abs(
+        scatter_info.ray_cone_spread_scale - 1.0
+    ) < 1e-12);
+
+    assert(std::abs(
+        scatter_info.ray_cone_spread_add
+    ) < 1e-12);
+
     // 3. Dielectric
     Dielectric glass(1.5);
 
@@ -149,6 +165,20 @@ int main() {
     assert(std::abs(attenuation.y - 1.0) < 1e-9);
     assert(std::abs(attenuation.z - 1.0) < 1e-9);
     assert(scattered.direction.length_squared() > 0.0);
+
+    if (scatter_info.is_transmission) {
+        assert(std::abs(
+            scatter_info.ray_cone_spread_scale - (1.0 / 1.5)
+        ) < 1e-12);
+    } else {
+        assert(std::abs(
+            scatter_info.ray_cone_spread_scale - 1.0
+        ) < 1e-12);
+    }
+
+    assert(std::abs(
+        scatter_info.ray_cone_spread_add
+    ) < 1e-12);
 
     // MIS: area PDF to solid-angle PDF conversion.
     assert(std::abs(

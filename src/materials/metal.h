@@ -40,6 +40,9 @@ public:
         info.is_straight_through = false;
         info.is_transmission = false;
 
+        info.ray_cone_spread_scale = 1.0;
+        info.ray_cone_spread_add = 0.0;
+
         const Vec3 geometric_normal =
             normalize(hit.normal);
 

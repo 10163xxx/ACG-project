@@ -144,6 +144,10 @@ public:
         if (opacity <= 0.0 ||
             Random::random_double() >= opacity) {
             info.is_straight_through = true;
+            info.is_transmission = false;
+
+            info.ray_cone_spread_scale = 1.0;
+            info.ray_cone_spread_add = 0.0;
 
             attenuation = Vec3(1.0, 1.0, 1.0);
             scattered = Ray(hit.point, incoming.direction);

@@ -17,6 +17,11 @@ struct ScatterSampleInfo {
     // PathTracer sets these before calling scatter().
     double incident_ior = 1.0;
     double transmitted_ior = 0.0;
+
+    // Ray-cone propagation across the scattering event:
+    // next_spread = incoming_spread * scale + add.
+    double ray_cone_spread_scale = 1.0;
+    double ray_cone_spread_add = 0.0;
 };
 
 class Material {

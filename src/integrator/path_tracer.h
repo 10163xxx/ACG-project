@@ -269,8 +269,24 @@ public:
                 scattered.cone_width =
                     hit.ray_cone_width;
 
+                const double spread_scale =
+                    scatter_info.ray_cone_spread_scale;
+
+                const double spread_add =
+                    scatter_info.ray_cone_spread_add;
+
+                if (!std::isfinite(spread_scale) ||
+                    !std::isfinite(spread_add) ||
+                    spread_scale < 0.0 ||
+                    spread_add < 0.0) {
+                    throw std::runtime_error(
+                        "Invalid ray-cone scattering parameters."
+                    );
+                }
+
                 scattered.cone_spread =
-                    ray.cone_spread;
+                    ray.cone_spread * spread_scale
+                    + spread_add;
             }
 
             previous_scatter_used_nee =
