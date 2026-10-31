@@ -307,7 +307,7 @@ private:
         const double t =
             dot(a_ - ray_origin, normal_) / denominator;
 
-        if (!std::isfinite(t)) {
+        if (!std::isfinite(t) || t <= 0.0) {
             return false;
         }
 
@@ -362,8 +362,16 @@ private:
             const double determinant =
                 du1 * dv2 - dv1 * du2;
 
+            const double uv_scale =
+                std::sqrt(
+                    (du1 * du1 + dv1 * dv1) *
+                    (du2 * du2 + dv2 * dv2)
+                );
+
             if (std::isfinite(determinant) &&
-                std::abs(determinant) > 1e-12) {
+                std::isfinite(uv_scale) &&
+                uv_scale > 0.0 &&
+                std::abs(determinant) > 1e-12 * uv_scale) {
                 record.dpdu =
                     (dv2 * edge1_ - dv1 * edge2_)
                     / determinant;
@@ -526,8 +534,17 @@ private:
                 duv1.x * duv2.y -
                 duv1.y * duv2.x;
 
+            const double uv_scale =
+                std::sqrt(
+                    duv1.length_squared() *
+                    duv2.length_squared()
+                );
+
             if (std::isfinite(determinant) &&
-                std::abs(determinant) > UV_EPSILON) {
+                std::isfinite(uv_scale) &&
+                uv_scale > 0.0 &&
+                std::abs(determinant) >
+                    UV_EPSILON * uv_scale) {
                 tangent =
                     (duv2.y * edge1_ -
                      duv1.y * edge2_) / determinant;

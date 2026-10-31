@@ -134,6 +134,44 @@ public:
         sample.point = center_ + radius_ * outward_normal;
         sample.normal = outward_normal;
         sample.front_face = true;
+
+        get_sphere_uv(
+            outward_normal,
+            sample.u,
+            sample.v
+        );
+
+        const double theta =
+            std::acos(std::clamp(
+                -outward_normal.y,
+                -1.0,
+                1.0
+            ));
+
+        const double uv_phi =
+            std::atan2(-outward_normal.z, outward_normal.x);
+
+        const double sin_theta = std::sin(theta);
+        const double cos_theta = std::cos(theta);
+        const double sin_phi = std::sin(uv_phi);
+        const double cos_phi = std::cos(uv_phi);
+
+        sample.dpdu = Vec3(
+            -2.0 * PI * radius_ * sin_theta * sin_phi,
+            0.0,
+            -2.0 * PI * radius_ * sin_theta * cos_phi
+        );
+
+        sample.dpdv = Vec3(
+            PI * radius_ * cos_theta * cos_phi,
+            PI * radius_ * sin_theta,
+            -PI * radius_ * cos_theta * sin_phi
+        );
+
+        sample.has_uv_parameterization =
+            sample.dpdu.length_squared() > 1e-20 &&
+            sample.dpdv.length_squared() > 1e-20;
+
         sample.material = material_;
 
         pdf_area = 1.0 / (4.0 * PI * radius_ * radius_);

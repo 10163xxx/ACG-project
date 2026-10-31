@@ -104,6 +104,123 @@ public:
         record.u = std::clamp(alpha, 0.0, 1.0);
         record.v = std::clamp(beta, 0.0, 1.0);
 
+        record.dpdu = u_;
+        record.dpdv = v_;
+        record.has_uv_parameterization = true;
+
+        record.has_surface_differentials = false;
+        record.has_uv_differentials = false;
+
+        if (ray.has_differentials) {
+            const auto intersect_plane = [&](
+                const Vec3& ray_origin,
+                const Vec3& ray_direction,
+                Vec3& differential_point
+            ) {
+                const double differential_denominator =
+                    dot(normal_, ray_direction);
+
+                if (!std::isfinite(differential_denominator) ||
+                    std::abs(differential_denominator) < 1e-12) {
+                    return false;
+                }
+
+                const double differential_t =
+                    (plane_d_ - dot(normal_, ray_origin))
+                    / differential_denominator;
+
+                if (!std::isfinite(differential_t) ||
+                    differential_t <= 0.0) {
+                    return false;
+                }
+
+                differential_point =
+                    ray_origin + differential_t * ray_direction;
+
+                return std::isfinite(differential_point.x) &&
+                       std::isfinite(differential_point.y) &&
+                       std::isfinite(differential_point.z);
+            };
+
+            const auto get_uv = [&](
+                const Vec3& differential_point,
+                double& differential_u,
+                double& differential_v
+            ) {
+                const Vec3 differential_relative =
+                    differential_point - q_;
+
+                const double relative_u =
+                    dot(differential_relative, u_);
+
+                const double relative_v =
+                    dot(differential_relative, v_);
+
+                differential_u =
+                    (
+                        relative_u * dot(v_, v_) -
+                        relative_v * dot(u_, v_)
+                    ) / coordinate_determinant_;
+
+                differential_v =
+                    (
+                        relative_v * dot(u_, u_) -
+                        relative_u * dot(u_, v_)
+                    ) / coordinate_determinant_;
+
+                return std::isfinite(differential_u) &&
+                       std::isfinite(differential_v);
+            };
+
+            Vec3 point_x;
+            Vec3 point_y;
+
+            if (intersect_plane(
+                    ray.rx_origin,
+                    ray.rx_direction,
+                    point_x) &&
+                intersect_plane(
+                    ray.ry_origin,
+                    ray.ry_direction,
+                    point_y)) {
+
+                record.dpdx = point_x - record.point;
+                record.dpdy = point_y - record.point;
+
+                record.dndx = Vec3(0.0, 0.0, 0.0);
+                record.dndy = Vec3(0.0, 0.0, 0.0);
+
+                record.has_surface_differentials =
+                    std::isfinite(record.dpdx.x) &&
+                    std::isfinite(record.dpdx.y) &&
+                    std::isfinite(record.dpdx.z) &&
+                    std::isfinite(record.dpdy.x) &&
+                    std::isfinite(record.dpdy.y) &&
+                    std::isfinite(record.dpdy.z);
+
+                double u_x = 0.0;
+                double v_x = 0.0;
+                double u_y = 0.0;
+                double v_y = 0.0;
+
+                if (record.has_surface_differentials &&
+                    get_uv(point_x, u_x, v_x) &&
+                    get_uv(point_y, u_y, v_y)) {
+
+                    record.dudx = u_x - record.u;
+                    record.dvdx = v_x - record.v;
+                    record.dudy = u_y - record.u;
+                    record.dvdy = v_y - record.v;
+
+                    record.has_uv_differentials =
+                        std::isfinite(record.dudx) &&
+                        std::isfinite(record.dvdx) &&
+                        std::isfinite(record.dudy) &&
+                        std::isfinite(record.dvdy);
+                }
+            }
+        }
+
         record.material = material_;
 
         return true;

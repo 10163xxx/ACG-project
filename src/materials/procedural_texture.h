@@ -81,9 +81,6 @@ public:
             octave_frequency *= 2.0;
         }
 
-        // Retain at least one coarse octave.
-        filtered_octaves = std::max(1, filtered_octaves);
-
         return evaluate(p, filtered_octaves);
     }
 

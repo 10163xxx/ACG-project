@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
 
 #include "../core/vec3.h"
 
@@ -25,6 +26,25 @@ struct TextureSampleContext {
     Vec3 dpdv;
     bool has_uv_parameterization = false;
 
+    bool has_valid_uv_differentials() const {
+        if (!has_uv_differentials ||
+            !std::isfinite(dudx) ||
+            !std::isfinite(dvdx) ||
+            !std::isfinite(dudy) ||
+            !std::isfinite(dvdy)) {
+            return false;
+        }
+
+        const double width_u =
+            std::abs(dudx) + std::abs(dudy);
+
+        const double width_v =
+            std::abs(dvdx) + std::abs(dvdy);
+
+        return std::isfinite(width_u) &&
+               std::isfinite(width_v);
+    }
+
     bool get_uv_footprint(
         double& width_u,
         double& width_v
@@ -32,24 +52,14 @@ struct TextureSampleContext {
         width_u = 0.0;
         width_v = 0.0;
 
-        if (has_uv_differentials &&
-            std::isfinite(dudx) &&
-            std::isfinite(dvdx) &&
-            std::isfinite(dudy) &&
-            std::isfinite(dvdy)) {
+        if (has_valid_uv_differentials()) {
             width_u =
                 std::abs(dudx) + std::abs(dudy);
 
             width_v =
                 std::abs(dvdx) + std::abs(dvdy);
 
-            if (std::isfinite(width_u) &&
-                std::isfinite(width_v)) {
-                return true;
-            }
-
-            width_u = 0.0;
-            width_v = 0.0;
+            return true;
         }
 
         if (!has_ray_cone ||
@@ -289,28 +299,152 @@ public:
     )
         : frequency_(frequency),
           color_a_(color_a),
-          color_b_(color_b) {}
+          color_b_(color_b) {
+        if (!std::isfinite(frequency_) || frequency_ <= 0.0) {
+            throw std::invalid_argument(
+                "Checker texture frequency must be finite and positive."
+            );
+        }
+    }
 
     Vec3 value(
         double,
         double,
         const Vec3& p,
-        const TextureSampleContext&
+        const TextureSampleContext& context
     ) const override {
-        const double s =
-            std::sin(frequency_ * p.x) *
-            std::sin(frequency_ * p.y) *
-            std::sin(frequency_ * p.z);
+        double width_x = 0.0;
+        double width_y = 0.0;
+        double width_z = 0.0;
 
-        return (s < 0.0)
-            ? color_b_
-            : color_a_;
+        if (context.has_surface_differentials &&
+            std::isfinite(context.dpdx.x) &&
+            std::isfinite(context.dpdx.y) &&
+            std::isfinite(context.dpdx.z) &&
+            std::isfinite(context.dpdy.x) &&
+            std::isfinite(context.dpdy.y) &&
+            std::isfinite(context.dpdy.z)) {
+
+            width_x =
+                std::abs(context.dpdx.x) +
+                std::abs(context.dpdy.x);
+
+            width_y =
+                std::abs(context.dpdx.y) +
+                std::abs(context.dpdy.y);
+
+            width_z =
+                std::abs(context.dpdx.z) +
+                std::abs(context.dpdy.z);
+        } else if (
+            context.has_ray_cone &&
+            std::isfinite(context.cone_width) &&
+            context.cone_width > 0.0
+        ) {
+            const double diameter =
+                2.0 * context.cone_width;
+
+            width_x = diameter;
+            width_y = diameter;
+            width_z = diameter;
+        }
+
+        if (!std::isfinite(width_x) ||
+            !std::isfinite(width_y) ||
+            !std::isfinite(width_z)) {
+            width_x = 0.0;
+            width_y = 0.0;
+            width_z = 0.0;
+        }
+
+        const double coordinate_x =
+            frequency_ * p.x / PI;
+
+        const double coordinate_y =
+            frequency_ * p.y / PI;
+
+        const double coordinate_z =
+            frequency_ * p.z / PI;
+
+        const double filtered_x =
+            average_square_wave(
+                coordinate_x,
+                frequency_ * width_x / PI
+            );
+
+        const double filtered_y =
+            average_square_wave(
+                coordinate_y,
+                frequency_ * width_y / PI
+            );
+
+        const double filtered_z =
+            average_square_wave(
+                coordinate_z,
+                frequency_ * width_z / PI
+            );
+
+        const double checker_average =
+            filtered_x * filtered_y * filtered_z;
+
+        const double weight_a =
+            0.5 * (1.0 + checker_average);
+
+        return
+            weight_a * color_a_ +
+            (1.0 - weight_a) * color_b_;
     }
 
 private:
+    static constexpr double PI =
+        3.14159265358979323846;
+
     double frequency_;
     Vec3 color_a_;
     Vec3 color_b_;
+
+    static double square_wave_primitive(double x) {
+        const double period_position =
+            x - 2.0 * std::floor(x / 2.0);
+
+        return period_position <= 1.0
+            ? period_position
+            : 2.0 - period_position;
+    }
+
+    static double average_square_wave(
+        double coordinate,
+        double width
+    ) {
+        if (!std::isfinite(coordinate) ||
+            !std::isfinite(width)) {
+            return 0.0;
+        }
+
+        if (width <= 1e-8) {
+            const auto cell =
+                static_cast<long long>(
+                    std::floor(coordinate)
+                );
+
+            return cell % 2 == 0 ? 1.0 : -1.0;
+        }
+
+        const double left =
+            coordinate - 0.5 * width;
+
+        const double right =
+            coordinate + 0.5 * width;
+
+        return std::clamp(
+            (
+                square_wave_primitive(right) -
+                square_wave_primitive(left)
+            ) / width,
+            -1.0,
+            1.0
+        );
+    }
 };
 
 class UVNormalTexture final : public Texture {

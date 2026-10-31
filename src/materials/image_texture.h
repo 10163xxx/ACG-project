@@ -57,7 +57,7 @@ public:
 
         double footprint = 0.0;
 
-        if (context.has_uv_differentials) {
+        if (context.has_valid_uv_differentials()) {
             // Preserve the original screen-space derivative
             // footprint calculation.
             const double dx_u =
@@ -400,13 +400,27 @@ private:
                             const std::size_t sx = 2 * x + dx;
                             const std::size_t sy = 2 * y + dy;
 
-                            if (sx >= source.width ||
-                                sy >= source.height) {
-                                continue;
+                            std::size_t sample_x = sx;
+                            std::size_t sample_y = sy;
+
+                            if (sample_x >= source.width) {
+                                if (address_mode_ == TextureAddressMode::Repeat) {
+                                    sample_x %= source.width;
+                                } else {
+                                    continue;
+                                }
+                            }
+
+                            if (sample_y >= source.height) {
+                                if (address_mode_ == TextureAddressMode::Repeat) {
+                                    sample_y %= source.height;
+                                } else {
+                                    continue;
+                                }
                             }
 
                             sum = sum + source.pixels[
-                                sy * source.width + sx
+                                sample_y * source.width + sample_x
                             ];
 
                             ++count;

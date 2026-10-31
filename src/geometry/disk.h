@@ -90,6 +90,107 @@ public:
         record.v = 0.5 +
             dot(relative, bitangent_) / (2.0 * radius_);
 
+        record.dpdu = 2.0 * radius_ * tangent_;
+        record.dpdv = 2.0 * radius_ * bitangent_;
+        record.has_uv_parameterization = true;
+
+        record.has_surface_differentials = false;
+        record.has_uv_differentials = false;
+
+        if (ray.has_differentials) {
+            const auto intersect_plane = [&](
+                const Vec3& ray_origin,
+                const Vec3& ray_direction,
+                Vec3& differential_point
+            ) {
+                const double differential_denominator =
+                    dot(normal_, ray_direction);
+
+                if (!std::isfinite(differential_denominator) ||
+                    std::abs(differential_denominator) < 1e-12) {
+                    return false;
+                }
+
+                const double differential_t =
+                    dot(center_ - ray_origin, normal_)
+                    / differential_denominator;
+
+                if (!std::isfinite(differential_t) ||
+                    differential_t <= 0.0) {
+                    return false;
+                }
+
+                differential_point =
+                    ray_origin + differential_t * ray_direction;
+
+                return std::isfinite(differential_point.x) &&
+                       std::isfinite(differential_point.y) &&
+                       std::isfinite(differential_point.z);
+            };
+
+            Vec3 point_x;
+            Vec3 point_y;
+
+            if (intersect_plane(
+                    ray.rx_origin,
+                    ray.rx_direction,
+                    point_x) &&
+                intersect_plane(
+                    ray.ry_origin,
+                    ray.ry_direction,
+                    point_y)) {
+
+                record.dpdx = point_x - record.point;
+                record.dpdy = point_y - record.point;
+
+                record.dndx = Vec3(0.0, 0.0, 0.0);
+                record.dndy = Vec3(0.0, 0.0, 0.0);
+
+                record.has_surface_differentials =
+                    std::isfinite(record.dpdx.x) &&
+                    std::isfinite(record.dpdx.y) &&
+                    std::isfinite(record.dpdx.z) &&
+                    std::isfinite(record.dpdy.x) &&
+                    std::isfinite(record.dpdy.y) &&
+                    std::isfinite(record.dpdy.z);
+
+                if (record.has_surface_differentials) {
+                    const Vec3 relative_x =
+                        point_x - center_;
+
+                    const Vec3 relative_y =
+                        point_y - center_;
+
+                    const double u_x =
+                        0.5 + dot(relative_x, tangent_)
+                        / (2.0 * radius_);
+
+                    const double v_x =
+                        0.5 + dot(relative_x, bitangent_)
+                        / (2.0 * radius_);
+
+                    const double u_y =
+                        0.5 + dot(relative_y, tangent_)
+                        / (2.0 * radius_);
+
+                    const double v_y =
+                        0.5 + dot(relative_y, bitangent_)
+                        / (2.0 * radius_);
+
+                    record.dudx = u_x - record.u;
+                    record.dvdx = v_x - record.v;
+                    record.dudy = u_y - record.u;
+                    record.dvdy = v_y - record.v;
+
+                    record.has_uv_differentials =
+                        std::isfinite(record.dudx) &&
+                        std::isfinite(record.dvdx) &&
+                        std::isfinite(record.dudy) &&
+                        std::isfinite(record.dvdy);
+                }
+            }
+        }
+
         record.material = material_;
 
         return true;
