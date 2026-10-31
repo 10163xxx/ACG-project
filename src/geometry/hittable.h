@@ -217,7 +217,7 @@ public:
                 }
 
                 result = result
-                    * material->shadow_boundary_transmittance(
+                    * material->shadow_transmittance(
                         intersection,
                         ray.direction,
                         incident_ior,
@@ -248,7 +248,9 @@ public:
             result = result
                 * material->shadow_transmittance(
                     intersection,
-                    ray.direction
+                    ray.direction,
+                    1.0,
+                    1.0
                 );
 
             if (result.near_zero()) {

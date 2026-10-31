@@ -124,7 +124,9 @@ int main() {
     const Vec3 glass_shadow_transmittance =
         glass.shadow_transmittance(
             hit,
-            Vec3(0.0, -1.0, 0.0)
+            Vec3(0.0, -1.0, 0.0),
+            1.0,
+            1.5
         );
 
     assert(std::abs(

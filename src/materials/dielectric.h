@@ -127,30 +127,6 @@ public:
 
     Vec3 shadow_transmittance(
         const HitRecord& hit,
-        const Vec3& ray_direction
-    ) const override {
-        const double refraction_ratio =
-            hit.front_face ? (1.0 / ir_) : ir_;
-
-        const Vec3 direction = normalize(ray_direction);
-
-        const double cos_theta = std::clamp(
-            std::abs(dot(direction, hit.normal)),
-            0.0,
-            1.0
-        );
-
-        const double fresnel =
-            fresnel_reflectance(
-                cos_theta,
-                refraction_ratio
-            );
-
-        return tint_ * (1.0 - fresnel);
-    }
-
-    Vec3 shadow_boundary_transmittance(
-        const HitRecord& hit,
         const Vec3& ray_direction,
         double incident_ior,
         double transmitted_ior

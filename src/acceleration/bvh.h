@@ -199,13 +199,6 @@ public:
         return false;
     }
 
-    Vec3 transmittance(
-        const Ray& ray,
-        const Interval& ray_t
-    ) const override {
-        return Hittable::transmittance(ray, ray_t);
-    }
-
     AABB bounding_box() const override {
         return box_;
     }

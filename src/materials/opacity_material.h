@@ -63,7 +63,9 @@ public:
 
     Vec3 shadow_transmittance(
         const HitRecord& hit,
-        const Vec3& ray_direction
+        const Vec3& ray_direction,
+        double incident_ior,
+        double transmitted_ior
     ) const override {
         const double opacity = opacity_at(hit);
 
@@ -83,7 +85,9 @@ public:
             base_transmittance =
                 base_material_->shadow_transmittance(
                     hit,
-                    ray_direction
+                    ray_direction,
+                    incident_ior,
+                    transmitted_ior
                 );
         }
 

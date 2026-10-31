@@ -55,34 +55,24 @@ public:
     virtual bool is_medium_boundary() const {
         return false;
     }
-
+    
     // Fraction of shadow-ray energy transmitted through this surface.
     // Opaque materials return 1 here because blocking is handled
     // separately by blocks_shadow().
+    // Dielectric materials use the actual refractive indices on
+    // both sides of the interface to evaluate Fresnel transmission.
     virtual Vec3 shadow_transmittance(
-        const HitRecord& hit,
-        const Vec3& ray_direction
-    ) const {
-        (void)hit;
-        (void)ray_direction;
-        return Vec3(1.0, 1.0, 1.0);
-    }
-
-    // Transmission through a dielectric boundary with the actual
-    // refractive indices on both sides of the interface.
-    virtual Vec3 shadow_boundary_transmittance(
         const HitRecord& hit,
         const Vec3& ray_direction,
         double incident_ior,
         double transmitted_ior
     ) const {
+        (void)hit;
+        (void)ray_direction;
         (void)incident_ior;
         (void)transmitted_ior;
 
-        return shadow_transmittance(
-            hit,
-            ray_direction
-        );
+        return Vec3(1.0, 1.0, 1.0);
     }
 
     // Evaluate the BSDF for directions pointing away from the surface.
