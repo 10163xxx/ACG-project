@@ -14,6 +14,50 @@
 #include "materials/procedural_texture.h"
 
 namespace {
+    Vec3 sample_texture(
+        const Texture& texture,
+        double u,
+        double v,
+        const Vec3& p,
+        const TextureSampleContext& context = TextureSampleContext()
+    ) {
+        return texture.value(u, v, p, context);
+    }
+
+    TextureSampleContext make_uv_test_context(
+        double dudx,
+        double dvdx,
+        double dudy,
+        double dvdy
+    ) {
+        TextureSampleContext context;
+
+        context.dudx = dudx;
+        context.dvdx = dvdx;
+        context.dudy = dudy;
+        context.dvdy = dvdy;
+        context.has_uv_differentials = true;
+
+        return context;
+    }
+
+    TextureSampleContext make_cone_test_context(
+        double cone_width,
+        const Vec3& dpdu,
+        const Vec3& dpdv
+    ) {
+        TextureSampleContext context;
+
+        context.cone_width = cone_width;
+        context.has_ray_cone = true;
+
+        context.dpdu = dpdu;
+        context.dpdv = dpdv;
+        context.has_uv_parameterization = true;
+
+        return context;
+    }
+
     bool approximately_equal(double a, double b) {
         constexpr double epsilon = 1e-9;
         return std::abs(a - b) < epsilon;
@@ -30,12 +74,12 @@ namespace {
         SolidColor texture(expected);
 
         assert(color_equal(
-            texture.value(0.0, 0.0, Vec3(1.0, 2.0, 3.0)),
+            sample_texture(texture, 0.0, 0.0, Vec3(1.0, 2.0, 3.0)),
             expected
         ));
 
         assert(color_equal(
-            texture.value(0.7, 0.9, Vec3(-1.0, 0.0, 2.0)),
+            sample_texture(texture, 0.7, 0.9, Vec3(-1.0, 0.0, 2.0)),
             expected
         ));
     }
@@ -47,17 +91,17 @@ namespace {
         UVCheckerTexture texture(2.0, color_a, color_b);
 
         assert(color_equal(
-            texture.value(0.1, 0.1, Vec3()),
+            sample_texture(texture, 0.1, 0.1, Vec3()),
             color_a
         ));
 
         assert(color_equal(
-            texture.value(0.6, 0.1, Vec3()),
+            sample_texture(texture, 0.6, 0.1, Vec3()),
             color_b
         ));
 
         assert(color_equal(
-            texture.value(0.6, 0.6, Vec3()),
+            sample_texture(texture, 0.6, 0.6, Vec3()),
             color_a
         ));
     }
@@ -73,7 +117,8 @@ namespace {
         );
 
         // With no footprint information, the checker remains sharp.
-        const Vec3 sharp = texture.value(
+        const Vec3 sharp = sample_texture(
+            texture, 
             0.1,
             0.1,
             Vec3()
@@ -83,12 +128,15 @@ namespace {
 
         // A large footprint covers complete checker periods.
         // The filtered result should converge to the average color.
-        const Vec3 filtered = texture.value(
+        const Vec3 filtered = sample_texture(
+            texture,
             0.1,
             0.1,
             Vec3(),
-            1.0, 0.0,
-            0.0, 1.0
+            make_uv_test_context(
+                1.0, 0.0,
+                0.0, 1.0
+            )
         );
 
         assert(color_equal(
@@ -98,20 +146,17 @@ namespace {
 
         // A ray-cone footprint should also filter the checker
         // when UV differentials are unavailable.
-        const Vec3 cone_filtered =
-            texture.value_with_cone(
-                0.1,
-                0.1,
-                Vec3(),
-                0.0, 0.0,
-                0.0, 0.0,
-                false,
+        const Vec3 cone_filtered = sample_texture(
+            texture,
+            0.1,
+            0.1,
+            Vec3(),
+            make_cone_test_context(
                 1.0,
-                true,
                 Vec3(1.0, 0.0, 0.0),
-                Vec3(0.0, 1.0, 0.0),
-                true
-            );
+                Vec3(0.0, 1.0, 0.0)
+            )
+        );
 
         assert(color_equal(
             cone_filtered,
@@ -123,7 +168,8 @@ namespace {
         UVNormalTexture texture(8.0);
 
         // No footprint information preserves point sampling.
-        const Vec3 sharp = texture.value(
+        const Vec3 sharp = sample_texture(
+            texture,
             0.125,
             0.125,
             Vec3()
@@ -131,12 +177,15 @@ namespace {
 
         // A large footprint should suppress high-frequency
         // normal variation and converge toward a flat normal.
-        const Vec3 filtered = texture.value(
+        const Vec3 filtered = sample_texture(
+            texture,
             0.125,
             0.125,
             Vec3(),
-            1.0, 0.0,
-            0.0, 1.0
+            make_uv_test_context(
+                1.0, 0.0,
+                0.0, 1.0
+            )
         );
 
         assert(std::abs(
@@ -156,20 +205,17 @@ namespace {
 
         // The ray-cone fallback should produce the same
         // flat result for this large footprint.
-        const Vec3 cone_filtered =
-            texture.value_with_cone(
-                0.125,
-                0.125,
-                Vec3(),
-                0.0, 0.0,
-                0.0, 0.0,
-                false,
+        const Vec3 cone_filtered = sample_texture(
+            texture,
+            0.125,
+            0.125,
+            Vec3(),
+            make_cone_test_context(
                 1.0,
-                true,
                 Vec3(1.0, 0.0, 0.0),
-                Vec3(0.0, 1.0, 0.0),
-                true
-            );
+                Vec3(0.0, 1.0, 0.0)
+            )
+        );
 
         assert(std::abs(
             cone_filtered.x - 0.5
@@ -189,17 +235,17 @@ namespace {
         UVGradientTexture texture(bottom, top);
 
         assert(color_equal(
-            texture.value(0.3, 0.0, Vec3()),
+            sample_texture(texture, 0.3, 0.0, Vec3()),
             bottom
         ));
 
         assert(color_equal(
-            texture.value(0.3, 1.0, Vec3()),
+            sample_texture(texture, 0.3, 1.0, Vec3()),
             top
         ));
 
-        const Vec3 middle = texture.value(
-            0.3, 0.5, Vec3()
+        const Vec3 middle = sample_texture(
+            texture, 0.3, 0.5, Vec3()
         );
 
         assert(color_equal(
@@ -209,12 +255,12 @@ namespace {
 
         // Values outside [0, 1] are clamped.
         assert(color_equal(
-            texture.value(0.3, -0.5, Vec3()),
+            sample_texture(texture, 0.3, -0.5, Vec3()),
             bottom
         ));
 
         assert(color_equal(
-            texture.value(0.3, 1.5, Vec3()),
+            sample_texture(texture, 0.3, 1.5, Vec3()),
             top
         ));
     }
@@ -533,12 +579,15 @@ namespace {
 
             // Large screen-space UV derivatives should select
             // a coarser mip level automatically.
-            const Vec3 automatic_lod = texture.value(
+            const Vec3 automatic_lod = sample_texture(
+                texture,
                 0.0,
                 1.0,
                 Vec3(),
-                1.0, 0.0,
-                0.0, 1.0
+                make_uv_test_context(
+                    1.0, 0.0,
+                    0.0, 1.0
+                )
             );
 
             assert(approximately_equal(
@@ -553,20 +602,18 @@ namespace {
                 automatic_lod.z, 0.5
             ));
 
-                        // Ray-cone fallback should select a coarse mip level
+            // Ray-cone fallback should select a coarse mip level
             // when screen-space UV differentials are unavailable.
-            const Vec3 cone_lod = texture.value_with_cone(
+            const Vec3 cone_lod = sample_texture(
+                texture,
                 0.0,
                 1.0,
                 Vec3(),
-                0.0, 0.0,
-                0.0, 0.0,
-                false,
-                1.0,
-                true,
-                Vec3(1.0, 0.0, 0.0),
-                Vec3(0.0, 1.0, 0.0),
-                true
+                make_cone_test_context(
+                    1.0,
+                    Vec3(1.0, 0.0, 0.0),
+                    Vec3(0.0, 1.0, 0.0)
+                )
             );
 
             assert(approximately_equal(cone_lod.x, 0.5));
@@ -644,7 +691,8 @@ namespace {
             // u=0.5 becomes 0.5*0.5+0.25=0.5,
             // which lies halfway between the two texels.
             const Vec3 transformed_color =
-                transformed.value(
+                sample_texture(
+                    transformed,
                     0.5,
                     0.5,
                     Vec3()
@@ -684,13 +732,15 @@ namespace {
 
         const Vec3 p(0.37, 1.24, -0.81);
 
-        const Vec3 a = first.value(
+        const Vec3 a = sample_texture(
+            first,
             0.0,
             0.0,
             p
         );
 
-        const Vec3 b = second.value(
+        const Vec3 b = sample_texture(
+            second,
             0.0,
             0.0,
             p
@@ -705,7 +755,8 @@ namespace {
         assert(a.z >= color_a.z && a.z <= color_b.z);
 
         // Moving through 3D space should change the noise value.
-        const Vec3 nearby = first.value(
+        const Vec3 nearby = sample_texture(
+            first,
             0.0,
             0.0,
             Vec3(0.91, 1.24, -0.81)

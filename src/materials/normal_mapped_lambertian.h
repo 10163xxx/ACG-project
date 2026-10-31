@@ -9,6 +9,7 @@
 #include "materials/material.h"
 #include "materials/texture.h"
 #include "materials/material_decorator.h"
+#include "materials/texture_sample_context.h"
 
 class NormalMappedMaterial final : public MaterialDecorator {
 public:
@@ -83,20 +84,11 @@ public:
             )
         );
 
-        const Vec3 rgb = normal_map_->value_with_cone(
+        const Vec3 rgb = normal_map_->value(
             hit.u,
             hit.v,
             hit.point,
-            hit.dudx,
-            hit.dvdx,
-            hit.dudy,
-            hit.dvdy,
-            hit.has_uv_differentials,
-            hit.ray_cone_width,
-            hit.has_ray_cone,
-            hit.dpdu,
-            hit.dpdv,
-            hit.has_uv_parameterization
+            make_texture_sample_context(hit)
         );
 
         // Decode tangent-space RGB from [0, 1] to [-1, 1].

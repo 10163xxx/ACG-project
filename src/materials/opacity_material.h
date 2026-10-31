@@ -8,6 +8,7 @@
 
 #include "materials/material.h"
 #include "materials/texture.h"
+#include "materials/texture_sample_context.h"
 #include "core/random.h"
 
 class OpacityMaterial final : public Material {
@@ -171,20 +172,11 @@ private:
             return opacity_;
         }
 
-        const Vec3 color = opacity_texture_->value_with_cone(
+        const Vec3 color = opacity_texture_->value(
             hit.u,
             hit.v,
             hit.point,
-            hit.dudx,
-            hit.dvdx,
-            hit.dudy,
-            hit.dvdy,
-            hit.has_uv_differentials,
-            hit.ray_cone_width,
-            hit.has_ray_cone,
-            hit.dpdu,
-            hit.dpdv,
-            hit.has_uv_parameterization
+            make_texture_sample_context(hit)
         );
 
         // MTL map_d is interpreted as a grayscale opacity map:

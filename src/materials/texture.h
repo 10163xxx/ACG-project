@@ -5,6 +5,77 @@
 
 #include "../core/vec3.h"
 
+struct TextureSampleContext {
+    double dudx = 0.0;
+    double dvdx = 0.0;
+    double dudy = 0.0;
+    double dvdy = 0.0;
+
+    bool has_uv_differentials = false;
+
+    double cone_width = 0.0;
+    bool has_ray_cone = false;
+
+    Vec3 dpdu;
+    Vec3 dpdv;
+    bool has_uv_parameterization = false;
+
+    bool get_uv_footprint(
+        double& width_u,
+        double& width_v
+    ) const {
+        if (has_uv_differentials) {
+            if (!std::isfinite(dudx) ||
+                !std::isfinite(dvdx) ||
+                !std::isfinite(dudy) ||
+                !std::isfinite(dvdy)) {
+                return false;
+            }
+
+            width_u =
+                std::abs(dudx) + std::abs(dudy);
+
+            width_v =
+                std::abs(dvdx) + std::abs(dvdy);
+
+            return true;
+        }
+
+        if (!has_ray_cone ||
+            !has_uv_parameterization ||
+            !std::isfinite(cone_width) ||
+            cone_width < 0.0) {
+            return false;
+        }
+
+        const double g00 = dot(dpdu, dpdu);
+        const double g01 = dot(dpdu, dpdv);
+        const double g11 = dot(dpdv, dpdv);
+
+        const double determinant =
+            g00 * g11 - g01 * g01;
+
+        if (!std::isfinite(g00) ||
+            !std::isfinite(g01) ||
+            !std::isfinite(g11) ||
+            !std::isfinite(determinant) ||
+            g00 <= 0.0 ||
+            g11 <= 0.0 ||
+            determinant <= 1e-20) {
+            return false;
+        }
+
+        width_u =
+            cone_width * std::sqrt(g11 / determinant);
+
+        width_v =
+            cone_width * std::sqrt(g00 / determinant);
+
+        return std::isfinite(width_u) &&
+               std::isfinite(width_v);
+    }
+};
+
 class Texture {
 public:
     virtual ~Texture() = default;
@@ -12,58 +83,9 @@ public:
     virtual Vec3 value(
         double u,
         double v,
-        const Vec3& p
+        const Vec3& p,
+        const TextureSampleContext& context
     ) const = 0;
-
-    virtual Vec3 value(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy
-    ) const {
-        (void)dudx;
-        (void)dvdx;
-        (void)dudy;
-        (void)dvdy;
-
-        return value(u, v, p);
-    }
-
-    // Sample using screen-space UV differentials when available,
-    // otherwise allow derived textures to use a ray-cone estimate.
-    virtual Vec3 value_with_cone(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy,
-        bool has_uv_differentials,
-        double cone_width,
-        bool has_ray_cone,
-        const Vec3& dpdu,
-        const Vec3& dpdv,
-        bool has_uv_parameterization
-    ) const {
-        if (has_uv_differentials) {
-            return value(
-                u, v, p,
-                dudx, dvdx, dudy, dvdy
-            );
-        }
-
-        (void)cone_width;
-        (void)has_ray_cone;
-        (void)dpdu;
-        (void)dpdv;
-        (void)has_uv_parameterization;
-
-        return value(u, v, p);
-    }
 };
 
 class SolidColor final : public Texture {
@@ -77,7 +99,8 @@ public:
     Vec3 value(
         double,
         double,
-        const Vec3&
+        const Vec3&,
+        const TextureSampleContext&
     ) const override {
         return color_;
     }
@@ -100,92 +123,21 @@ public:
     Vec3 value(
         double u,
         double v,
-        const Vec3&
+        const Vec3&,
+        const TextureSampleContext& context
     ) const override {
-        return sample_filtered(u, v, 0.0, 0.0);
-    }
+        double width_u = 0.0;
+        double width_v = 0.0;
 
-    Vec3 value(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy
-    ) const override {
-        (void)p;
-
-        if (!std::isfinite(dudx) ||
-            !std::isfinite(dvdx) ||
-            !std::isfinite(dudy) ||
-            !std::isfinite(dvdy)) {
+        if (!context.get_uv_footprint(width_u, width_v)) {
             return sample_filtered(u, v, 0.0, 0.0);
         }
-
-        const double width_u =
-            std::abs(dudx) + std::abs(dudy);
-
-        const double width_v =
-            std::abs(dvdx) + std::abs(dvdy);
-
-        return sample_filtered(u, v, width_u, width_v);
-    }
-
-    Vec3 value_with_cone(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy,
-        bool has_uv_differentials,
-        double cone_width,
-        bool has_ray_cone,
-        const Vec3& dpdu,
-        const Vec3& dpdv,
-        bool has_uv_parameterization
-    ) const override {
-        if (has_uv_differentials) {
-            return value(
-                u, v, p,
-                dudx, dvdx, dudy, dvdy
-            );
-        }
-
-        if (!has_ray_cone ||
-            !has_uv_parameterization ||
-            !std::isfinite(cone_width) ||
-            cone_width < 0.0) {
-            return sample_filtered(u, v, 0.0, 0.0);
-        }
-
-        const double g00 = dot(dpdu, dpdu);
-        const double g01 = dot(dpdu, dpdv);
-        const double g11 = dot(dpdv, dpdv);
-
-        const double determinant =
-            g00 * g11 - g01 * g01;
-
-        if (!std::isfinite(g00) ||
-            !std::isfinite(g01) ||
-            !std::isfinite(g11) ||
-            !std::isfinite(determinant) ||
-            g00 <= 0.0 ||
-            g11 <= 0.0 ||
-            determinant <= 1e-20) {
-            return sample_filtered(u, v, 0.0, 0.0);
-        }
-
-        const double width_u =
-            cone_width * std::sqrt(g11 / determinant);
-
-        const double width_v =
-            cone_width * std::sqrt(g00 / determinant);
 
         return sample_filtered(
-            u, v, width_u, width_v
+            u,
+            v,
+            width_u,
+            width_v
         );
     }
 
@@ -286,7 +238,8 @@ public:
     Vec3 value(
         double,
         double v,
-        const Vec3&
+        const Vec3&,
+        const TextureSampleContext&
     ) const override {
         const double t = clamp01(v);
 
@@ -324,7 +277,8 @@ public:
     Vec3 value(
         double,
         double,
-        const Vec3& p
+        const Vec3& p,
+        const TextureSampleContext&
     ) const override {
         const double s =
             std::sin(frequency_ * p.x) *
@@ -350,92 +304,21 @@ public:
     Vec3 value(
         double u,
         double v,
-        const Vec3&
+        const Vec3&,
+        const TextureSampleContext& context
     ) const override {
-        return evaluate_normal(u, v, 0.0, 0.0);
-    }
+        double width_u = 0.0;
+        double width_v = 0.0;
 
-    Vec3 value(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy
-    ) const override {
-        (void)p;
-
-        if (!std::isfinite(dudx) ||
-            !std::isfinite(dvdx) ||
-            !std::isfinite(dudy) ||
-            !std::isfinite(dvdy)) {
+        if (!context.get_uv_footprint(width_u, width_v)) {
             return evaluate_normal(u, v, 0.0, 0.0);
         }
-
-        const double width_u =
-            std::abs(dudx) + std::abs(dudy);
-
-        const double width_v =
-            std::abs(dvdx) + std::abs(dvdy);
-
-        return evaluate_normal(u, v, width_u, width_v);
-    }
-
-    Vec3 value_with_cone(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy,
-        bool has_uv_differentials,
-        double cone_width,
-        bool has_ray_cone,
-        const Vec3& dpdu,
-        const Vec3& dpdv,
-        bool has_uv_parameterization
-    ) const override {
-        if (has_uv_differentials) {
-            return value(
-                u, v, p,
-                dudx, dvdx, dudy, dvdy
-            );
-        }
-
-        if (!has_ray_cone ||
-            !has_uv_parameterization ||
-            !std::isfinite(cone_width) ||
-            cone_width < 0.0) {
-            return evaluate_normal(u, v, 0.0, 0.0);
-        }
-
-        const double g00 = dot(dpdu, dpdu);
-        const double g01 = dot(dpdu, dpdv);
-        const double g11 = dot(dpdv, dpdv);
-
-        const double determinant =
-            g00 * g11 - g01 * g01;
-
-        if (!std::isfinite(g00) ||
-            !std::isfinite(g01) ||
-            !std::isfinite(g11) ||
-            !std::isfinite(determinant) ||
-            g00 <= 0.0 ||
-            g11 <= 0.0 ||
-            determinant <= 1e-20) {
-            return evaluate_normal(u, v, 0.0, 0.0);
-        }
-
-        const double width_u =
-            cone_width * std::sqrt(g11 / determinant);
-
-        const double width_v =
-            cone_width * std::sqrt(g00 / determinant);
 
         return evaluate_normal(
-            u, v, width_u, width_v
+            u,
+            v,
+            width_u,
+            width_v
         );
     }
 

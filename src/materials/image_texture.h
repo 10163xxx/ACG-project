@@ -38,145 +38,59 @@ public:
         build_mipmaps();
     }
 
-    // Default sampling uses bilinear filtering at full resolution.
-    // The existing Texture interface does not provide UV derivatives,
-    // so automatic screen-space LOD selection is not possible here.
     Vec3 value(
         double u,
         double v,
-        const Vec3&
+        const Vec3&,
+        const TextureSampleContext& context
     ) const override {
-        return sample(u, v, 0.0);
-    }
-
-    // Automatically select the mip level from screen-space UV derivatives.
-    Vec3 value(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy
-    ) const override {
-        (void)p;
-
         if (!use_mipmaps_) {
             return sample(u, v, 0.0);
         }
 
-        if (!std::isfinite(dudx) ||
-            !std::isfinite(dvdx) ||
-            !std::isfinite(dudy) ||
-            !std::isfinite(dvdy)) {
+        double width_u = 0.0;
+        double width_v = 0.0;
+
+        if (!context.get_uv_footprint(width_u, width_v)) {
             return sample(u, v, 0.0);
         }
 
-        // Convert UV derivatives into texture-space pixel distances.
-        const double dx_u =
-            dudx * static_cast<double>(width_);
+        double footprint = 0.0;
 
-        const double dx_v =
-            dvdx * static_cast<double>(height_);
+        if (context.has_uv_differentials) {
+            // Preserve the original screen-space derivative
+            // footprint calculation.
+            const double dx_u =
+                context.dudx * static_cast<double>(width_);
 
-        const double dy_u =
-            dudy * static_cast<double>(width_);
+            const double dx_v =
+                context.dvdx * static_cast<double>(height_);
 
-        const double dy_v =
-            dvdy * static_cast<double>(height_);
+            const double dy_u =
+                context.dudy * static_cast<double>(width_);
 
-        const double footprint_x =
-            std::sqrt(dx_u * dx_u + dx_v * dx_v);
+            const double dy_v =
+                context.dvdy * static_cast<double>(height_);
 
-        const double footprint_y =
-            std::sqrt(dy_u * dy_u + dy_v * dy_v);
+            const double footprint_x =
+                std::sqrt(dx_u * dx_u + dx_v * dx_v);
 
-        const double footprint =
-            std::max(footprint_x, footprint_y);
+            const double footprint_y =
+                std::sqrt(dy_u * dy_u + dy_v * dy_v);
 
-        if (!std::isfinite(footprint)) {
-            return sample(u, v, 0.0);
+            footprint =
+                std::max(footprint_x, footprint_y);
+        } else {
+            // Ray-cone footprint: convert UV extents into texels.
+            const double footprint_u =
+                width_u * static_cast<double>(width_);
+
+            const double footprint_v =
+                width_v * static_cast<double>(height_);
+
+            footprint =
+                std::max(footprint_u, footprint_v);
         }
-
-        const double lod =
-            std::max(0.0, std::log2(
-                std::max(footprint, 1e-8)
-            ));
-
-        return sample(u, v, lod);
-    }
-
-    // Use the ray-cone footprint when screen-space UV
-    // differentials are unavailable.
-    Vec3 value_with_cone(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy,
-        bool has_uv_differentials,
-        double cone_width,
-        bool has_ray_cone,
-        const Vec3& dpdu,
-        const Vec3& dpdv,
-        bool has_uv_parameterization
-    ) const override {
-        // Exact screen-space derivatives take priority.
-        if (has_uv_differentials) {
-            return value(
-                u, v, p,
-                dudx, dvdx, dudy, dvdy
-            );
-        }
-
-        if (!use_mipmaps_ ||
-            !has_ray_cone ||
-            !has_uv_parameterization ||
-            !std::isfinite(cone_width) ||
-            cone_width < 0.0) {
-            return sample(u, v, 0.0);
-        }
-
-        // Build the first fundamental form of the UV mapping.
-        const double g00 = dot(dpdu, dpdu);
-        const double g01 = dot(dpdu, dpdv);
-        const double g11 = dot(dpdv, dpdv);
-
-        const double determinant =
-            g00 * g11 - g01 * g01;
-
-        if (!std::isfinite(g00) ||
-            !std::isfinite(g01) ||
-            !std::isfinite(g11) ||
-            !std::isfinite(determinant) ||
-            g00 <= 0.0 ||
-            g11 <= 0.0 ||
-            determinant <= 1e-20) {
-            return sample(u, v, 0.0);
-        }
-
-        // Convert a world-space radius into the maximum local
-        // UV displacement, then convert UV units into texels.
-        const double uv_u_per_world =
-            std::sqrt(g11 / determinant);
-
-        const double uv_v_per_world =
-            std::sqrt(g00 / determinant);
-
-        const double footprint_u =
-            cone_width *
-            uv_u_per_world *
-            static_cast<double>(width_);
-
-        const double footprint_v =
-            cone_width *
-            uv_v_per_world *
-            static_cast<double>(height_);
-
-        const double footprint =
-            std::max(footprint_u, footprint_v);
 
         if (!std::isfinite(footprint)) {
             return sample(u, v, 0.0);

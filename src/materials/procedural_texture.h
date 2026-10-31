@@ -43,53 +43,35 @@ public:
     Vec3 value(
         double,
         double,
-        const Vec3& p
-    ) const override {
-        return evaluate(p, octaves_);
-    }
-
-    Vec3 value_with_cone(
-        double u,
-        double v,
         const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy,
-        bool has_uv_differentials,
-        double cone_width,
-        bool has_ray_cone,
-        const Vec3& dpdu,
-        const Vec3& dpdv,
-        bool has_uv_parameterization
+        const TextureSampleContext& context
     ) const override {
-        (void)u;
-        (void)v;
-
         double footprint = 0.0;
 
-        if (has_uv_differentials &&
-            has_uv_parameterization &&
-            std::isfinite(dudx) &&
-            std::isfinite(dvdx) &&
-            std::isfinite(dudy) &&
-            std::isfinite(dvdy)) {
+        if (context.has_uv_differentials &&
+            context.has_uv_parameterization &&
+            std::isfinite(context.dudx) &&
+            std::isfinite(context.dvdx) &&
+            std::isfinite(context.dudy) &&
+            std::isfinite(context.dvdy)) {
             const Vec3 dpdx =
-                dudx * dpdu + dvdx * dpdv;
+                context.dudx * context.dpdu +
+                context.dvdx * context.dpdv;
 
             const Vec3 dpdy =
-                dudy * dpdu + dvdy * dpdv;
+                context.dudy * context.dpdu +
+                context.dvdy * context.dpdv;
 
             footprint = std::max(
                 dpdx.length(),
                 dpdy.length()
             );
         } else if (
-            has_ray_cone &&
-            std::isfinite(cone_width) &&
-            cone_width >= 0.0
+            context.has_ray_cone &&
+            std::isfinite(context.cone_width) &&
+            context.cone_width >= 0.0
         ) {
-            footprint = cone_width;
+            footprint = context.cone_width;
         }
 
         int filtered_octaves = 0;

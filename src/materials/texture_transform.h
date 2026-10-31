@@ -43,70 +43,36 @@ public:
     Vec3 value(
         double u,
         double v,
-        const Vec3& p
-    ) const override {
-        return texture_->value(
-            transform_u(u),
-            transform_v(v),
-            p
-        );
-    }
-
-    Vec3 value(
-        double u,
-        double v,
         const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy
+        const TextureSampleContext& context
     ) const override {
+        TextureSampleContext transformed_context = context;
+
+        // Transform screen-space UV derivatives.
+        transformed_context.dudx *= scale_u_;
+        transformed_context.dvdx *= scale_v_;
+        transformed_context.dudy *= scale_u_;
+        transformed_context.dvdy *= scale_v_;
+
+        // Transform the UV parameterization using the chain rule:
+        //
+        // u' = scale_u * u + offset_u
+        // v' = scale_v * v + offset_v
+        //
+        // Therefore:
+        // dP/du' = dP/du / scale_u
+        // dP/dv' = dP/dv / scale_v
+        transformed_context.dpdu =
+            context.dpdu / scale_u_;
+
+        transformed_context.dpdv =
+            context.dpdv / scale_v_;
+
         return texture_->value(
             transform_u(u),
             transform_v(v),
             p,
-            scale_u_ * dudx,
-            scale_v_ * dvdx,
-            scale_u_ * dudy,
-            scale_v_ * dvdy
-        );
-    }
-
-    Vec3 value_with_cone(
-        double u,
-        double v,
-        const Vec3& p,
-        double dudx,
-        double dvdx,
-        double dudy,
-        double dvdy,
-        bool has_uv_differentials,
-        double cone_width,
-        bool has_ray_cone,
-        const Vec3& dpdu,
-        const Vec3& dpdv,
-        bool has_uv_parameterization
-    ) const override {
-        const Vec3 transformed_dpdu =
-            dpdu / scale_u_;
-
-        const Vec3 transformed_dpdv =
-            dpdv / scale_v_;
-
-        return texture_->value_with_cone(
-            transform_u(u),
-            transform_v(v),
-            p,
-            scale_u_ * dudx,
-            scale_v_ * dvdx,
-            scale_u_ * dudy,
-            scale_v_ * dvdy,
-            has_uv_differentials,
-            cone_width,
-            has_ray_cone,
-            transformed_dpdu,
-            transformed_dpdv,
-            has_uv_parameterization
+            transformed_context
         );
     }
 

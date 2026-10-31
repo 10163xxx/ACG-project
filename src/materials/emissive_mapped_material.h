@@ -8,6 +8,7 @@
 #include "materials/material.h"
 #include "materials/texture.h"
 #include "materials/material_decorator.h"
+#include "materials/texture_sample_context.h"
 
 class EmissiveMappedMaterial final : public MaterialDecorator {
 public:
@@ -41,20 +42,11 @@ public:
 
         if (emission_texture_) {
             const Vec3 texture_color =
-                emission_texture_->value_with_cone(
+                emission_texture_->value(
                     hit.u,
                     hit.v,
                     hit.point,
-                    hit.dudx,
-                    hit.dvdx,
-                    hit.dudy,
-                    hit.dvdy,
-                    hit.has_uv_differentials,
-                    hit.ray_cone_width,
-                    hit.has_ray_cone,
-                    hit.dpdu,
-                    hit.dpdv,
-                    hit.has_uv_parameterization
+                    make_texture_sample_context(hit)
                 );
 
             radiance = radiance + emission_ * texture_color;

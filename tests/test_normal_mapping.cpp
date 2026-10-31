@@ -29,7 +29,8 @@ public:
     Vec3 value(
         double u,
         double,
-        const Vec3&
+        const Vec3&,
+        const TextureSampleContext&
     ) const override {
         return Vec3(u, u, u);
     }
