@@ -16,6 +16,10 @@ struct HitRecord {
     Vec3 shading_normal;
     bool has_shading_normal = false;
 
+    // True when all nested normal decorators have already been evaluated.
+    // Prevents applying normal and bump maps more than once.
+    bool has_resolved_shading_normal = false;
+
     Vec3 get_shading_normal() const {
         return has_shading_normal
             ? shading_normal

@@ -281,7 +281,7 @@ namespace {
         );
 
         const Vec3 neutral_normal =
-            neutral_material.mapped_normal(hit);
+            neutral_material.mapped_normal(incoming, hit);
 
         assert(approximately_equal(neutral_normal.x, 0.0));
         assert(approximately_equal(neutral_normal.y, 0.0));
@@ -298,7 +298,7 @@ namespace {
         );
 
         const Vec3 tilted_normal =
-            tilted_material.mapped_normal(hit);
+            tilted_material.mapped_normal(incoming, hit);
 
         assert(tilted_normal.x > 0.99);
         assert(std::abs(tilted_normal.y) < 1e-9);
@@ -331,7 +331,7 @@ namespace {
         );
 
         const Vec3 u_normal =
-            u_material.mapped_normal(hit);
+            u_material.mapped_normal(incoming, hit);
 
         assert(std::abs(u_normal.x) < 1e-9);
         assert(std::abs(u_normal.y) < 1e-9);
@@ -349,7 +349,7 @@ namespace {
         );
 
         const Vec3 v_normal =
-            v_material.mapped_normal(hit);
+            v_material.mapped_normal(incoming, hit);
 
         assert(std::abs(v_normal.x) < 1e-9);
         assert(v_normal.y > 0.99);

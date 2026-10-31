@@ -310,4 +310,64 @@ public:
         pdf_area = 0.0;
         return false;
     }
+
+    // Sample only the emissive part of this surface.
+    // The returned PDF is measured per unit area.
+    virtual bool sample_light_surface(
+        double u,
+        double v,
+        HitRecord& record,
+        double& pdf_area
+    ) const {
+        if (!sample_surface(u, v, record, pdf_area)) {
+            pdf_area = 0.0;
+            return false;
+        }
+
+        if (!record.material ||
+            !record.material->is_emissive() ||
+            pdf_area <= 0.0) {
+            pdf_area = 0.0;
+            return false;
+        }
+
+        return true;
+    }
+
+    virtual bool has_emissive_surface() const {
+        HitRecord probe;
+        double pdf_area = 0.0;
+
+        return sample_light_surface(
+            0.5,
+            0.5,
+            probe,
+            pdf_area
+        );
+    }
+
+    // PDF of sampling this particular emissive surface point.
+    // This default implementation is suitable for primitives
+    // with a uniform area sampling distribution.
+    virtual double light_surface_pdf(
+        const HitRecord& record
+    ) const {
+        if (!record.material ||
+            !record.material->is_emissive()) {
+            return 0.0;
+        }
+
+        HitRecord probe;
+        double pdf_area = 0.0;
+
+        if (!sample_light_surface(
+                0.5,
+                0.5,
+                probe,
+                pdf_area)) {
+            return 0.0;
+        }
+
+        return pdf_area;
+    }
 };

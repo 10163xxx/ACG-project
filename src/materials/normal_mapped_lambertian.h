@@ -36,7 +36,13 @@ public:
         }
     }
 
-    Vec3 mapped_normal(const HitRecord& hit) const {
+    Vec3 mapped_normal(
+        const Ray& incoming,
+        const HitRecord& hit
+    ) const {
+        if (hit.has_resolved_shading_normal) {
+            return hit.get_shading_normal();
+        }
         const Vec3 geometric_normal =
             normalize_or(
                 hit.normal,
@@ -45,7 +51,7 @@ public:
 
         Vec3 base_normal =
             normalize_or(
-                hit.get_shading_normal(),
+                base_material_->shading_normal(incoming, hit),
                 geometric_normal
             );
 
@@ -139,8 +145,7 @@ public:
         const Ray& incoming,
         const HitRecord& hit
     ) const override {
-        (void)incoming;
-        return mapped_normal(hit);
+        return mapped_normal(incoming, hit);
     }
 
     Vec3 evaluate_bsdf(
@@ -161,8 +166,12 @@ public:
             );
 
         HitRecord mapped_hit = hit;
-        mapped_hit.shading_normal = mapped_normal(hit);
+        mapped_hit.shading_normal = mapped_normal(
+            Ray(hit.point, -wo),
+            hit
+        );
         mapped_hit.has_shading_normal = true;
+        mapped_hit.has_resolved_shading_normal = true;
 
         return base_material_->evaluate_bsdf(
             mapped_hit,
@@ -177,8 +186,12 @@ public:
         const Vec3& incoming_direction
     ) const override {
         HitRecord mapped_hit = hit;
-        mapped_hit.shading_normal = mapped_normal(hit);
+        mapped_hit.shading_normal = mapped_normal(
+            Ray(hit.point, -outgoing_direction),
+            hit
+        );
         mapped_hit.has_shading_normal = true;
+        mapped_hit.has_resolved_shading_normal = true;
 
         return base_material_->scattering_pdf(
             mapped_hit,
@@ -195,8 +208,12 @@ public:
         ScatterSampleInfo& info
     ) const override {
         HitRecord mapped_hit = hit;
-        mapped_hit.shading_normal = mapped_normal(hit);
+        mapped_hit.shading_normal = mapped_normal(
+            incoming,
+            hit
+        );
         mapped_hit.has_shading_normal = true;
+        mapped_hit.has_resolved_shading_normal = true;
 
         if (!base_material_->scatter(
                 incoming,

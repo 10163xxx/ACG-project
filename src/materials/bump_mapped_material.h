@@ -38,7 +38,9 @@ public:
         const Ray& incoming,
         const HitRecord& hit
     ) const {
-        (void)incoming;
+        if (hit.has_resolved_shading_normal) {
+            return hit.get_shading_normal();
+        }
 
         const Vec3 geometric_normal =
             normalize_or(
@@ -48,7 +50,7 @@ public:
 
         Vec3 base_normal =
             normalize_or(
-                hit.get_shading_normal(),
+                base_material_->shading_normal(incoming, hit),
                 geometric_normal
             );
 
@@ -141,6 +143,7 @@ public:
             hit
         );
         mapped_hit.has_shading_normal = true;
+        mapped_hit.has_resolved_shading_normal = true;
 
         return base_material_->evaluate_bsdf(
             mapped_hit,
@@ -160,6 +163,7 @@ public:
             hit
         );
         mapped_hit.has_shading_normal = true;
+        mapped_hit.has_resolved_shading_normal = true;
 
         return base_material_->scattering_pdf(
             mapped_hit,
@@ -178,6 +182,7 @@ public:
         HitRecord mapped_hit = hit;
         mapped_hit.shading_normal = mapped_normal(incoming, hit);
         mapped_hit.has_shading_normal = true;
+        mapped_hit.has_resolved_shading_normal = true;
 
         if (!base_material_->scatter(
                 incoming,

@@ -223,6 +223,9 @@ public:
         triangles_.reserve(faces.size());
         cumulative_areas_.reserve(faces.size());
 
+        emissive_triangle_indices_.reserve(faces.size());
+        emissive_cumulative_areas_.reserve(faces.size());
+
         double accumulated_area = 0.0;
 
         for (std::size_t i = 0; i < faces.size(); ++i) {
@@ -325,6 +328,23 @@ public:
                 );
             }
 
+            if (triangle_material &&
+                triangle_material->is_emissive()) {
+                emissive_total_area_ += triangle_area;
+
+                if (!std::isfinite(emissive_total_area_)) {
+                    throw std::overflow_error(
+                        "TriangleMesh emissive area is not finite."
+                    );
+                }
+
+                emissive_triangle_indices_.push_back(i);
+
+                emissive_cumulative_areas_.push_back(
+                    emissive_total_area_
+                );
+            }
+
             accumulated_area += triangle_area;
 
             if (!std::isfinite(accumulated_area)) {
@@ -421,6 +441,7 @@ public:
         record = mesh_record;
         return true;
     }
+
     void all_intersections(
         const Ray& ray,
         const Interval& ray_t,
@@ -546,6 +567,93 @@ public:
         return true;
     }
 
+    bool sample_light_surface(
+        double u,
+        double v,
+        HitRecord& sample,
+        double& pdf_area
+    ) const override {
+        pdf_area = 0.0;
+
+        if (!std::isfinite(u) ||
+            !std::isfinite(v) ||
+            u < 0.0 || u >= 1.0 ||
+            v < 0.0 || v >= 1.0 ||
+            emissive_triangle_indices_.empty() ||
+            emissive_total_area_ <= 0.0) {
+            return false;
+        }
+
+        const double target =
+            u * emissive_total_area_;
+
+        const auto it = std::upper_bound(
+            emissive_cumulative_areas_.begin(),
+            emissive_cumulative_areas_.end(),
+            target
+        );
+
+        std::size_t emissive_index =
+            static_cast<std::size_t>(
+                it - emissive_cumulative_areas_.begin()
+            );
+
+        if (emissive_index >= emissive_triangle_indices_.size()) {
+            emissive_index =
+                emissive_triangle_indices_.size() - 1;
+        }
+
+        const double previous_area =
+            emissive_index == 0
+                ? 0.0
+                : emissive_cumulative_areas_[emissive_index - 1];
+
+        const double triangle_area =
+            emissive_cumulative_areas_[emissive_index]
+            - previous_area;
+
+        double local_u =
+            (target - previous_area) / triangle_area;
+
+        local_u = std::clamp(
+            local_u,
+            0.0,
+            std::nextafter(1.0, 0.0)
+        );
+
+        const std::size_t triangle_index =
+            emissive_triangle_indices_[emissive_index];
+
+        if (!triangles_[triangle_index]->sample_surface(
+                local_u,
+                v,
+                sample,
+                pdf_area)) {
+            pdf_area = 0.0;
+            return false;
+        }
+
+        pdf_area = 1.0 / emissive_total_area_;
+
+        return true;
+    }
+
+    bool has_emissive_surface() const override {
+        return !emissive_triangle_indices_.empty();
+    }
+
+    double light_surface_pdf(
+        const HitRecord& record
+    ) const override {
+        if (emissive_total_area_ <= 0.0 ||
+            !record.material ||
+            !record.material->is_emissive()) {
+            return 0.0;
+        }
+
+        return 1.0 / emissive_total_area_;
+    }
+
     std::size_t triangle_count() const {
         return triangles_.size();
     }
@@ -558,7 +666,11 @@ private:
     std::vector<std::shared_ptr<const Triangle>> triangles_;
     std::vector<double> cumulative_areas_;
 
+    std::vector<std::size_t> emissive_triangle_indices_;
+    std::vector<double> emissive_cumulative_areas_;
+
     double total_area_ = 0.0;
+    double emissive_total_area_ = 0.0;
     bool is_closed_volume_ = false;
 
     std::shared_ptr<const Hittable> bvh_;

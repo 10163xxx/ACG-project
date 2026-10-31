@@ -131,7 +131,7 @@ public:
         const double pdf =
             scattering_pdf(hit, wo, wi);
 
-        if (!std::isfinite(pdf) || pdf <= 1e-12) {
+        if (!std::isfinite(pdf) || pdf <= 0.0) {
             return false;
         }
 
@@ -528,21 +528,30 @@ private:
                 )
             );
 
-        if (diffuse_energy <= 1e-12) {
-            return 0.95;
+        constexpr double ENERGY_EPSILON = 1e-12;
+
+        if (diffuse_energy <= ENERGY_EPSILON) {
+            return specular_energy > ENERGY_EPSILON
+                ? 1.0
+                : 0.5;
+        }
+
+        if (specular_energy <= ENERGY_EPSILON) {
+            return 0.0;
         }
 
         const double total_energy =
             specular_energy + diffuse_energy;
 
-        if (total_energy <= 1e-12) {
+        if (!std::isfinite(total_energy) ||
+            total_energy <= ENERGY_EPSILON) {
             return 0.5;
         }
 
         return std::clamp(
             specular_energy / total_energy,
-            0.05,
-            0.95
+            0.0,
+            1.0
         );
     }
 

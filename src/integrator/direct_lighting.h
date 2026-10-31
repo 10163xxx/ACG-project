@@ -133,20 +133,7 @@ static std::vector<std::size_t> collect_light_indices(
                 continue;
             }
 
-            HitRecord probe;
-            double probe_pdf_area = 0.0;
-
-            if (!objects[i]->sample_surface(
-                    0.5,
-                    0.5,
-                    probe,
-                    probe_pdf_area)) {
-                continue;
-            }
-
-            if (!probe.material
-                || !probe.material->is_emissive()
-                || probe_pdf_area <= 0.0) {
+            if (!objects[i]->has_emissive_surface()) {
                 continue;
             }
 
@@ -214,16 +201,8 @@ static double light_solid_angle_pdf_for_hit(
                 continue;
             }
 
-            HitRecord probe;
-            double pdf_area = 0.0;
-
-            if (!objects[index]->sample_surface(
-                    0.5,
-                    0.5,
-                    probe,
-                    pdf_area)) {
-                continue;
-            }
+            const double pdf_area =
+                objects[index]->light_surface_pdf(candidate);
 
             const double cos_light =
                 dot(candidate.normal, -direction);
@@ -448,7 +427,7 @@ static Vec3 estimate_volume_area_lighting(
         HitRecord light_sample;
         double pdf_area = 0.0;
 
-        if (!objects[selected_index]->sample_surface(
+        if (!objects[selected_index]->sample_light_surface(
                 Random::random_double(),
                 Random::random_double(),
                 light_sample,
@@ -851,7 +830,7 @@ static Vec3 estimate_direct_lighting_single(
         HitRecord light_sample;
         double pdf_area = 0.0;
 
-        if (!objects[selected_index]->sample_surface(
+        if (!objects[selected_index]->sample_light_surface(
                 Random::random_double(),
                 Random::random_double(),
                 light_sample,
