@@ -382,6 +382,7 @@ private:
             const MipLevel& source = mipmaps_.back();
 
             MipLevel next;
+
             next.width = std::max<std::size_t>(
                 1,
                 (source.width + 1) / 2
@@ -394,45 +395,121 @@ private:
 
             next.pixels.reserve(next.width * next.height);
 
+            const double scale_x =
+                static_cast<double>(source.width) /
+                static_cast<double>(next.width);
+
+            const double scale_y =
+                static_cast<double>(source.height) /
+                static_cast<double>(next.height);
+
             for (std::size_t y = 0; y < next.height; ++y) {
                 for (std::size_t x = 0; x < next.width; ++x) {
-                    Vec3 sum(0.0, 0.0, 0.0);
-                    std::size_t count = 0;
+                    // The destination texel covers a continuous
+                    // rectangular footprint in source pixel space.
+                    const double x_begin =
+                        static_cast<double>(x) * scale_x;
 
-                    for (std::size_t dy = 0; dy < 2; ++dy) {
-                        for (std::size_t dx = 0; dx < 2; ++dx) {
-                            const std::size_t sx = 2 * x + dx;
-                            const std::size_t sy = 2 * y + dy;
+                    const double x_end =
+                        static_cast<double>(x + 1) * scale_x;
 
-                            std::size_t sample_x = sx;
-                            std::size_t sample_y = sy;
+                    const double y_begin =
+                        static_cast<double>(y) * scale_y;
 
-                            if (sample_x >= source.width) {
-                                if (address_mode_ == TextureAddressMode::Repeat) {
-                                    sample_x %= source.width;
-                                } else {
-                                    continue;
-                                }
+                    const double y_end =
+                        static_cast<double>(y + 1) * scale_y;
+
+                    const std::size_t source_x_begin =
+                        static_cast<std::size_t>(
+                            std::floor(x_begin)
+                        );
+
+                    const std::size_t source_x_end =
+                        std::min(
+                            source.width,
+                            static_cast<std::size_t>(
+                                std::ceil(x_end)
+                            )
+                        );
+
+                    const std::size_t source_y_begin =
+                        static_cast<std::size_t>(
+                            std::floor(y_begin)
+                        );
+
+                    const std::size_t source_y_end =
+                        std::min(
+                            source.height,
+                            static_cast<std::size_t>(
+                                std::ceil(y_end)
+                            )
+                        );
+
+                    Vec3 weighted_sum(0.0, 0.0, 0.0);
+                    double total_weight = 0.0;
+
+                    for (std::size_t sy = source_y_begin;
+                         sy < source_y_end;
+                         ++sy) {
+                        const double overlap_y =
+                            std::max(
+                                0.0,
+                                std::min(
+                                    y_end,
+                                    static_cast<double>(sy + 1)
+                                ) -
+                                std::max(
+                                    y_begin,
+                                    static_cast<double>(sy)
+                                )
+                            );
+
+                        if (overlap_y <= 0.0) {
+                            continue;
+                        }
+
+                        for (std::size_t sx = source_x_begin;
+                             sx < source_x_end;
+                             ++sx) {
+                            const double overlap_x =
+                                std::max(
+                                    0.0,
+                                    std::min(
+                                        x_end,
+                                        static_cast<double>(sx + 1)
+                                    ) -
+                                    std::max(
+                                        x_begin,
+                                        static_cast<double>(sx)
+                                    )
+                                );
+
+                            const double weight =
+                                overlap_x * overlap_y;
+
+                            if (weight <= 0.0) {
+                                continue;
                             }
 
-                            if (sample_y >= source.height) {
-                                if (address_mode_ == TextureAddressMode::Repeat) {
-                                    sample_y %= source.height;
-                                } else {
-                                    continue;
-                                }
-                            }
+                            weighted_sum =
+                                weighted_sum +
+                                weight * source.pixels[
+                                    sy * source.width + sx
+                                ];
 
-                            sum = sum + source.pixels[
-                                sample_y * source.width + sample_x
-                            ];
-
-                            ++count;
+                            total_weight += weight;
                         }
                     }
 
+                    if (total_weight <= 0.0 ||
+                        !std::isfinite(total_weight)) {
+                        throw std::runtime_error(
+                            "Mipmap generation produced an invalid filter footprint."
+                        );
+                    }
+
                     next.pixels.push_back(
-                        sum / static_cast<double>(count)
+                        weighted_sum / total_weight
                     );
                 }
             }

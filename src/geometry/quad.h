@@ -101,6 +101,11 @@ public:
         record.point = point;
         record.set_face_normal(ray, normal_);
 
+        set_tangent_frame(
+            record,
+            record.front_face
+        );
+
         record.u = std::clamp(alpha, 0.0, 1.0);
         record.v = std::clamp(beta, 0.0, 1.0);
 
@@ -267,6 +272,13 @@ public:
         sample.point = q_ + u * u_ + v * v_;
         sample.normal = normal_;
         sample.front_face = true;
+
+        set_tangent_frame(sample, true);
+
+        sample.dpdu = u_;
+        sample.dpdv = v_;
+        sample.has_uv_parameterization = true;
+
         sample.u = u;
         sample.v = v;
         sample.material = material_;
@@ -292,4 +304,39 @@ private:
     double coordinate_determinant_ = 0.0;
 
     std::shared_ptr<const Material> material_;
+
+    void set_tangent_frame(
+        HitRecord& record,
+        bool front_face
+    ) const {
+        Vec3 tangent =
+            u_ - dot(u_, normal_) * normal_;
+
+        const double tangent_length_squared =
+            tangent.length_squared();
+
+        if (!std::isfinite(tangent_length_squared) ||
+            tangent_length_squared <= 1e-20) {
+            throw std::runtime_error(
+                "Quad has an invalid tangent direction."
+            );
+        }
+
+        tangent = tangent / std::sqrt(tangent_length_squared);
+
+        const double handedness =
+            dot(cross(normal_, tangent), v_) < 0.0
+                ? -1.0
+                : 1.0;
+
+        Vec3 bitangent =
+            handedness * cross(normal_, tangent);
+
+        if (!front_face) {
+            bitangent = -1.0 * bitangent;
+        }
+
+        record.tangent = tangent;
+        record.bitangent = bitangent;
+    }
 };

@@ -246,9 +246,7 @@ private:
             }
         }
 
-        // Calculate the Newell normal and the 3D bounding extent.
-        Vec3 newell_normal(0.0, 0.0, 0.0);
-
+        // Calculate the 3D bounding extent first.
         Vec3 minimum(
             std::numeric_limits<double>::max(),
             std::numeric_limits<double>::max(),
@@ -261,46 +259,29 @@ private:
             -std::numeric_limits<double>::max()
         );
 
-        for (std::size_t i = 0; i < polygon.size(); ++i) {
-            const std::size_t current =
-                static_cast<std::size_t>(
-                    vertex_indices[polygon[i]]
-                );
+        for (const std::size_t corner : polygon) {
+            const Vec3& vertex =
+                vertices[
+                    static_cast<std::size_t>(
+                        vertex_indices[corner]
+                    )
+                ];
 
-            const std::size_t next =
-                static_cast<std::size_t>(
-                    vertex_indices[
-                        polygon[(i + 1) % polygon.size()]
-                    ]
-                );
-
-            const Vec3& a = vertices[current];
-            const Vec3& b = vertices[next];
-
-            if (!std::isfinite(a.x) ||
-                !std::isfinite(a.y) ||
-                !std::isfinite(a.z)) {
+            if (!std::isfinite(vertex.x) ||
+                !std::isfinite(vertex.y) ||
+                !std::isfinite(vertex.z)) {
                 throw std::runtime_error(
                     "OBJ polygon contains a non-finite vertex."
                 );
             }
 
-            newell_normal.x +=
-                (a.y - b.y) * (a.z + b.z);
+            minimum.x = std::min(minimum.x, vertex.x);
+            minimum.y = std::min(minimum.y, vertex.y);
+            minimum.z = std::min(minimum.z, vertex.z);
 
-            newell_normal.y +=
-                (a.z - b.z) * (a.x + b.x);
-
-            newell_normal.z +=
-                (a.x - b.x) * (a.y + b.y);
-
-            minimum.x = std::min(minimum.x, a.x);
-            minimum.y = std::min(minimum.y, a.y);
-            minimum.z = std::min(minimum.z, a.z);
-
-            maximum.x = std::max(maximum.x, a.x);
-            maximum.y = std::max(maximum.y, a.y);
-            maximum.z = std::max(maximum.z, a.z);
+            maximum.x = std::max(maximum.x, vertex.x);
+            maximum.y = std::max(maximum.y, vertex.y);
+            maximum.z = std::max(maximum.z, vertex.z);
         }
 
         const double extent_x = maximum.x - minimum.x;
@@ -312,14 +293,62 @@ private:
             std::max(extent_y, extent_z)
         );
 
-        const double normal_length_squared =
-            newell_normal.length_squared();
+        if (!std::isfinite(extent) || extent <= 0.0) {
+            throw std::runtime_error(
+                "OBJ polygon has an invalid or zero extent."
+            );
+        }
 
-        if (!std::isfinite(extent) ||
-            extent <= 0.0 ||
-            !std::isfinite(normal_length_squared) ||
-            normal_length_squared <=
-                extent * extent * extent * extent * 1e-24) {
+        // Translate and scale the polygon before calculating its normal.
+        // This avoids precision loss from large world-space offsets and
+        // keeps the following geometric tolerances scale-independent.
+        const Vec3 origin =
+            vertices[
+                static_cast<std::size_t>(
+                    vertex_indices[polygon[0]]
+                )
+            ];
+
+        Vec3 newell_normal(0.0, 0.0, 0.0);
+
+        for (std::size_t i = 0; i < polygon.size(); ++i) {
+            const Vec3& a =
+                vertices[
+                    static_cast<std::size_t>(
+                        vertex_indices[polygon[i]]
+                    )
+                ];
+
+            const Vec3& b =
+                vertices[
+                    static_cast<std::size_t>(
+                        vertex_indices[
+                            polygon[(i + 1) % polygon.size()]
+                        ]
+                    )
+                ];
+
+            const Vec3 pa = (a - origin) / extent;
+            const Vec3 pb = (b - origin) / extent;
+
+            newell_normal.x +=
+                (pa.y - pb.y) * (pa.z + pb.z);
+
+            newell_normal.y +=
+                (pa.z - pb.z) * (pa.x + pb.x);
+
+            newell_normal.z +=
+                (pa.x - pb.x) * (pa.y + pb.y);
+        }
+
+        const double normal_length = std::hypot(
+            newell_normal.x,
+            newell_normal.y,
+            newell_normal.z
+        );
+
+        if (!std::isfinite(normal_length) ||
+            normal_length <= 1e-12) {
             throw std::runtime_error(
                 "OBJ polygon has a degenerate or invalid normal."
             );
@@ -349,20 +378,22 @@ private:
                     )
                 ];
 
+            const Vec3 relative = (vertex - origin) / extent;
+
             if (dropped_axis == 0) {
                 projected.push_back({
-                    vertex.y,
-                    vertex.z
+                    relative.y,
+                    relative.z
                 });
             } else if (dropped_axis == 1) {
                 projected.push_back({
-                    vertex.x,
-                    vertex.z
+                    relative.x,
+                    relative.z
                 });
             } else {
                 projected.push_back({
-                    vertex.x,
-                    vertex.y
+                    relative.x,
+                    relative.y
                 });
             }
         }
@@ -384,39 +415,46 @@ private:
             maximum_y - minimum_y
         );
 
-        const double epsilon =
-            projected_extent * projected_extent * 1e-12;
-
-        if (!std::isfinite(epsilon) || epsilon <= 0.0) {
+        if (!std::isfinite(projected_extent) ||
+            projected_extent <= 0.0) {
             throw std::runtime_error(
                 "OBJ polygon projection is degenerate."
             );
         }
 
-        auto sign_with_epsilon = [&](
+        // Orientation tests use area units; bounding-box tests use
+        // coordinate units. Keep their tolerances separate.
+        constexpr double AREA_EPSILON = 1e-12;
+        constexpr double COORDINATE_EPSILON = 1e-12;
+
+        auto sign_with_epsilon = [=](
             double value
         ) {
-            if (value > epsilon) {
+            if (value > AREA_EPSILON) {
                 return 1;
             }
 
-            if (value < -epsilon) {
+            if (value < -AREA_EPSILON) {
                 return -1;
             }
 
             return 0;
         };
 
-        auto on_segment = [&](
+        auto on_segment = [=](
             const Point2D& a,
             const Point2D& b,
             const Point2D& point
         ) {
             return
-                point.x >= std::min(a.x, b.x) - epsilon &&
-                point.x <= std::max(a.x, b.x) + epsilon &&
-                point.y >= std::min(a.y, b.y) - epsilon &&
-                point.y <= std::max(a.y, b.y) + epsilon;
+                point.x >=
+                    std::min(a.x, b.x) - COORDINATE_EPSILON &&
+                point.x <=
+                    std::max(a.x, b.x) + COORDINATE_EPSILON &&
+                point.y >=
+                    std::min(a.y, b.y) - COORDINATE_EPSILON &&
+                point.y <=
+                    std::max(a.y, b.y) + COORDINATE_EPSILON;
         };
 
         auto segments_intersect = [&](
@@ -488,20 +526,22 @@ private:
             }
         }
 
-        // Signed area determines the original polygon winding.
+        // Use a triangle fan relative to the first projected point.
+        // This avoids cancellation from absolute-coordinate shoelace sums.
         double signed_area = 0.0;
 
-        for (std::size_t i = 0; i < projected.size(); ++i) {
-            const Point2D& a = projected[i];
-            const Point2D& b =
-                projected[(i + 1) % projected.size()];
-
-            signed_area +=
-                a.x * b.y - b.x * a.y;
+        for (std::size_t i = 1;
+             i + 1 < projected.size();
+             ++i) {
+            signed_area += cross_2d(
+                projected[0],
+                projected[i],
+                projected[i + 1]
+            );
         }
 
         if (!std::isfinite(signed_area) ||
-            std::abs(signed_area) <= epsilon) {
+            std::abs(signed_area) <= AREA_EPSILON) {
             throw std::runtime_error(
                 "OBJ polygon has zero projected area."
             );
@@ -510,7 +550,7 @@ private:
         const double orientation =
             signed_area > 0.0 ? 1.0 : -1.0;
 
-        auto point_inside_triangle = [&](
+        auto point_blocks_ear = [&](
             const Point2D& point,
             const Point2D& a,
             const Point2D& b,
@@ -525,9 +565,20 @@ private:
             const double ca =
                 orientation * cross_2d(c, a, point);
 
-            return ab >= -epsilon &&
-                   bc >= -epsilon &&
-                   ca >= -epsilon;
+            // Strictly interior points block the ear.
+            const bool strictly_inside =
+                ab > AREA_EPSILON &&
+                bc > AREA_EPSILON &&
+                ca > AREA_EPSILON;
+
+            // A point on the proposed diagonal also blocks the ear.
+            // Points on the two original polygon edges do not.
+            const bool on_diagonal =
+                std::abs(cross_2d(a, c, point))
+                    <= AREA_EPSILON &&
+                on_segment(a, c, point);
+
+            return strictly_inside || on_diagonal;
         };
 
         std::vector<std::array<std::size_t, 3>> triangles;
@@ -563,7 +614,7 @@ private:
                 const double corner_cross =
                     orientation * cross_2d(a, b, c);
 
-                if (corner_cross <= epsilon) {
+                if (corner_cross <= AREA_EPSILON) {
                     continue;
                 }
 
@@ -583,7 +634,7 @@ private:
                     const Point2D& point =
                         projected[polygon[j]];
 
-                    if (point_inside_triangle(
+                    if (point_blocks_ear(
                             point,
                             a,
                             b,
@@ -629,7 +680,7 @@ private:
                 projected[polygon[2]]
             );
 
-        if (final_cross <= epsilon) {
+        if (final_cross <= AREA_EPSILON) {
             throw std::runtime_error(
                 "OBJ polygon produced a degenerate final triangle."
             );

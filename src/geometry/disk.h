@@ -83,6 +83,11 @@ public:
         record.point = point;
         record.set_face_normal(ray, normal_);
 
+        set_tangent_frame(
+            record,
+            record.front_face
+        );
+
         // Map the disk into the [0, 1] x [0, 1] UV range.
         record.u = 0.5 +
             dot(relative, tangent_) / (2.0 * radius_);
@@ -260,6 +265,12 @@ public:
         sample.normal = normal_;
         sample.front_face = true;
 
+        set_tangent_frame(sample, true);
+
+        sample.dpdu = 2.0 * radius_ * tangent_;
+        sample.dpdv = 2.0 * radius_ * bitangent_;
+        sample.has_uv_parameterization = true;
+
         sample.u = 0.5 + x / (2.0 * radius_);
         sample.v = 0.5 + y / (2.0 * radius_);
 
@@ -288,4 +299,14 @@ private:
     double area_ = 0.0;
 
     std::shared_ptr<const Material> material_;
+
+    void set_tangent_frame(
+        HitRecord& record,
+        bool front_face
+    ) const {
+        record.tangent = tangent_;
+        record.bitangent = front_face
+            ? bitangent_
+            : -1.0 * bitangent_;
+    }
 };
