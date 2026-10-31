@@ -456,18 +456,10 @@ private:
         }
 
         // A completely black map has no luminance-based
-        // distribution. Fall back to uniform sphere sampling.
+        // distribution. Use uniform sampling over the sphere.
         if (total_weight_ <= 0.0) {
-            const double uniform_weight =
-                1.0 / static_cast<double>(count);
-
+            uniform_fallback_ = true;
             total_weight_ = 0.0;
-
-            for (std::size_t i = 0; i < count; ++i) {
-                weights_[i] = uniform_weight;
-                total_weight_ += uniform_weight;
-                cdf_[i] = total_weight_;
-            }
         }
     }
 
