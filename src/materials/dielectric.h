@@ -93,9 +93,6 @@ public:
 
         info.is_transmission = false;
 
-        info.ray_cone_spread_scale =
-                refraction_ratio;
-
         if (
             cannot_refract ||
             reflectance(cos_theta, refraction_ratio)
@@ -110,6 +107,9 @@ public:
             );
 
             info.is_transmission = true;
+
+            info.ray_cone_spread_scale =
+                refraction_ratio;
         }
 
         scattered = Ray(hit.point, direction);

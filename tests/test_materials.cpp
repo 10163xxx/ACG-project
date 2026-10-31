@@ -180,6 +180,39 @@ int main() {
         scatter_info.ray_cone_spread_add
     ) < 1e-12);
 
+    // 3b. Total internal reflection must preserve ray-cone spread.
+    Random::seed(54321);
+
+    HitRecord internal_hit = hit;
+    internal_hit.front_face = false;
+
+    const Ray internal_ray(
+        Vec3(0.0, 0.0, 0.0),
+        Vec3(0.99, -0.1, 0.0)
+    );
+
+    ScatterSampleInfo internal_info;
+    Ray internal_scattered;
+
+    const bool internal_ok = glass.scatter(
+        internal_ray,
+        internal_hit,
+        attenuation,
+        internal_scattered,
+        internal_info
+    );
+
+    assert(internal_ok);
+    assert(!internal_info.is_transmission);
+
+    assert(std::abs(
+        internal_info.ray_cone_spread_scale - 1.0
+    ) < 1e-12);
+
+    assert(std::abs(
+        internal_info.ray_cone_spread_add
+    ) < 1e-12);
+
     // MIS: area PDF to solid-angle PDF conversion.
     assert(std::abs(
         mis::area_to_solid_angle_pdf(0.5, 4.0, 0.5)
