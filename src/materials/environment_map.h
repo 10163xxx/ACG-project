@@ -168,7 +168,37 @@ public:
     // Sample a direction according to luminance * sin(theta).
     // The returned PDF is measured per unit solid angle.
     Vec3 sample_direction(double& pdf) const {
-        if (empty() || cdf_.empty() || total_weight_ <= 0.0) {
+        if (empty()) {
+            pdf = 0.0;
+            return Vec3(0.0, 1.0, 0.0);
+        }
+
+        constexpr double PI =
+            3.14159265358979323846;
+
+        constexpr double INV_FOUR_PI =
+            0.07957747154594766788;
+
+        if (uniform_fallback_) {
+            const double y =
+                1.0 - 2.0 * Random::random_double();
+
+            const double phi =
+                2.0 * PI * Random::random_double();
+
+            const double radius =
+                std::sqrt(std::max(0.0, 1.0 - y * y));
+
+            pdf = INV_FOUR_PI;
+
+            return Vec3(
+                radius * std::cos(phi),
+                y,
+                radius * std::sin(phi)
+            );
+        }
+
+        if (cdf_.empty() || total_weight_ <= 0.0) {
             pdf = 0.0;
             return Vec3(0.0, 1.0, 0.0);
         }
@@ -203,9 +233,6 @@ public:
         const double v =
             (y + Random::random_double()) / height_;
 
-        constexpr double PI =
-            3.14159265358979323846;
-
         constexpr double TWO_PI =
             6.28318530717958647692;
 
@@ -225,7 +252,21 @@ public:
     }
 
     double pdf(const Vec3& direction) const {
-        if (empty() || total_weight_ <= 0.0) {
+        if (empty()) {
+            return 0.0;
+        }
+
+        if (uniform_fallback_) {
+            const Vec3 d = normalize(direction);
+
+            if (d.near_zero()) {
+                return 0.0;
+            }
+
+            return 0.07957747154594766788;
+        }
+
+        if (total_weight_ <= 0.0) {
             return 0.0;
         }
 
@@ -277,6 +318,7 @@ private:
     std::vector<double> weights_;
 
     double total_weight_ = 0.0;
+    bool uniform_fallback_ = false;
 
     static double luminance(const Vec3& color) {
         return 0.2126 * color.x
@@ -376,6 +418,8 @@ private:
     }
 
     void build_importance_distribution() {
+        uniform_fallback_ = false;
+
         const std::size_t count = pixels_.size();
 
         weights_.assign(count, 0.0);

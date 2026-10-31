@@ -4,6 +4,7 @@
 #include <utility>
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 #include "materials/material.h"
 #include "materials/texture.h"
@@ -16,7 +17,13 @@ public:
         : texture_(std::make_shared<SolidColor>(albedo)) {}
 
     explicit Lambertian(std::shared_ptr<const Texture> texture)
-        : texture_(std::move(texture)) {}
+        : texture_(std::move(texture)) {
+        if (!texture_) {
+            throw std::invalid_argument(
+                "Lambertian texture cannot be null."
+            );
+        }
+    }
 
     bool scatter(
         const Ray& incoming,
