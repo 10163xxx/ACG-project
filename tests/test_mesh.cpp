@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "geometry/mesh.h"
+#include "materials/dielectric.h"
 
 namespace {
     bool approximately_equal(double a, double b) {
@@ -164,6 +165,62 @@ namespace {
 
         assert(exception_thrown);
     }
+
+    void test_reversed_winding_mesh() {
+        const std::vector<Vec3> vertices = {
+            Vec3(0.0, 0.0, 0.0),
+            Vec3(1.0, 0.0, 0.0),
+            Vec3(0.0, 1.0, 0.0),
+            Vec3(0.0, 0.0, 1.0)
+        };
+
+        // This tetrahedron has inward-facing winding.
+        const std::vector<TriangleMesh::Face> reversed_faces = {
+            {0, 1, 2},
+            {0, 3, 1},
+            {0, 2, 3},
+            {1, 3, 2}
+        };
+
+        // Ordinary closed meshes must accept either winding.
+        TriangleMesh opaque_mesh(
+            vertices,
+            reversed_faces
+        );
+
+        assert(opaque_mesh.is_closed_volume());
+        assert(opaque_mesh.triangle_count() == 4);
+
+        HitRecord record;
+
+        const Ray ray(
+            Vec3(0.2, 0.2, -1.0),
+            Vec3(0.0, 0.0, 1.0)
+        );
+
+        assert(opaque_mesh.hit(
+            ray,
+            Interval(0.001, 10.0),
+            record
+        ));
+
+        // Dielectric medium boundaries must retain outward winding.
+        auto glass = std::make_shared<Dielectric>(1.5);
+
+        bool exception_thrown = false;
+
+        try {
+            TriangleMesh invalid_medium_mesh(
+                vertices,
+                reversed_faces,
+                glass
+            );
+        } catch (const std::invalid_argument&) {
+            exception_thrown = true;
+        }
+
+        assert(exception_thrown);
+    }
 }
 
 int main() {
@@ -172,6 +229,7 @@ int main() {
     test_mesh_ray_intersection();
     test_mesh_surface_sampling();
     test_invalid_face_index();
+    test_reversed_winding_mesh();
 
     std::cout << "Mesh tests passed.\n";
     return 0;

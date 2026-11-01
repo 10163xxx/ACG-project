@@ -366,7 +366,7 @@ public:
 
         total_area_ = accumulated_area;
 
-        if (is_closed_volume_) {
+        if (has_medium_boundary) {
             Vec3 bounds_min = vertices.front();
             Vec3 bounds_max = vertices.front();
 
@@ -393,7 +393,7 @@ public:
 
             if (!std::isfinite(scale) || scale <= 0.0) {
                 throw std::invalid_argument(
-                    "Closed TriangleMesh has invalid bounds."
+                    "Dielectric medium boundary has invalid bounds."
                 );
             }
 
@@ -414,7 +414,7 @@ public:
             if (!std::isfinite(signed_volume_six) ||
                 signed_volume_six <= volume_tolerance) {
                 throw std::invalid_argument(
-                    "Closed TriangleMesh must have outward-facing winding."
+                    "Dielectric medium boundary must have outward-facing winding."
                 );
             }
         }

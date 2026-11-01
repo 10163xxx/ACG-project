@@ -178,3 +178,32 @@ add_test(
     NAME ObjIntegrationTests
     COMMAND test_obj_integration
 )
+
+# Keep assert() active in every configuration.
+# Release rendering remains optimized; only test targets undefine NDEBUG.
+function(enable_test_assertions target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(${target} PRIVATE -UNDEBUG)
+    endif()
+endfunction()
+
+set(ACG_TEST_TARGETS
+    test_materials
+    test_geometry
+    test_bvh
+    test_textures
+    test_path_tracer
+    test_sphere_sampling
+    test_nee
+    test_normal_mapping
+    test_mesh
+    test_mis
+    test_obj_loader
+    test_obj_integration
+)
+
+foreach(test_target IN LISTS ACG_TEST_TARGETS)
+    enable_test_assertions(${test_target})
+endforeach()

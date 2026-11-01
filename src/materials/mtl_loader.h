@@ -304,6 +304,17 @@ public:
                 properties.illumination_model == 7 ||
                 properties.illumination_model == 9;
 
+            if (indicates_glass &&
+                (properties.opacity < 1.0 ||
+                 !properties.opacity_map.filename.empty())) {
+                throw std::runtime_error(
+                    "MTL material '" + current_name +
+                    "' combines a dielectric glass boundary with "
+                    "d/Tr opacity or map_d. Alpha cutouts are not "
+                    "supported on dielectric medium boundaries."
+                );
+            }
+
             std::shared_ptr<const Material> base_material;
 
             auto make_map_texture = [&](

@@ -7,6 +7,8 @@
 #include <sstream>
 #include <vector>
 #include <stdexcept>
+#include <sstream>
+#include <string>
 
 #include "acceleration/bvh.h"
 #include "geometry/hittable_list.h"
@@ -809,6 +811,44 @@ namespace {
     }
 }
 
+void test_mtl_glass_opacity_rejection() {
+    const auto expect_rejection = [](
+        const std::string& mtl_source
+    ) {
+        std::istringstream input(mtl_source);
+
+        bool rejected_with_material_name = false;
+
+        try {
+            (void)MtlLoader::load(input);
+        } catch (const std::runtime_error& error) {
+            const std::string message = error.what();
+
+            rejected_with_material_name =
+                message.find("glass_with_opacity") !=
+                    std::string::npos &&
+                message.find("Alpha cutouts") !=
+                    std::string::npos;
+        }
+
+        assert(rejected_with_material_name);
+    };
+
+    expect_rejection(
+        "newmtl glass_with_opacity\n"
+        "illum 4\n"
+        "Ni 1.5\n"
+        "d 0.5\n"
+    );
+
+    expect_rejection(
+        "newmtl glass_with_opacity\n"
+        "illum 4\n"
+        "Ni 1.5\n"
+        "map_d missing_opacity.ppm\n"
+    );
+}
+
 int main() {
     test_obj_index_validation();
     test_imported_mesh_in_bvh();
@@ -817,6 +857,7 @@ int main() {
     test_obj_mtl_diffuse_texture();
     test_mtl_metallic_and_roughness();
     test_mtl_map_options();
+    test_mtl_glass_opacity_rejection();
 
     std::cout << "OBJ integration tests passed.\n";
     return 0;
