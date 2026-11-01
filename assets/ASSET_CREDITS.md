@@ -21,3 +21,19 @@ For every new external asset, record:
 - Author or creator
 - License and redistribution requirements
 - Any modifications made to the original asset
+
+## External Model Sources
+
+### Anthurium Botany 01
+- Source: https://polyhaven.com/a/anthurium_botany_01
+- Authors: Rico Cilliers (modeling), Rob Tuytel (scanning)
+- License: CC0 1.0 Universal
+- Original files: OBJ, MTL, Blender project and PBR textures
+- Modifications: Imported into the ACG Path Tracer scene.
+
+### Fern 02
+- Source: https://polyhaven.com/a/fern_02
+- Authors: Rico Cilliers (modeling), Rob Tuytel (scanning)
+- License: CC0 1.0 Universal
+- Original files: OBJ, MTL, Blender project and PBR textures
+- Modifications: Imported into the ACG Path Tracer scene.
