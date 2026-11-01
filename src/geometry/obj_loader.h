@@ -695,13 +695,18 @@ private:
         return triangles;
     }
 
-    static ParsedObj parse(std::istream& input) {
+    static ParsedObj parse(
+        std::istream& input,
+        const std::string& source_name = "<stream>"
+    ) {
         ParsedObj parsed;
         std::string current_material;
         std::string current_smoothing_group;
         std::string line;
+        std::size_t line_number = 0;
 
         while (std::getline(input, line)) {
+            ++line_number;
             const std::size_t comment = line.find('#');
 
             if (comment != std::string::npos) {
@@ -796,11 +801,20 @@ private:
                     );
                 }
 
-                const auto triangles =
-                    triangulate_polygon(
+                std::vector<std::array<std::size_t, 3>> triangles;
+
+                try {
+                    triangles = triangulate_polygon(
                         vertex_indices,
                         parsed.vertices
                     );
+                } catch (const std::exception& error) {
+                    throw std::runtime_error(
+                        source_name + ":" +
+                        std::to_string(line_number) + ": " +
+                        error.what()
+                    );
+                }
 
                 for (const auto& triangle : triangles) {
                     const std::size_t corner_a = triangle[0];
@@ -1091,7 +1105,9 @@ public:
 
     static TriangleMesh load_file(
         const std::string& filename,
-        std::shared_ptr<const Material> fallback_material = nullptr
+        std::shared_ptr<const Material> fallback_material = nullptr,
+        double target_height = 0.0,
+        const Vec3& base_position = Vec3(0.0, 0.0, 0.0)
     ) {
         std::ifstream file(filename);
 
@@ -1101,7 +1117,60 @@ public:
             );
         }
 
-        ParsedObj parsed = parse(file);
+        ParsedObj parsed = parse(file, filename);
+
+        if (!std::isfinite(target_height) ||
+            target_height < 0.0) {
+            throw std::invalid_argument(
+                "OBJ target height must be finite and non-negative."
+            );
+        }
+
+        if (target_height > 0.0) {
+            Vec3 minimum = parsed.vertices.front();
+            Vec3 maximum = parsed.vertices.front();
+
+            for (const Vec3& vertex : parsed.vertices) {
+                minimum.x = std::min(minimum.x, vertex.x);
+                minimum.y = std::min(minimum.y, vertex.y);
+                minimum.z = std::min(minimum.z, vertex.z);
+
+                maximum.x = std::max(maximum.x, vertex.x);
+                maximum.y = std::max(maximum.y, vertex.y);
+                maximum.z = std::max(maximum.z, vertex.z);
+            }
+
+            const double source_height =
+                maximum.y - minimum.y;
+
+            if (!std::isfinite(source_height) ||
+                source_height <= 1e-8) {
+                throw std::runtime_error(
+                    "OBJ model has an invalid vertical extent."
+                );
+            }
+
+            const double scale =
+                target_height / source_height;
+
+            const double center_x =
+                0.5 * (minimum.x + maximum.x);
+
+            const double center_z =
+                0.5 * (minimum.z + maximum.z);
+
+            for (Vec3& vertex : parsed.vertices) {
+                vertex = Vec3(
+                    (vertex.x - center_x) * scale
+                        + base_position.x,
+                    (vertex.y - minimum.y) * scale
+                        + base_position.y,
+                    (vertex.z - center_z) * scale
+                        + base_position.z
+                );
+            }
+        }
+
         const std::filesystem::path obj_path(filename);
         const std::filesystem::path directory =
             obj_path.parent_path();

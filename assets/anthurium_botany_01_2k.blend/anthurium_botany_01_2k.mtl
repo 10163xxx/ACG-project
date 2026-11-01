@@ -1,11 +1,9 @@
-# Blender 5.4.0 Alpha MTL File: 'anthurium_botany_01_2k.blend'
-# www.blender.org
-
+# Anthurium botanical material
 newmtl anthurium_botany_01
-Ns 360.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ns 8.000000
+Ka 0.000000 0.000000 0.000000
+Kd 0.12 0.30 0.075
+Ks 0.04 0.04 0.04
 Ke 0.000000 0.000000 0.000000
 Ni 1.000000
 d 1.000000

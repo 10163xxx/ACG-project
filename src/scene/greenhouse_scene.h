@@ -9,6 +9,7 @@
 #include "geometry/hittable_list.h"
 #include "geometry/quad.h"
 #include "geometry/sphere.h"
+#include "geometry/obj_loader.h"
 #include "materials/dielectric.h"
 #include "materials/diffuse_light.h"
 #include "materials/lambertian.h"
@@ -298,68 +299,93 @@ inline HittableList make_greenhouse_scene() {
             Vec3(x + .035, 3.95, -7.82), iron);
     }
 
-    // Greenhouse vegetation.
-    auto leaf_dark = std::make_shared<PrincipledBSDF>(
-        Vec3(0.055, 0.19, 0.075), 0.0, 0.48
-    );
-
-    auto leaf_green = std::make_shared<PrincipledBSDF>(
-        Vec3(0.12, 0.31, 0.095), 0.0, 0.40
-    );
-
-    auto leaf_light = std::make_shared<PrincipledBSDF>(
-        Vec3(0.27, 0.39, 0.105), 0.0, 0.43
-    );
-
-    auto terracotta = std::make_shared<PrincipledBSDF>(
-        Vec3(0.42, 0.16, 0.085), 0.0, 0.72
-    );
-
-    auto dark_planter = std::make_shared<PrincipledBSDF>(
-        Vec3(0.12, 0.14, 0.12), 0.48, 0.38
-    );
-
-    // Large plants along both side walls.
-    for (double z : {1.2, -1.8, -5.0}) {
-        greenhouse_add_plant(
-            world,
-            -3.12,
-            z,
-            0.48,
-            1.65,
-            7,
-            leaf_dark,
-            leaf_green,
-            terracotta
+    // Imported botanical assets.
+    auto anthurium_fallback =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.12, 0.30, 0.075),
+            0.0,
+            0.48
         );
 
-        greenhouse_add_plant(
-            world,
-            3.12,
-            z - 0.65,
-            0.44,
-            1.45,
-            7,
-            leaf_green,
-            leaf_light,
-            dark_planter
+    auto fern_fallback =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.075, 0.24, 0.055),
+            0.0,
+            0.52
         );
-    }
 
-    // Smaller plants in front of the rear glazed wall.
-    for (double x : {-2.65, 0.0, 2.65}) {
-        greenhouse_add_plant(
+    // Anthurium: the main botanical subject on the exhibition plinth.
+    TriangleMesh anthurium = ObjLoader::load_file(
+        "assets/anthurium_botany_01_2k.blend/"
+        "anthurium_botany_01_2k.obj",
+        anthurium_fallback,
+        2.35,
+        Vec3(0.0, 1.10, -2.20)
+    );
+
+    world.add(
+        std::make_shared<TriangleMesh>(
+            std::move(anthurium)
+        )
+    );
+
+    // Fern planters provide foreground and background depth.
+    auto fern_planter = std::make_shared<PrincipledBSDF>(
+        Vec3(0.16, 0.12, 0.085),
+        0.0,
+        0.72
+    );
+
+    auto fern_soil = std::make_shared<Lambertian>(
+        Vec3(0.075, 0.052, 0.028)
+    );
+
+    auto add_fern = [&](double x, double z, double height) {
+        const double half_width = 0.38;
+        const double pot_height = 0.42;
+
+        greenhouse_box(
             world,
-            x,
-            -7.05,
-            0.38,
-            1.20,
-            6,
-            leaf_dark,
-            leaf_green,
-            terracotta
+            Vec3(
+                x - half_width,
+                0.0,
+                z - half_width
+            ),
+            Vec3(
+                x + half_width,
+                pot_height,
+                z + half_width
+            ),
+            fern_planter
         );
-    }
+
+        world.add(std::make_shared<Quad>(
+            Vec3(
+                x - half_width * 0.88,
+                pot_height + 0.005,
+                z - half_width * 0.88
+            ),
+            Vec3(half_width * 1.76, 0.0, 0.0),
+            Vec3(0.0, 0.0, half_width * 1.76),
+            fern_soil
+        ));
+
+        TriangleMesh fern = ObjLoader::load_file(
+            "assets/fern_02_2k.blend/fern_02_2k.obj",
+            fern_fallback,
+            height,
+            Vec3(x, pot_height + 0.01, z)
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(fern)
+            )
+        );
+    };
+
+    add_fern(-2.45, -1.35, 1.65);
+    add_fern(2.45, -4.35, 1.85);
 
     // Central exhibition plinth.
     greenhouse_box(world, Vec3(-.95, 0, -3.15),
@@ -368,16 +394,6 @@ inline HittableList make_greenhouse_scene() {
         Vec3(1.02, .96, -1.18), copper);
     greenhouse_box(world, Vec3(-.72, .96, -2.92),
         Vec3(.72, 1.10, -1.48), iron);
-
-    auto dielectric = std::make_shared<Dielectric>(
-        1.48, Vec3(.96, .99, 1), Vec3(.015, .006, .003));
-    auto gold = std::make_shared<PrincipledBSDF>(
-        Vec3(.82, .48, .16), .88, .19);
-
-    world.add(std::make_shared<Sphere>(
-        Vec3(0, 1.78, -2.20), .58, dielectric));
-    world.add(std::make_shared<Sphere>(
-        Vec3(0, 1.78, -2.20), .15, gold));
 
     // Downward-facing rectangular emitter (normal points toward -Y).
     auto emitter = std::make_shared<DiffuseLight>(Vec3(4, 3, 2));
