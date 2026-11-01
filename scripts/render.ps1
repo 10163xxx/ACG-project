@@ -12,10 +12,19 @@ param(
 
     [switch]$Build,
 
-    [switch]$Preview
+    [switch]$Preview,
+
+    [switch]$Draft
 )
 
 $ErrorActionPreference = "Stop"
+if ($Preview -and $Draft) {
+    throw "Preview and Draft cannot be used together."
+}
+
+if (($Preview -or $Draft) -and $Scene -ne "Greenhouse") {
+    throw "Preview and Draft are currently for Greenhouse only."
+}
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Renderer = Join-Path $ProjectRoot "build\$Config\path_tracer.exe"
 $Converter = Join-Path $PSScriptRoot "convert_ppm_to_jpg.py"
@@ -68,6 +77,11 @@ switch ($Scene) {
             $RenderArgs += @("--obj", $ObjFullPath)
         }
     }
+}
+
+if ($Draft) {
+    $RenderArgs += "--draft"
+    $PpmName += "_draft"
 }
 
 if ($Preview) {

@@ -18,6 +18,7 @@ struct SceneRequest {
     TestKind test = TestKind::UV;
     std::string obj_path;
     bool preview = false;
+    bool draft = false;
 };
 
 struct RenderSetup {

@@ -130,10 +130,21 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         }
     }
 
+    if (request.draft) {
+        s.samples = 24;
+        s.max_depth = 16;
+
+        const std::size_t extension = s.output.rfind(".ppm");
+        if (extension != std::string::npos) {
+            s.output.insert(extension, "_draft");
+        }
+    }
+
     if (request.preview) {
         s.width = std::max(1, s.width / 2);
         s.height = std::max(1, s.height / 2);
-        s.samples = std::max(1, s.samples / 4);
+        s.samples = 12;
+        s.max_depth = 12;
 
         const std::size_t extension = s.output.rfind(".ppm");
         if (extension != std::string::npos) {

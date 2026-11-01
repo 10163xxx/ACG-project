@@ -26,6 +26,8 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
         const std::string arg = argv[i];
         if (arg == "--preview") {
             request.preview = true;
+        } else if (arg == "--draft") {
+            request.draft = true;
         } else if (arg == "--scene" || arg == "--test" || arg == "--obj") {
             if (++i >= argc) {
                 std::cerr << "Missing value after " << arg << ".\n";
@@ -80,6 +82,18 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
         std::cerr << "Only --test obj accepts and requires --obj <path>.\n";
         return false;
     }
+
+    if (request.preview && request.draft) {
+        std::cerr << "--preview and --draft cannot be used together.\n";
+        return false;
+    }
+
+    if ((request.preview || request.draft) &&
+        request.scene != SceneKind::Greenhouse) {
+        std::cerr << "--preview and --draft are currently for Greenhouse only.\n";
+        return false;
+    }
+    
     return true;
 }
 
