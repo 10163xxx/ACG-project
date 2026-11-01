@@ -24,7 +24,9 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--scene" || arg == "--test" || arg == "--obj") {
+        if (arg == "--preview") {
+            request.preview = true;
+        } else if (arg == "--scene" || arg == "--test" || arg == "--obj") {
             if (++i >= argc) {
                 std::cerr << "Missing value after " << arg << ".\n";
                 return false;
@@ -35,6 +37,7 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
         } else if (arg == "--help" || arg == "-h") {
             std::cout
                 << "Usage:\n"
+                << "  Add --preview for a low-resolution preview render.\n"
                 << "  path_tracer --scene showcase\n"
                 << "  path_tracer --scene greenhouse\n"
                 << "  path_tracer --scene test --test <uv|volume|inhomogeneous-volume|mipmap|mipmap-no-filter|obj|materials> [--obj path]\n";

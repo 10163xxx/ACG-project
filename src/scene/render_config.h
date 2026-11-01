@@ -17,6 +17,7 @@ struct SceneRequest {
     SceneKind scene = SceneKind::Showcase;
     TestKind test = TestKind::UV;
     std::string obj_path;
+    bool preview = false;
 };
 
 struct RenderSetup {

@@ -3,6 +3,7 @@
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <algorithm>
 
 #include "geometry/constant_medium.h"
 #include "geometry/inhomogeneous_medium.h"
@@ -126,6 +127,17 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
             s.geometry = make_material_test_scene();
             s.output = OutputPaths::RenderDirectory + "material_test.ppm";
             break;
+        }
+    }
+
+    if (request.preview) {
+        s.width = std::max(1, s.width / 2);
+        s.height = std::max(1, s.height / 2);
+        s.samples = std::max(1, s.samples / 4);
+
+        const std::size_t extension = s.output.rfind(".ppm");
+        if (extension != std::string::npos) {
+            s.output.insert(extension, "_preview");
         }
     }
 

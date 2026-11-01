@@ -10,7 +10,9 @@ param(
 
     [string]$ObjPath = "assets\tests\models\test_model.obj",
 
-    [switch]$Build
+    [switch]$Build,
+
+    [switch]$Preview
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,6 +68,11 @@ switch ($Scene) {
             $RenderArgs += @("--obj", $ObjFullPath)
         }
     }
+}
+
+if ($Preview) {
+    $RenderArgs += "--preview"
+    $PpmName += "_preview"
 }
 
 $Ppm = Join-Path $ProjectRoot "results\renders\$PpmName.ppm"
