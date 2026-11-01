@@ -172,7 +172,7 @@ int main(int argc, char* argv[]) {
     if (mipmap_test || mipmap_test_no_filter) {
         auto image_texture =
             std::make_shared<ImageTexture>(
-                "assets/textures/bump_test.ppm",
+                "assets/tests/textures/bump_test.ppm",
                 !mipmap_test_no_filter
             );
 
@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
             std::make_shared<Lambertian>(checker);
 
         TriangleMesh mesh = ObjLoader::load_file(
-            "assets/uv_test.obj",
+            "assets/tests/models/uv_test.obj",
             material
         );
 
@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
     PathTracer tracer(max_depth);
 
     EnvironmentMap environment(
-        "assets/studio_small_01_2k.hdr"
+        "assets/environments/studio_small_01_2k.hdr"
     );
 
     const std::vector<PointLight> point_lights = {

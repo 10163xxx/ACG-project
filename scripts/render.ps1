@@ -5,7 +5,7 @@ param(
     [ValidateSet("Showcase", "UVTest", "VolumeTest", "InhomogeneousVolumeTest", "MipmapTest", "MipmapTestNoFilter", "OBJ")]
     [string]$Scene = "Showcase",
 
-    [string]$ObjPath = "assets\models\test_model.obj",
+    [string]$ObjPath = "assets\tests\models\test_model.obj",
 
     [switch]$Build
 )

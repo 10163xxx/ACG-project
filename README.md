@@ -125,7 +125,7 @@ Run:
 By default, the script loads:
 
 ```text
-assets/models/test_model.obj
+assets/tests/models/test_model.obj
 ```
 
 The OBJ file and its referenced MTL files and textures must be available at the expected paths.
@@ -170,7 +170,7 @@ To build before rendering, add `-Build`:
 Use `-ObjPath` to select a different model relative to the project root:
 
 ```powershell
-.\scripts\render.ps1 -Config Release -Scene OBJ -ObjPath "assets\models\my_model.obj"
+.\scripts\render.ps1 -Config Release -Scene OBJ -ObjPath "assets\tests\models\my_model.obj"
 ```
 
 ## Run Tests
