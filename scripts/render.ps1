@@ -2,8 +2,11 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Config = "Release",
 
-    [ValidateSet("Showcase", "UVTest", "VolumeTest", "InhomogeneousVolumeTest", "MipmapTest", "MipmapTestNoFilter", "OBJ")]
+    [ValidateSet("Showcase", "Greenhouse", "Test")]
     [string]$Scene = "Showcase",
+
+    [ValidateSet("UV", "Volume", "InhomogeneousVolume", "Mipmap", "MipmapNoFilter", "OBJ", "Materials")]
+    [string]$Test = "UV",
 
     [string]$ObjPath = "assets\tests\models\test_model.obj",
 
@@ -11,108 +14,86 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Renderer = Join-Path $ProjectRoot "build\$Config\path_tracer.exe"
 $Converter = Join-Path $PSScriptRoot "convert_ppm_to_jpg.py"
 
 if ($Build) {
-    Write-Host "Building configuration: $Config"
-
     cmake --build (Join-Path $ProjectRoot "build") --config $Config
-
     if ($LASTEXITCODE -ne 0) {
         throw "Build failed with exit code $LASTEXITCODE"
     }
 }
-
 if (-not (Test-Path $Renderer)) {
     throw "Renderer not found: $Renderer. Build the project first."
 }
 
 switch ($Scene) {
-    "MipmapTestNoFilter" {
-        $Ppm = Join-Path $ProjectRoot "results\renders\mipmap_test_lod0.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\mipmap_test_lod0.jpg"
-        $RenderArgs = @("--mipmap-test-lod0")
+    "Showcase" {
+        $PpmName = "showcase_scene"
+        $RenderArgs = @("--scene", "showcase")
     }
-    
-    "MipmapTest" {
-        $Ppm = Join-Path $ProjectRoot "results\renders\mipmap_test.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\mipmap_test.jpg"
-        $RenderArgs = @("--mipmap-test")
+    "Greenhouse" {
+        $PpmName = "greenhouse_scene"
+        $RenderArgs = @("--scene", "greenhouse")
     }
-
-    "UVTest" {
-        $Ppm = Join-Path $ProjectRoot "results\renders\uv_test.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\uv_test.jpg"
-        $RenderArgs = @("--uv-test")
-    }
-
-    "VolumeTest" {
-        $Ppm = Join-Path $ProjectRoot "results\renders\volume_test.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\volume_test.jpg"
-        $RenderArgs = @("--volume-test")
-    }
-
-    "InhomogeneousVolumeTest" {
-        $Ppm = Join-Path $ProjectRoot "results\renders\inhomogeneous_volume_test.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\inhomogeneous_volume_test.jpg"
-        $RenderArgs = @("--inhomogeneous-volume-test")
-    }
-
-    "OBJ" {
-        $ObjFullPath = Join-Path $ProjectRoot $ObjPath
-
-        if (-not (Test-Path $ObjFullPath -PathType Leaf)) {
-            throw "OBJ file not found: $ObjFullPath"
+    "Test" {
+        switch ($Test) {
+            "UV" { $TestName = "uv"; $PpmName = "uv_test" }
+            "Volume" { $TestName = "volume"; $PpmName = "volume_test" }
+            "InhomogeneousVolume" {
+                $TestName = "inhomogeneous-volume"
+                $PpmName = "inhomogeneous_volume_test"
+            }
+            "Mipmap" { $TestName = "mipmap"; $PpmName = "mipmap_test" }
+            "MipmapNoFilter" {
+                $TestName = "mipmap-no-filter"
+                $PpmName = "mipmap_test_lod0"
+            }
+            "Materials" { $TestName = "materials"; $PpmName = "material_test" }
+            "OBJ" {
+                $TestName = "obj"
+                $PpmName = "obj_scene"
+                $ObjFullPath = Join-Path $ProjectRoot $ObjPath
+                if (-not (Test-Path $ObjFullPath -PathType Leaf)) {
+                    throw "OBJ file not found: $ObjFullPath"
+                }
+            }
         }
 
-        $Ppm = Join-Path $ProjectRoot "results\renders\obj_scene.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\obj_scene.jpg"
-        $RenderArgs = @("--obj", $ObjFullPath)
-    }
-
-    default {
-        $Ppm = Join-Path $ProjectRoot "results\renders\showcase_scene.ppm"
-        $Jpg = Join-Path $ProjectRoot "results\renders\showcase_scene.jpg"
-        $RenderArgs = @()
+        $RenderArgs = @("--scene", "test", "--test", $TestName)
+        if ($Test -eq "OBJ") {
+            $RenderArgs += @("--obj", $ObjFullPath)
+        }
     }
 }
+
+$Ppm = Join-Path $ProjectRoot "results\renders\$PpmName.ppm"
+$Jpg = Join-Path $ProjectRoot "results\renders\$PpmName.jpg"
 
 Write-Host "Configuration: $Config"
 Write-Host "Scene: $Scene"
+if ($Scene -eq "Test") { Write-Host "Test: $Test" }
 
-if ($Scene -eq "OBJ") {
-    Write-Host "OBJ file: $ObjFullPath"
-}
-
-Write-Host "Rendering..."
 Push-Location $ProjectRoot
-
 try {
     & $Renderer @RenderArgs
-
     if ($LASTEXITCODE -ne 0) {
         throw "Rendering failed with exit code $LASTEXITCODE"
     }
 
     if (Get-Command py -ErrorAction SilentlyContinue) {
         & py -3 $Converter $Ppm $Jpg
-    }
-    elseif (Get-Command python -ErrorAction SilentlyContinue) {
+    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
         & python $Converter $Ppm $Jpg
-    }
-    else {
+    } else {
         throw "Python was not found. Install Python and Pillow first."
     }
-
     if ($LASTEXITCODE -ne 0) {
         throw "PPM-to-JPG conversion failed."
     }
-}
-finally {
+} finally {
     Pop-Location
 }
 
-Write-Host "Render and JPG conversion completed: $Jpg"
+Write-Host "Render completed: $Jpg"
