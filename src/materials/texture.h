@@ -113,6 +113,16 @@ public:
         const Vec3& p,
         const TextureSampleContext& context
     ) const = 0;
+
+    // Orientation of the texture-space tangent axes relative
+    // to the original surface UV parameterization.
+    //
+    // Ordinary textures preserve both axes. UV transforms
+    // with negative scales override this to flip the
+    // corresponding tangent-space direction.
+    virtual Vec3 tangent_orientation() const {
+        return Vec3(1.0, 1.0, 1.0);
+    }
 };
 
 class SolidColor final : public Texture {

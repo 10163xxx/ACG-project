@@ -54,7 +54,9 @@ public:
         info.ray_cone_spread_scale = 1.0;
         info.ray_cone_spread_add = 0.0;
 
-        attenuation = tint_;
+        // Reflection does not pass through the dielectric medium,
+        // so transmission tint must not affect the reflected ray.
+        attenuation = Vec3(1.0, 1.0, 1.0);
 
         double refraction_ratio;
 
@@ -107,6 +109,10 @@ public:
             );
 
             info.is_transmission = true;
+
+            // Apply tint only when the ray actually enters
+            // or exits the dielectric medium.
+            attenuation = tint_;
 
             info.ray_cone_spread_scale =
                 refraction_ratio;

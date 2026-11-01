@@ -289,38 +289,45 @@ public:
                     + spread_add;
             }
 
-            previous_scatter_used_nee =
-                !scatter_info.is_straight_through
-                && (
+            // A straight-through event is a null event, not a
+            // new BSDF scattering vertex. Preserve the previous
+            // real scattering vertex and its MIS state.
+            //
+            // Opacity transmittance is evaluated deterministically
+            // by shadow rays. The null-event probability is common
+            // to the BSDF and NEE path densities and cancels in
+            // their MIS ratio.
+            if (!scatter_info.is_straight_through) {
+                previous_scatter_used_nee =
                     hit.is_volume
                         ? true
-                        : hit.material->supports_direct_lighting()
-                );
+                        : hit.material->supports_direct_lighting();
 
-            previous_scatter_point = hit.point;
+                previous_scatter_point = hit.point;
 
-            // Surface direct lighting uses multiple area-light samples.
-            // Volume direct lighting currently uses one area-light sample.
-            previous_area_light_samples =
-                hit.is_volume
-                    ? DirectLighting::VOLUME_LIGHT_SAMPLES
-                    : DirectLighting::AREA_LIGHT_SAMPLES;
+                // Surface direct lighting uses multiple area-light
+                // samples. Volume lighting currently uses one.
+                previous_area_light_samples =
+                    hit.is_volume
+                        ? DirectLighting::VOLUME_LIGHT_SAMPLES
+                        : DirectLighting::AREA_LIGHT_SAMPLES;
 
-            if (previous_scatter_used_nee) {
-                const Vec3 wo =
-                    normalize(-ray.direction);
+                if (previous_scatter_used_nee) {
+                    const Vec3 wo =
+                        normalize(-ray.direction);
 
-                const Vec3 wi =
-                    normalize(scattered.direction);
+                    const Vec3 wi =
+                        normalize(scattered.direction);
 
-                previous_bsdf_pdf =
-                    hit.material->scattering_pdf(
-                        hit,
-                        wo,
-                        wi
-                    );
-            } else {
-                previous_bsdf_pdf = 0.0;
+                    previous_bsdf_pdf =
+                        hit.material->scattering_pdf(
+                            hit,
+                            wo,
+                            wi
+                        );
+                } else {
+                    previous_bsdf_pdf = 0.0;
+                }
             }
 
             throughput = throughput * attenuation;

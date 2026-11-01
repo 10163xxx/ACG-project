@@ -506,6 +506,70 @@ namespace {
         assert(rejected_samples > 0);
     }
 
+    void test_p6_crlf_header() {
+        const char* filename = "p6_crlf_test.ppm";
+
+        {
+            std::ofstream file(
+                filename,
+                std::ios::binary
+            );
+
+            assert(file.good());
+
+            const char header[] =
+                "P6\r\n"
+                "1 1\r\n"
+                "255\r\n";
+
+            file.write(
+                header,
+                static_cast<std::streamsize>(
+                    sizeof(header) - 1
+                )
+            );
+
+            // The first pixel byte is itself a whitespace value.
+            const unsigned char pixel[] = {
+                10,
+                32,
+                255
+            };
+
+            file.write(
+                reinterpret_cast<const char*>(pixel),
+                sizeof(pixel)
+            );
+        }
+
+        try {
+            ImageTexture texture(
+                filename,
+                false
+            );
+
+            const Vec3 color =
+                texture.sample(0.5, 0.5, 0.0);
+
+            assert(std::abs(
+                color.x - 10.0 / 255.0
+            ) < 1e-9);
+
+            assert(std::abs(
+                color.y - 32.0 / 255.0
+            ) < 1e-9);
+
+            assert(std::abs(
+                color.z - 1.0
+            ) < 1e-9);
+        } catch (...) {
+            std::remove(filename);
+            throw;
+        }
+
+        std::remove(filename);
+    }
+
     void test_image_texture_srgb_decoding() {
         const char* filename = "srgb_test_texture.ppm";
 
@@ -955,6 +1019,7 @@ int main() {
     test_normal_mapping();
     test_normal_mapping_tangent_orientation();
     test_normal_mapping_stays_in_geometric_hemisphere();
+    test_p6_crlf_header();
     test_image_texture_srgb_decoding();
     test_image_texture_mipmap();
     test_texture_transform_and_address_modes();

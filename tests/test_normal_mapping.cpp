@@ -9,6 +9,7 @@
 #include "materials/lambertian.h"
 #include "materials/normal_mapped_lambertian.h"
 #include "materials/texture.h"
+#include "materials/texture_transform.h"
 #include "geometry/sphere.h"
 #include "core/interval.h"
 #include "materials/bump_mapped_material.h"
@@ -240,6 +241,122 @@ static void test_sphere_normal_mapping_tangent_frame() {
     (void)PI;
 }
 
+static void test_normal_mapping_negative_uv_scale() {
+    const auto base_material =
+        std::make_shared<Lambertian>(
+            Vec3(0.8, 0.7, 0.3)
+        );
+
+    const auto positive_u_map =
+        std::make_shared<SolidColor>(
+            Vec3(1.0, 0.5, 0.5)
+        );
+
+    const auto negative_u_map =
+        std::make_shared<TextureTransform>(
+            positive_u_map,
+            -1.0,
+            1.0
+        );
+
+    const auto positive_v_map =
+        std::make_shared<SolidColor>(
+            Vec3(0.5, 1.0, 0.5)
+        );
+
+    const auto negative_v_map =
+        std::make_shared<TextureTransform>(
+            positive_v_map,
+            1.0,
+            -1.0
+        );
+
+    // Also verify nested transforms: two negative U scales
+    // restore the original positive U orientation.
+    const auto nested_u_map =
+        std::make_shared<TextureTransform>(
+            negative_u_map,
+            -1.0,
+            1.0
+        );
+
+    HitRecord hit;
+    hit.point = Vec3(0.0, 0.0, 0.0);
+    hit.normal = Vec3(0.0, 0.0, 1.0);
+    hit.tangent = Vec3(1.0, 0.0, 0.0);
+    hit.bitangent = Vec3(0.0, 1.0, 0.0);
+    hit.front_face = true;
+
+    const Ray incoming(
+        Vec3(0.0, 0.0, 1.0),
+        Vec3(0.0, 0.0, -1.0)
+    );
+
+    const NormalMappedMaterial positive_u_material(
+        base_material,
+        positive_u_map
+    );
+
+    const NormalMappedMaterial negative_u_material(
+        base_material,
+        negative_u_map
+    );
+
+    const NormalMappedMaterial negative_v_material(
+        base_material,
+        negative_v_map
+    );
+
+    const NormalMappedMaterial nested_u_material(
+        base_material,
+        nested_u_map
+    );
+
+    const Vec3 positive_u_normal =
+        positive_u_material.mapped_normal(
+            incoming,
+            hit
+        );
+
+    const Vec3 negative_u_normal =
+        negative_u_material.mapped_normal(
+            incoming,
+            hit
+        );
+
+    const Vec3 negative_v_normal =
+        negative_v_material.mapped_normal(
+            incoming,
+            hit
+        );
+
+    const Vec3 nested_u_normal =
+        nested_u_material.mapped_normal(
+            incoming,
+            hit
+        );
+
+    assert(dot(
+        positive_u_normal,
+        Vec3(1.0, 0.0, 0.0)
+    ) > 1.0 - 1e-9);
+
+    assert(dot(
+        negative_u_normal,
+        Vec3(-1.0, 0.0, 0.0)
+    ) > 1.0 - 1e-9);
+
+    assert(dot(
+        negative_v_normal,
+        Vec3(0.0, -1.0, 0.0)
+    ) > 1.0 - 1e-9);
+
+    assert(dot(
+        nested_u_normal,
+        Vec3(1.0, 0.0, 0.0)
+    ) > 1.0 - 1e-9);
+}
+
 int main() {
     const auto normal_texture =
         std::make_shared<UVNormalTexture>(8.0);
@@ -302,6 +419,7 @@ int main() {
 
     test_bump_mapping_world_space_gradient();
     test_sphere_normal_mapping_tangent_frame();
+    test_normal_mapping_negative_uv_scale();
 
     std::cout << "Normal mapping test passed.\n";
     return 0;

@@ -76,6 +76,23 @@ public:
         );
     }
 
+    Vec3 tangent_orientation() const override {
+        const Vec3 inner_orientation =
+            texture_->tangent_orientation();
+
+        const double sign_u =
+            scale_u_ < 0.0 ? -1.0 : 1.0;
+
+        const double sign_v =
+            scale_v_ < 0.0 ? -1.0 : 1.0;
+
+        return Vec3(
+            inner_orientation.x * sign_u,
+            inner_orientation.y * sign_v,
+            inner_orientation.z
+        );
+    }
+
 private:
     std::shared_ptr<const Texture> texture_;
     double scale_u_;

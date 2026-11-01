@@ -362,6 +362,14 @@ private:
         while (input.get(ch)) {
             if (std::isspace(
                     static_cast<unsigned char>(ch))) {
+                // Treat CRLF as one header line ending.
+                // Do not skip additional whitespace because
+                // the first binary pixel byte may itself be
+                // a whitespace-valued byte.
+                if (ch == '\r' && input.peek() == '\n') {
+                    input.get(ch);
+                }
+
                 break;
             }
 

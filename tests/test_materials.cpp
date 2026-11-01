@@ -213,6 +213,64 @@ int main() {
         internal_info.ray_cone_spread_add
     ) < 1e-12);
 
+    // 3d. Dielectric tint must affect transmission only.
+    {
+        const Vec3 tint(0.2, 0.5, 0.8);
+        Dielectric tinted_glass(1.5, tint);
+
+        bool saw_reflection = false;
+        bool saw_transmission = false;
+
+        for (unsigned int seed = 0; seed < 100; ++seed) {
+            Random::seed(seed);
+
+            ScatterSampleInfo tinted_info;
+            Vec3 tinted_attenuation;
+            Ray tinted_scattered;
+
+            assert(tinted_glass.scatter(
+                incoming,
+                hit,
+                tinted_attenuation,
+                tinted_scattered,
+                tinted_info
+            ));
+
+            if (tinted_info.is_transmission) {
+                saw_transmission = true;
+
+                assert(std::abs(
+                    tinted_attenuation.x - tint.x
+                ) < 1e-9);
+
+                assert(std::abs(
+                    tinted_attenuation.y - tint.y
+                ) < 1e-9);
+
+                assert(std::abs(
+                    tinted_attenuation.z - tint.z
+                ) < 1e-9);
+            } else {
+                saw_reflection = true;
+
+                assert(std::abs(
+                    tinted_attenuation.x - 1.0
+                ) < 1e-9);
+
+                assert(std::abs(
+                    tinted_attenuation.y - 1.0
+                ) < 1e-9);
+
+                assert(std::abs(
+                    tinted_attenuation.z - 1.0
+                ) < 1e-9);
+            }
+        }
+
+        assert(saw_reflection);
+        assert(saw_transmission);
+    }
+
     // MIS: area PDF to solid-angle PDF conversion.
     assert(std::abs(
         mis::area_to_solid_angle_pdf(0.5, 4.0, 0.5)

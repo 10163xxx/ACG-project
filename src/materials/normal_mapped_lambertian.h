@@ -84,6 +84,17 @@ public:
             )
         );
 
+        // The normal map may use transformed UV coordinates.
+        // Correct the tangent frame for negative UV scales.
+        const Vec3 tangent_orientation =
+            normal_map_->tangent_orientation();
+
+        tangent =
+            tangent_orientation.x * tangent;
+
+        bitangent =
+            tangent_orientation.y * bitangent;
+
         const Vec3 rgb = normal_map_->value(
             hit.u,
             hit.v,
