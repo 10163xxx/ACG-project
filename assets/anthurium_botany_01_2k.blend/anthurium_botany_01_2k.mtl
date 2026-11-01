@@ -3,6 +3,8 @@ newmtl anthurium_botany_01
 Ns 8.000000
 Ka 0.000000 0.000000 0.000000
 Kd 0.12 0.30 0.075
+map_Kd textures/anthurium_botany_01_diff_2k.ppm
+map_d textures/anthurium_botany_01_alpha_2k.ppm
 Ks 0.04 0.04 0.04
 Ke 0.000000 0.000000 0.000000
 Ni 1.000000

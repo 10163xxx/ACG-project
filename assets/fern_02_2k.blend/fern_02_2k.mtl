@@ -3,6 +3,8 @@ newmtl fern_02
 Ns 8.000000
 Ka 0.000000 0.000000 0.000000
 Kd 0.075 0.24 0.055
+map_Kd textures/fern_02_diff_2k.ppm
+map_d textures/fern_02_alpha_2k.ppm
 Ks 0.04 0.04 0.04
 Ke 0.000000 0.000000 0.000000
 Ni 1.000000

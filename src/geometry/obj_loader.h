@@ -299,6 +299,108 @@ private:
             );
         }
 
+        // A non-planar quad can appear self-intersecting after
+        // projection onto a 2D plane. Triangulate quads directly
+        // in 3D and choose the shorter valid diagonal instead.
+        //
+        // The returned indices still refer to original polygon
+        // corners, preserving per-corner UVs and normals.
+        if (polygon.size() == 4) {
+            const Vec3& p0 = vertices[
+                static_cast<std::size_t>(
+                    vertex_indices[polygon[0]]
+                )
+            ];
+
+            const Vec3& p1 = vertices[
+                static_cast<std::size_t>(
+                    vertex_indices[polygon[1]]
+                )
+            ];
+
+            const Vec3& p2 = vertices[
+                static_cast<std::size_t>(
+                    vertex_indices[polygon[2]]
+                )
+            ];
+
+            const Vec3& p3 = vertices[
+                static_cast<std::size_t>(
+                    vertex_indices[polygon[3]]
+                )
+            ];
+
+            // Normalize coordinates before evaluating triangle areas.
+            const Vec3 q0 = (p0 - p0) / extent;
+            const Vec3 q1 = (p1 - p0) / extent;
+            const Vec3 q2 = (p2 - p0) / extent;
+            const Vec3 q3 = (p3 - p0) / extent;
+
+            auto twice_triangle_area = [](
+                const Vec3& a,
+                const Vec3& b,
+                const Vec3& c
+            ) {
+                return cross(b - a, c - a).length();
+            };
+
+            const double area_012 =
+                twice_triangle_area(q0, q1, q2);
+
+            const double area_023 =
+                twice_triangle_area(q0, q2, q3);
+
+            const double area_013 =
+                twice_triangle_area(q0, q1, q3);
+
+            const double area_123 =
+                twice_triangle_area(q1, q2, q3);
+
+            constexpr double QUAD_AREA_EPSILON = 1e-12;
+
+            const bool diagonal_02_valid =
+                std::isfinite(area_012) &&
+                std::isfinite(area_023) &&
+                area_012 > QUAD_AREA_EPSILON &&
+                area_023 > QUAD_AREA_EPSILON;
+
+            const bool diagonal_13_valid =
+                std::isfinite(area_013) &&
+                std::isfinite(area_123) &&
+                area_013 > QUAD_AREA_EPSILON &&
+                area_123 > QUAD_AREA_EPSILON;
+
+            if (!diagonal_02_valid &&
+                !diagonal_13_valid) {
+                throw std::runtime_error(
+                    "OBJ quad has no valid non-degenerate triangulation."
+                );
+            }
+
+            const Vec3 diagonal_02 = p2 - p0;
+            const Vec3 diagonal_13 = p3 - p1;
+
+            const double length_02 =
+                dot(diagonal_02, diagonal_02);
+
+            const double length_13 =
+                dot(diagonal_13, diagonal_13);
+
+            if (diagonal_02_valid &&
+                (!diagonal_13_valid ||
+                 length_02 <= length_13)) {
+                return {
+                    {polygon[0], polygon[1], polygon[2]},
+                    {polygon[0], polygon[2], polygon[3]}
+                };
+            }
+
+            return {
+                {polygon[0], polygon[1], polygon[3]},
+                {polygon[1], polygon[2], polygon[3]}
+            };
+        }
+
         // Translate and scale the polygon before calculating its normal.
         // This avoids precision loss from large world-space offsets and
         // keeps the following geometric tolerances scale-independent.
