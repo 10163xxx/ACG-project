@@ -337,14 +337,11 @@ private:
         std::string token;
         char ch = '\0';
 
+        // Skip leading whitespace and comments.
         while (input.get(ch)) {
             if (std::isspace(
                     static_cast<unsigned char>(ch))) {
-                if (ch == '\r' && input.peek() == '\n') {
-                    input.get(ch);
-                }
-
-                break;
+                continue;
             }
 
             if (ch == '#') {
@@ -359,13 +356,11 @@ private:
             break;
         }
 
+        // Read the token until whitespace or a comment.
         while (input.get(ch)) {
             if (std::isspace(
                     static_cast<unsigned char>(ch))) {
-                // Treat CRLF as one header line ending.
-                // Do not skip additional whitespace because
-                // the first binary pixel byte may itself be
-                // a whitespace-valued byte.
+                // Treat CRLF as one line ending.
                 if (ch == '\r' && input.peek() == '\n') {
                     input.get(ch);
                 }
