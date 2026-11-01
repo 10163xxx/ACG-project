@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <algorithm>
@@ -7,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <cmath>
 
 #include "core/vec3.h"
 
@@ -103,9 +103,40 @@ private:
         }
     }
 
-    static int to_byte(double value) {
-        // Clamp to the valid display range, then convert to 8-bit color.
+    static double aces_tonemap(double value) {
+        value = std::max(0.0, value);
+
+        constexpr double a = 2.51;
+        constexpr double b = 0.03;
+        constexpr double c = 2.43;
+        constexpr double d = 0.59;
+        constexpr double e = 0.14;
+
+        const double mapped =
+            (value * (a * value + b))
+            / (value * (c * value + d) + e);
+
+        return std::clamp(mapped, 0.0, 1.0);
+    }
+
+    static double linear_to_srgb(double value) {
         value = std::clamp(value, 0.0, 1.0);
-        return static_cast<int>(255.999 * value);
+
+        if (value <= 0.0031308) {
+            return 12.92 * value;
+        }
+
+        return 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
+    }
+
+    static int to_byte(double value) {
+        if (!std::isfinite(value)) {
+            return 0;
+        }
+
+        const double mapped = aces_tonemap(value);
+        const double srgb = linear_to_srgb(mapped);
+
+        return static_cast<int>(255.999 * srgb);
     }
 };

@@ -102,11 +102,13 @@ public:
                     const double environment_pdf =
                         environment->pdf(ray.direction);
 
-                    environment_weight =
-                        mis::power_heuristic(
-                            previous_bsdf_pdf,
-                            environment_pdf
-                        );
+                        environment_weight =
+                            mis::power_heuristic(
+                                previous_bsdf_pdf,
+                                DirectLighting::BSDF_SAMPLES,
+                                environment_pdf,
+                                DirectLighting::ENVIRONMENT_LIGHT_SAMPLES
+                            );
                 }
 
                 radiance = radiance

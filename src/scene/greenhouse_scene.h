@@ -42,12 +42,13 @@ inline HittableList make_greenhouse_scene() {
     auto stone = std::make_shared<PrincipledBSDF>(
         Vec3(0.38, 0.34, 0.28), 0.08, 0.48);
     auto iron = std::make_shared<PrincipledBSDF>(
-        Vec3(0.075, 0.095, 0.085), 0.82, 0.26);
+        Vec3(0.11, 0.12, 0.13), 0.82, 0.28);
     auto copper = std::make_shared<PrincipledBSDF>(
         Vec3(0.58, 0.27, 0.12), 0.78, 0.24);
-    // Architectural panes are reflective surfaces, not open dielectric volumes.
+
+    // Neutral, lightly reflective architectural glazing.
     auto glass_pane = std::make_shared<PrincipledBSDF>(
-        Vec3(0.20, 0.30, 0.31), 0.32, 0.16);
+        Vec3(0.72, 0.75, 0.77), 0.02, 0.12);
 
     world.add(std::make_shared<Quad>(
         Vec3(-4, 0, 4), Vec3(8, 0, 0), Vec3(0, 0, -12), floor));

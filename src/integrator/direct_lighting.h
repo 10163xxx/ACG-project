@@ -19,6 +19,7 @@
 class DirectLighting {
 public:
     static constexpr int AREA_LIGHT_SAMPLES = 4;
+    static constexpr int ENVIRONMENT_LIGHT_SAMPLES = 4;
     static constexpr int VOLUME_LIGHT_SAMPLES = 1;
     static constexpr int BSDF_SAMPLES = 1;
 
@@ -549,7 +550,7 @@ static Vec3 estimate_volume_area_lighting(
             );
     }
 
-static Vec3 estimate_environment_lighting(
+static Vec3 estimate_environment_lighting_single(
         const HitRecord& hit,
         const Material& material,
         const Ray& incoming_ray,
@@ -623,7 +624,9 @@ static Vec3 estimate_environment_lighting(
         const double mis_weight =
             mis::power_heuristic(
                 light_pdf,
-                bsdf_pdf
+                ENVIRONMENT_LIGHT_SAMPLES,
+                bsdf_pdf,
+                BSDF_SAMPLES
             );
 
         const Vec3 environment_radiance =
@@ -637,6 +640,30 @@ static Vec3 estimate_environment_lighting(
                 * shadow_transmittance
                 / light_pdf
             );
+    }
+
+    static Vec3 estimate_environment_lighting(
+        const HitRecord& hit,
+        const Material& material,
+        const Ray& incoming_ray,
+        const Hittable& world,
+        const EnvironmentMap& environment
+    ) {
+        Vec3 radiance(0.0, 0.0, 0.0);
+
+        for (int i = 0; i < ENVIRONMENT_LIGHT_SAMPLES; ++i) {
+            radiance = radiance
+                + estimate_environment_lighting_single(
+                    hit,
+                    material,
+                    incoming_ray,
+                    world,
+                    environment
+                );
+        }
+
+        return radiance
+            / static_cast<double>(ENVIRONMENT_LIGHT_SAMPLES);
     }
 
 static Vec3 estimate_point_lighting(

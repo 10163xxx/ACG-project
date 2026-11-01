@@ -47,8 +47,8 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         s.geometry = make_greenhouse_scene();
         s.output = OutputPaths::RenderDirectory + "greenhouse_scene.ppm";
         s.point_lights = {
-            PointLight(Vec3(-2, 3.2, -1), Vec3(18, 13, 8)),
-            PointLight(Vec3(2.2, 3, -5), Vec3(10, 14, 12))
+            PointLight(Vec3(-2, 3.2, -1), Vec3(7, 6.5, 5.5)),
+            PointLight(Vec3(2.2, 3, -5), Vec3(5.5, 6, 5.5))
         };
     } else {
         switch (request.test) {

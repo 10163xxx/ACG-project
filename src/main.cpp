@@ -123,10 +123,6 @@ int main(int argc, char* argv[]) {
                         active_environment, &light_indices);
                 }
                 color = color / setup.samples;
-                color = Vec3(
-                    std::sqrt(std::max(0.0, color.x)),
-                    std::sqrt(std::max(0.0, color.y)),
-                    std::sqrt(std::max(0.0, color.z)));
                 image.set_pixel(x, y, color);
             }
         }
