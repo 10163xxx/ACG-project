@@ -14,6 +14,7 @@
 #include "materials/diffuse_light.h"
 #include "materials/lambertian.h"
 #include "materials/principled.h"
+#include "materials/thin_glass.h"
 
 inline void greenhouse_box(
     HittableList& world,
@@ -234,9 +235,13 @@ inline HittableList make_greenhouse_scene() {
     auto copper = std::make_shared<PrincipledBSDF>(
         Vec3(0.20, 0.12, 0.075), 0.0, 0.78);
 
-    // Neutral, lightly reflective architectural glazing.
-    auto glass_pane = std::make_shared<PrincipledBSDF>(
-        Vec3(0.72, 0.75, 0.77), 0.02, 0.12);
+    // Thin architectural glazing.
+    // This material is designed for open Quad surfaces,
+    // not closed dielectric volumes.
+    auto glass_pane = std::make_shared<ThinGlass>(
+        1.52,
+        Vec3(0.96, 0.985, 1.0)
+    );
 
     world.add(std::make_shared<Quad>(
         Vec3(-4, 0, 4), Vec3(8, 0, 0), Vec3(0, 0, -12), floor));
@@ -278,6 +283,60 @@ inline HittableList make_greenhouse_scene() {
         greenhouse_box(world, Vec3(x - .035, .72, -7.98),
             Vec3(x + .035, 3.95, -7.82), iron);
     }
+
+    // Architectural glazing: both side walls.
+    world.add(std::make_shared<Quad>(
+        Vec3(-3.82, 0.72, -8.0),
+        Vec3(0.0, 0.0, 12.0),
+        Vec3(0.0, 3.18, 0.0),
+        glass_pane
+    ));
+
+    world.add(std::make_shared<Quad>(
+        Vec3(3.82, 0.72, 4.0),
+        Vec3(0.0, 0.0, -12.0),
+        Vec3(0.0, 3.18, 0.0),
+        glass_pane
+    ));
+
+    // Rear wall glazing.
+    world.add(std::make_shared<Quad>(
+        Vec3(-3.78, 0.72, -7.82),
+        Vec3(7.56, 0.0, 0.0),
+        Vec3(0.0, 3.18, 0.0),
+        glass_pane
+    ));
+
+    // Roof glazing: left slope.
+    world.add(std::make_shared<Quad>(
+        Vec3(-3.96, 4.08, 3.82),
+        Vec3(3.92, 1.94, 0.0),
+        Vec3(0.0, 0.0, -11.64),
+        glass_pane
+    ));
+
+    // Roof glazing: right slope.
+    world.add(std::make_shared<Quad>(
+        Vec3(0.04, 5.98, 3.82),
+        Vec3(3.92, -1.94, 0.0),
+        Vec3(0.0, 0.0, -11.64),
+        glass_pane
+    ));
+
+    // Front entrance glazing, leaving a central doorway.
+    world.add(std::make_shared<Quad>(
+        Vec3(-3.78, 0.72, 3.82),
+        Vec3(2.58, 0.0, 0.0),
+        Vec3(0.0, 3.18, 0.0),
+        glass_pane
+    ));
+
+    world.add(std::make_shared<Quad>(
+        Vec3(1.20, 0.72, 3.82),
+        Vec3(2.58, 0.0, 0.0),
+        Vec3(0.0, 3.18, 0.0),
+        glass_pane
+    ));
 
     // Imported botanical assets.
     auto anthurium_fallback =
