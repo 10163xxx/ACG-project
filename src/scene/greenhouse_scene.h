@@ -262,22 +262,37 @@ inline void greenhouse_add_tapered_pot(
     world.add(std::make_shared<Quad>(
         p3, p0 - p3, q3 - p3, material));
 
-    // A slightly wider rim makes the planter read as a ceramic pot.
+    // Four separate rim bars leave the planter opening unobstructed.
     const double rim_height = 0.055;
     const double rim_width = 0.045;
+    const double outer = top_half_width + rim_width;
+    const double inner = top_half_width;
 
     greenhouse_box(
         world,
-        Vec3(
-            x - top_half_width - rim_width,
-            y1 - rim_height,
-            z - top_half_width - rim_width
-        ),
-        Vec3(
-            x + top_half_width + rim_width,
-            y1,
-            z + top_half_width + rim_width
-        ),
+        Vec3(x - outer, y1 - rim_height, z - outer),
+        Vec3(x + outer, y1, z - inner),
+        material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(x - outer, y1 - rim_height, z + inner),
+        Vec3(x + outer, y1, z + outer),
+        material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(x - outer, y1 - rim_height, z - inner),
+        Vec3(x - inner, y1, z + inner),
+        material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(x + inner, y1 - rim_height, z - inner),
+        Vec3(x + outer, y1, z + inner),
         material
     );
 }
@@ -574,9 +589,118 @@ inline HittableList make_greenhouse_scene() {
     add_fern(-2.55, -3.95, 1.85);
     add_fern(2.55, -5.65, 2.05);
 
-    // Background foliage, kept away from the central walkway.
-    add_fern(-2.35, -6.65, 2.15);
-    add_fern(2.35, -7.05, 1.90);
+    // Background Pachira: a single tall focal silhouette.
+    auto pachira_fallback =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.16, 0.25, 0.075),
+            0.0,
+            0.62
+        );
+
+    auto pachira_pot =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.095, 0.075, 0.060),
+            0.0,
+            0.82
+        );
+
+    const double pachira_pot_height = 0.52;
+
+    greenhouse_add_tapered_pot(
+        world,
+        0.0,
+        -6.55,
+        0.34,
+        0.43,
+        pachira_pot_height,
+        pachira_pot
+    );
+
+    world.add(std::make_shared<Quad>(
+        Vec3(-0.36, pachira_pot_height - 0.025, -6.91),
+        Vec3(0.72, 0.0, 0.0),
+        Vec3(0.0, 0.0, 0.72),
+        fern_soil
+    ));
+
+    TriangleMesh pachira = ObjLoader::load_file(
+        "assets/pachira_aquatica_01_2k.blend/"
+        "pachira_aquatica_01_2k.obj",
+        pachira_fallback,
+        2.05,
+        Vec3(0.0, pachira_pot_height, -6.55),
+        {
+            "pachira_aquatica_01_bark_d",
+            "pachira_aquatica_01_leaves_d"
+        }
+    );
+
+    world.add(
+        std::make_shared<TriangleMesh>(
+            std::move(pachira)
+        )
+    );
+
+    // Calathea: broad, low foliage on both sides of the walkway.
+    auto calathea_fallback =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.12, 0.28, 0.075),
+            0.0,
+            0.55
+        );
+
+    auto calathea_pot =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.12, 0.085, 0.065),
+            0.0,
+            0.78
+        );
+
+    auto add_calathea = [&](double x, double z) {
+        const double pot_height = 0.40;
+
+        greenhouse_add_tapered_pot(
+            world,
+            x,
+            z,
+            0.43,
+            0.54,
+            pot_height,
+            calathea_pot
+        );
+
+        world.add(std::make_shared<Quad>(
+            Vec3(x - 0.49, pot_height - 0.025, z - 0.49),
+            Vec3(0.98, 0.0, 0.0),
+            Vec3(0.0, 0.0, 0.98),
+            fern_soil
+        ));
+
+        TriangleMesh calathea = ObjLoader::load_file(
+            "assets/calathea_orbifolia_01_2k.blend/"
+            "calathea_orbifolia_01_2k.obj",
+            calathea_fallback,
+            0.0,
+            Vec3(x, pot_height, z),
+            {
+                "calathea_orbifolia_01_a",
+                "calathea_orbifolia_01_b",
+                "calathea_orbifolia_01_c",
+                "calathea_orbifolia_01_d",
+                "calathea_orbifolia_01_e"
+            },
+            1.25
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(calathea)
+            )
+        );
+    };
+
+    add_calathea(-2.75, -2.15);
+    add_calathea(2.75, -2.15);
 
     // Restrained stone exhibition plinth.
     greenhouse_box(

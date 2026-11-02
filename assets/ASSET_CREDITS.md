@@ -45,3 +45,17 @@ For every new external asset, record:
 - Local path: assets/environments/kloofendal_48d_partly_cloudy_puresky_2k.hdr
 - Format: Radiance HDR, equirectangular environment map
 - Modifications: Downloaded in HDR format for environment lighting.
+
+### Calathea Orbifolia 01
+- Source: https://polyhaven.com/a/calathea_orbifolia_01
+- Authors: Rico Cilliers (modeling), Rob Tuytel (scanning)
+- License: CC0 1.0 Universal
+- Original files: OBJ, MTL, Blender project and PBR textures
+- Modifications: Diffuse and alpha textures converted to P6 PPM for the renderer; MTL updated for diffuse, opacity and supported roughness maps; selected plant components imported into the greenhouse scene.
+
+### Pachira Aquatica 01
+- Source: https://polyhaven.com/a/pachira_aquatica_01
+- Authors: Rico Cilliers (modeling), Rob Tuytel (scanning)
+- License: CC0 1.0 Universal
+- Original files: OBJ, MTL, Blender project and PBR textures
+- Modifications: Selected one tree from the multi-tree OBJ; diffuse, alpha and roughness textures converted to P6 PPM; MTL updated for the renderer; imported into the greenhouse scene.

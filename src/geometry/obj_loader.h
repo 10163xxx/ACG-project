@@ -1137,6 +1137,32 @@ private:
             );
         }
 
+        for (const std::string& requested_name : object_names) {
+            const bool found =
+                std::any_of(
+                    face_object_names.begin(),
+                    face_object_names.end(),
+                    [&](const std::string& name) {
+                        return name == requested_name;
+                    }
+                )
+                ||
+                std::any_of(
+                    face_group_names.begin(),
+                    face_group_names.end(),
+                    [&](const std::string& name) {
+                        return name == requested_name;
+                    }
+                );
+
+            if (!found) {
+                throw std::runtime_error(
+                    "Requested OBJ object or group was not found: " +
+                    requested_name
+                );
+            }
+        }
+
         parsed.faces = std::move(faces);
         parsed.face_texcoords = std::move(face_texcoords);
         parsed.face_normals = std::move(face_normals);
@@ -1365,7 +1391,8 @@ public:
         std::shared_ptr<const Material> fallback_material = nullptr,
         double target_height = 0.0,
         const Vec3& base_position = Vec3(0.0, 0.0, 0.0),
-        const std::vector<std::string>& object_names = {}
+        const std::vector<std::string>& object_names = {},
+        double target_width = 0.0
     ) {
         std::ifstream file(filename);
 
@@ -1379,13 +1406,18 @@ public:
         filter_objects(parsed, object_names);
 
         if (!std::isfinite(target_height) ||
-            target_height < 0.0) {
+            target_height < 0.0 ||
+            !std::isfinite(target_width) ||
+            target_width < 0.0 ||
+            (target_height > 0.0 && target_width > 0.0)) {
             throw std::invalid_argument(
-                "OBJ target height must be finite and non-negative."
+                "OBJ target dimensions must be finite and non-negative. "
+                "Specify either target height or target width, not both."
             );
         }
 
-        if (target_height > 0.0) {
+        if (target_height > 0.0 ||
+            target_width > 0.0) {
             if (parsed.faces.empty()) {
                 throw std::runtime_error(
                     "OBJ model contains no faces."
@@ -1416,15 +1448,25 @@ public:
             const double source_height =
                 maximum.y - minimum.y;
 
-            if (!std::isfinite(source_height) ||
-                source_height <= 1e-8) {
+            const double source_width =
+                maximum.x - minimum.x;
+
+            const double source_dimension =
+                target_width > 0.0
+                    ? source_width
+                    : source_height;
+
+            if (!std::isfinite(source_dimension) ||
+                source_dimension <= 1e-8) {
                 throw std::runtime_error(
-                    "OBJ model has an invalid vertical extent."
+                    "OBJ model has an invalid normalization dimension."
                 );
             }
 
             const double scale =
-                target_height / source_height;
+                target_width > 0.0
+                    ? target_width / source_width
+                    : target_height / source_height;
 
             const double center_x =
                 0.5 * (minimum.x + maximum.x);

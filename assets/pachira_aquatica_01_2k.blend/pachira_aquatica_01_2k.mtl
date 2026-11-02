@@ -1,23 +1,28 @@
-# Blender 5.4.0 Alpha MTL File: 'pachira_aquatica_01_2k.blend'
-# www.blender.org
+# Converted for ACG Path Tracer.
+# Original asset: Poly Haven - Pachira Aquatica 01
+# License: CC0 1.0
 
 newmtl pachira_aquatica_01_bark
+Ns 45.000000
 Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.040000 0.040000 0.040000
 Ni 1.450000
 d 1.000000
 illum 2
-map_Kd textures/pachira_aquatica_01_bark_diff_2k.png
-map_Ns textures/pachira_aquatica_01_bark_rough_2k.png
-map_Bump -bm 1.000000 textures/pachira_aquatica_01_bark_nor_gl_2k.png
+
+map_Kd textures/pachira_bark_diffuse.ppm
+map_Pr textures/pachira_bark_roughness.ppm
 
 newmtl pachira_aquatica_01_leaves
-Ns 360.000000
+Ns 80.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
+Ks 0.040000 0.040000 0.040000
 Ni 1.000000
 d 1.000000
 illum 2
+
+map_Kd textures/pachira_leaves_diffuse.ppm
+map_d textures/pachira_leaves_alpha.ppm
+map_Pr textures/pachira_leaves_roughness.ppm

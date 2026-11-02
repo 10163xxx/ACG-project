@@ -1,12 +1,15 @@
-# Blender 5.4.0 Alpha MTL File: 'calathea_orbifolia_01_2k.blend'
-# www.blender.org
+# Converted for ACG Path Tracer.
+# Original asset: Poly Haven - Calathea Orbifolia 01
+# License: CC0 1.0
 
 newmtl calathea_orbifolia_01
-Ns 360.000000
+Ns 80.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
+Ks 0.040000 0.040000 0.040000
 Ni 1.000000
 d 1.000000
 illum 2
+
+map_Kd textures/calathea_diffuse.ppm
+map_d textures/calathea_alpha.ppm
