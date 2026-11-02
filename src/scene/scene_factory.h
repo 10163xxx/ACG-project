@@ -40,17 +40,14 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         s.height = 360;
         s.samples = 192;
         s.max_depth = 24;
-        from = Vec3(5.8, 3.8, 9);
-        at = Vec3(0, 2.55, -1.8);
-        fov = 46;
-        aperture = 0;
-        focus = 11.5;
+        from = Vec3(4.2, 3.2, 10.0);
+        at = Vec3(0.0, 2.0, -2.4);
+        fov = 43;
+        aperture = 0.0;
+        focus = 13.0;
         s.geometry = make_greenhouse_scene();
         s.output = OutputPaths::RenderDirectory + "greenhouse_scene.ppm";
-        s.point_lights = {
-            PointLight(Vec3(-2, 3.2, -1), Vec3(7, 6.5, 5.5)),
-            PointLight(Vec3(2.2, 3, -5), Vec3(5.5, 6, 5.5))
-        };
+        s.point_lights.clear();
     } else {
         switch (request.test) {
         case TestKind::Mipmap:

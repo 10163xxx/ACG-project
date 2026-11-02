@@ -114,7 +114,10 @@ int main(int argc, char* argv[]) {
         EnvironmentMap environment;
         const EnvironmentMap* active_environment = nullptr;
         if (setup.use_environment) {
-            environment.load("assets/environments/studio_small_01_2k.hdr");
+            environment.load(
+                "assets/environments/"
+                "kloofendal_48d_partly_cloudy_puresky_2k.hdr"
+            );
             active_environment = &environment;
         }
 

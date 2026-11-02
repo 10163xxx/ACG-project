@@ -223,13 +223,16 @@ inline HittableList make_greenhouse_scene() {
     HittableList world;
 
     auto floor = std::make_shared<PrincipledBSDF>(
-        Vec3(0.34, 0.35, 0.32), 0.05, 0.32);
+        Vec3(0.48, 0.46, 0.41), 0.0, 0.72);
+
     auto stone = std::make_shared<PrincipledBSDF>(
-        Vec3(0.38, 0.34, 0.28), 0.08, 0.48);
+        Vec3(0.48, 0.43, 0.34), 0.0, 0.62);
+
     auto iron = std::make_shared<PrincipledBSDF>(
-        Vec3(0.11, 0.12, 0.13), 0.82, 0.28);
+        Vec3(0.045, 0.095, 0.065), 0.45, 0.48);
+
     auto copper = std::make_shared<PrincipledBSDF>(
-        Vec3(0.58, 0.27, 0.12), 0.78, 0.24);
+        Vec3(0.20, 0.12, 0.075), 0.0, 0.78);
 
     // Neutral, lightly reflective architectural glazing.
     auto glass_pane = std::make_shared<PrincipledBSDF>(
@@ -251,26 +254,6 @@ inline HittableList make_greenhouse_scene() {
             Vec3(3.82, 4.02, z + .075), iron);
     }
 
-    // Side glazing.
-    for (int z = 2; z >= -6; z -= 2) {
-        world.add(std::make_shared<Quad>(
-            Vec3(-3.79, .85, z), Vec3(0, 0, -1.82),
-            Vec3(0, 2.78, 0), glass_pane));
-        world.add(std::make_shared<Quad>(
-            Vec3(3.79, .85, z - 1.82), Vec3(0, 0, 1.82),
-            Vec3(0, 2.78, 0), glass_pane));
-    }
-
-    // Two pitched roof slopes, divided into five longitudinal bays.
-    for (int i = 0; i < 5; ++i) {
-        const double z = 3.8 - 2.4 * i;
-        world.add(std::make_shared<Quad>(
-            Vec3(-3.96, 4.05, z), Vec3(3.94, 1.94, 0),
-            Vec3(0, 0, -2.25), glass_pane));
-        world.add(std::make_shared<Quad>(
-            Vec3(.02, 5.99, z), Vec3(3.94, -1.94, 0),
-            Vec3(0, 0, -2.25), glass_pane));
-    }
 
     greenhouse_box(world, Vec3(-.10, 5.98, -8),
         Vec3(.10, 6.20, 4), copper);
@@ -291,9 +274,6 @@ inline HittableList make_greenhouse_scene() {
     }
 
     // Rear glazed wall and mullions.
-    world.add(std::make_shared<Quad>(
-        Vec3(-3.68, .72, -7.88), Vec3(7.36, 0, 0),
-        Vec3(0, 3.18, 0), glass_pane));
     for (double x : {-2.4, -1.2, 0.0, 1.2, 2.4}) {
         greenhouse_box(world, Vec3(x - .035, .72, -7.98),
             Vec3(x + .035, 3.95, -7.82), iron);
@@ -395,11 +375,17 @@ inline HittableList make_greenhouse_scene() {
     greenhouse_box(world, Vec3(-.72, .96, -2.92),
         Vec3(.72, 1.10, -1.48), iron);
 
-    // Downward-facing rectangular emitter (normal points toward -Y).
-    auto emitter = std::make_shared<DiffuseLight>(Vec3(4, 3, 2));
+    // Large soft fill light, facing downward.
+    auto emitter = std::make_shared<DiffuseLight>(
+        Vec3(1.5, 1.65, 1.4)
+    );
+
     world.add(std::make_shared<Quad>(
-        Vec3(-1.35, 5.45, -4), Vec3(2.7, 0, 0),
-        Vec3(0, 0, .12), emitter));
+        Vec3(-1.8, 5.35, -4.0),
+        Vec3(3.6, 0.0, 0.0),
+        Vec3(0.0, 0.0, 2.0),
+        emitter
+    ));
 
     return world;
 }

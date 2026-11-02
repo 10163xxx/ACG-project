@@ -37,3 +37,11 @@ For every new external asset, record:
 - License: CC0 1.0 Universal
 - Original files: OBJ, MTL, Blender project and PBR textures
 - Modifications: Imported into the ACG Path Tracer scene.
+
+### Kloofendal 48d Partly Cloudy (Pure Sky)
+- Source: https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky
+- Authors: Greg Zaal (original), Jarod Guest (sky edits)
+- License: CC0 1.0 Universal
+- Local path: assets/environments/kloofendal_48d_partly_cloudy_puresky_2k.hdr
+- Format: Radiance HDR, equirectangular environment map
+- Modifications: Downloaded in HDR format for environment lighting.
