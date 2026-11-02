@@ -246,6 +246,34 @@ inline HittableList make_greenhouse_scene() {
     world.add(std::make_shared<Quad>(
         Vec3(-4, 0, 4), Vec3(8, 0, 0), Vec3(0, 0, -12), floor));
 
+    // Exterior landscape surrounding the conservatory.
+    auto exterior_ground = std::make_shared<PrincipledBSDF>(
+        Vec3(0.16, 0.21, 0.12),
+        0.0,
+        0.92
+    );
+
+    auto exterior_path = std::make_shared<PrincipledBSDF>(
+        Vec3(0.34, 0.32, 0.27),
+        0.0,
+        0.88
+    );
+
+    world.add(std::make_shared<Quad>(
+        Vec3(-30.0, -0.08, 30.0),
+        Vec3(60.0, 0.0, 0.0),
+        Vec3(0.0, 0.0, -60.0),
+        exterior_ground
+    ));
+
+    // A stone approach path outside the entrance.
+    world.add(std::make_shared<Quad>(
+        Vec3(-1.25, -0.035, 15.0),
+        Vec3(2.5, 0.0, 0.0),
+        Vec3(0.0, 0.0, -11.0),
+        exterior_path
+    ));
+
     greenhouse_box(world, Vec3(-4, 0, -8), Vec3(-3.72, .62, 4), stone);
     greenhouse_box(world, Vec3(3.72, 0, -8), Vec3(4, .62, 4), stone);
 
@@ -298,6 +326,40 @@ inline HittableList make_greenhouse_scene() {
         Vec3(0.0, 3.18, 0.0),
         glass_pane
     ));
+
+    // Side-wall glazing mullions.
+    for (int z = 2; z >= -7; z -= 2) {
+        greenhouse_box(
+            world,
+            Vec3(-3.86, 0.72, z - 0.035),
+            Vec3(-3.78, 3.90, z + 0.035),
+            iron
+        );
+
+        greenhouse_box(
+            world,
+            Vec3(3.78, 0.72, z - 0.035),
+            Vec3(3.86, 3.90, z + 0.035),
+            iron
+        );
+    }
+
+    // Horizontal side-wall glazing rails.
+    for (double y : {1.75, 2.85}) {
+        greenhouse_box(
+            world,
+            Vec3(-3.86, y, -8.0),
+            Vec3(-3.78, y + 0.055, 4.0),
+            iron
+        );
+
+        greenhouse_box(
+            world,
+            Vec3(3.78, y, -8.0),
+            Vec3(3.86, y + 0.055, 4.0),
+            iron
+        );
+    }
 
     // Rear wall glazing.
     world.add(std::make_shared<Quad>(
@@ -423,16 +485,30 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    add_fern(-2.45, -1.35, 1.65);
-    add_fern(2.45, -4.35, 1.85);
+    // Foreground and middle-ground ferns.
+    add_fern(-2.45, 0.65, 1.45);
+    add_fern(2.45, -0.15, 1.55);
+    add_fern(-2.55, -3.95, 1.85);
+    add_fern(2.55, -5.65, 2.05);
 
-    // Central exhibition plinth.
-    greenhouse_box(world, Vec3(-.95, 0, -3.15),
-        Vec3(.95, .82, -1.25), stone);
-    greenhouse_box(world, Vec3(-1.02, .82, -3.22),
-        Vec3(1.02, .96, -1.18), copper);
-    greenhouse_box(world, Vec3(-.72, .96, -2.92),
-        Vec3(.72, 1.10, -1.48), iron);
+    // Background foliage, kept away from the central walkway.
+    add_fern(-2.35, -6.65, 2.15);
+    add_fern(2.35, -7.05, 1.90);
+
+    // Restrained stone exhibition plinth.
+    greenhouse_box(
+        world,
+        Vec3(-0.95, 0.0, -3.15),
+        Vec3(0.95, 0.88, -1.25),
+        stone
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(-1.02, 0.88, -3.22),
+        Vec3(1.02, 0.98, -1.18),
+        stone
+    );
 
     // Large soft fill light, facing downward.
     auto emitter = std::make_shared<DiffuseLight>(
