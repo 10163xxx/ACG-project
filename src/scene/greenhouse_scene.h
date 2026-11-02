@@ -220,6 +220,68 @@ inline void greenhouse_add_plant(
     }
 }
 
+inline void greenhouse_add_tapered_pot(
+    HittableList& world,
+    double x,
+    double z,
+    double bottom_half_width,
+    double top_half_width,
+    double height,
+    const std::shared_ptr<const Material>& material
+) {
+    const double y0 = 0.0;
+    const double y1 = height;
+
+    const Vec3 p0(
+        x - bottom_half_width, y0, z - bottom_half_width);
+    const Vec3 p1(
+        x + bottom_half_width, y0, z - bottom_half_width);
+    const Vec3 p2(
+        x + bottom_half_width, y0, z + bottom_half_width);
+    const Vec3 p3(
+        x - bottom_half_width, y0, z + bottom_half_width);
+
+    const Vec3 q0(
+        x - top_half_width, y1, z - top_half_width);
+    const Vec3 q1(
+        x + top_half_width, y1, z - top_half_width);
+    const Vec3 q2(
+        x + top_half_width, y1, z + top_half_width);
+    const Vec3 q3(
+        x - top_half_width, y1, z + top_half_width);
+
+    world.add(std::make_shared<Quad>(
+        p0, p1 - p0, q0 - p0, material));
+
+    world.add(std::make_shared<Quad>(
+        p1, p2 - p1, q1 - p1, material));
+
+    world.add(std::make_shared<Quad>(
+        p2, p3 - p2, q2 - p2, material));
+
+    world.add(std::make_shared<Quad>(
+        p3, p0 - p3, q3 - p3, material));
+
+    // A slightly wider rim makes the planter read as a ceramic pot.
+    const double rim_height = 0.055;
+    const double rim_width = 0.045;
+
+    greenhouse_box(
+        world,
+        Vec3(
+            x - top_half_width - rim_width,
+            y1 - rim_height,
+            z - top_half_width - rim_width
+        ),
+        Vec3(
+            x + top_half_width + rim_width,
+            y1,
+            z + top_half_width + rim_width
+        ),
+        material
+    );
+}
+
 inline HittableList make_greenhouse_scene() {
     HittableList world;
 
@@ -312,23 +374,48 @@ inline HittableList make_greenhouse_scene() {
             Vec3(x + .035, 3.95, -7.82), iron);
     }
 
-    // Architectural glazing: both side walls.
-    world.add(std::make_shared<Quad>(
-        Vec3(-3.82, 0.72, -8.0),
-        Vec3(0.0, 0.0, 12.0),
-        Vec3(0.0, 3.18, 0.0),
-        glass_pane
-    ));
+    // Side-wall glazing: individual panes separated from metal frames.
+    // The glass is slightly offset toward the interior to avoid
+    // coplanar intersections with the structural mullions.
+    const double side_glass_left_x = -3.735;
+    const double side_glass_right_x = 3.735;
 
-    world.add(std::make_shared<Quad>(
-        Vec3(3.82, 0.72, 4.0),
-        Vec3(0.0, 0.0, -12.0),
-        Vec3(0.0, 3.18, 0.0),
-        glass_pane
-    ));
+    const std::array<double, 7> pane_z = {
+        3.82, 2.08, 0.08, -1.92, -3.92, -5.92, -7.82
+    };
 
-    // Side-wall glazing mullions.
-    for (int z = 2; z >= -7; z -= 2) {
+    const std::array<double, 4> pane_y = {
+        0.76, 1.70, 2.80, 3.86
+    };
+
+    for (std::size_t zi = 0; zi + 1 < pane_z.size(); ++zi) {
+        for (std::size_t yi = 0; yi + 1 < pane_y.size(); ++yi) {
+            const double z_start = pane_z[zi];
+            const double z_end = pane_z[zi + 1];
+            const double y_start = pane_y[yi];
+            const double pane_height = pane_y[yi + 1] - y_start;
+
+            const Vec3 pane_u(0.0, 0.0, z_end - z_start);
+            const Vec3 pane_v(0.0, pane_height, 0.0);
+
+            world.add(std::make_shared<Quad>(
+                Vec3(side_glass_left_x, y_start, z_start),
+                pane_u,
+                pane_v,
+                glass_pane
+            ));
+
+            world.add(std::make_shared<Quad>(
+                Vec3(side_glass_right_x, y_start, z_start),
+                pane_u,
+                pane_v,
+                glass_pane
+            ));
+        }
+    }
+
+    // Vertical side-wall mullions.
+    for (int z = 2; z >= -6; z -= 2) {
         greenhouse_box(
             world,
             Vec3(-3.86, 0.72, z - 0.035),
@@ -442,32 +529,28 @@ inline HittableList make_greenhouse_scene() {
     );
 
     auto add_fern = [&](double x, double z, double height) {
-        const double half_width = 0.38;
+        const double bottom_half_width = 0.27;
+        const double top_half_width = 0.36;
         const double pot_height = 0.42;
 
-        greenhouse_box(
+        greenhouse_add_tapered_pot(
             world,
-            Vec3(
-                x - half_width,
-                0.0,
-                z - half_width
-            ),
-            Vec3(
-                x + half_width,
-                pot_height,
-                z + half_width
-            ),
+            x,
+            z,
+            bottom_half_width,
+            top_half_width,
+            pot_height,
             fern_planter
         );
 
         world.add(std::make_shared<Quad>(
             Vec3(
-                x - half_width * 0.88,
-                pot_height + 0.005,
-                z - half_width * 0.88
+                x - top_half_width * 0.88,
+                pot_height - 0.025,
+                z - top_half_width * 0.88
             ),
-            Vec3(half_width * 1.76, 0.0, 0.0),
-            Vec3(0.0, 0.0, half_width * 1.76),
+            Vec3(top_half_width * 1.76, 0.0, 0.0),
+            Vec3(0.0, 0.0, top_half_width * 1.76),
             fern_soil
         ));
 
