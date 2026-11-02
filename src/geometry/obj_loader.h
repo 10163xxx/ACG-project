@@ -39,6 +39,8 @@ private:
         std::vector<std::string> face_smoothing_groups;
 
         std::vector<std::string> face_material_names;
+        std::vector<std::string> face_object_names;
+        std::vector<std::string> face_group_names;
         std::vector<std::string> material_libraries;
     };
 
@@ -804,6 +806,8 @@ private:
         ParsedObj parsed;
         std::string current_material;
         std::string current_smoothing_group;
+        std::string current_object;
+        std::string current_group;
         std::string line;
         std::size_t line_number = 0;
 
@@ -846,6 +850,41 @@ private:
 
                 while (stream >> library) {
                     parsed.material_libraries.push_back(library);
+                }
+            } else if (command == "o") {
+                std::getline(stream, current_object);
+
+                const std::size_t first =
+                    current_object.find_first_not_of(" \t\r\n");
+
+                if (first == std::string::npos) {
+                    current_object.clear();
+                } else {
+                    const std::size_t last =
+                        current_object.find_last_not_of(" \t\r\n");
+
+                    current_object = current_object.substr(
+                        first,
+                        last - first + 1
+                    );
+                }
+
+            } else if (command == "g") {
+                std::getline(stream, current_group);
+
+                const std::size_t first =
+                    current_group.find_first_not_of(" \t\r\n");
+
+                if (first == std::string::npos) {
+                    current_group.clear();
+                } else {
+                    const std::size_t last =
+                        current_group.find_last_not_of(" \t\r\n");
+
+                    current_group = current_group.substr(
+                        first,
+                        last - first + 1
+                    );
                 }
             } else if (command == "usemtl") {
                 stream >> current_material;
@@ -998,11 +1037,127 @@ private:
                     parsed.face_material_names.push_back(
                         current_material
                     );
+
+                    parsed.face_object_names.push_back(
+                        current_object
+                    );
+
+                    parsed.face_group_names.push_back(
+                        current_group
+                    );
                 }
             }
         }
 
         return parsed;
+    }
+
+    static void filter_objects(
+        ParsedObj& parsed,
+        const std::vector<std::string>& object_names
+    ) {
+        if (object_names.empty()) {
+            return;
+        }
+
+        auto is_selected = [&](
+            const std::string& object_name,
+            const std::string& group_name
+        ) {
+            return
+                std::find(
+                    object_names.begin(),
+                    object_names.end(),
+                    object_name
+                ) != object_names.end()
+                ||
+                std::find(
+                    object_names.begin(),
+                    object_names.end(),
+                    group_name
+                ) != object_names.end();
+        };
+
+        std::vector<TriangleMesh::Face> faces;
+        std::vector<TriangleMesh::FaceUV> face_texcoords;
+        std::vector<TriangleMesh::FaceNormal> face_normals;
+
+        std::vector<bool> face_has_uv;
+        std::vector<bool> face_has_normals;
+
+        std::vector<std::array<bool, 3>>
+            face_corner_has_normals;
+
+        std::vector<std::string> face_smoothing_groups;
+        std::vector<std::string> face_material_names;
+        std::vector<std::string> face_object_names;
+        std::vector<std::string> face_group_names;
+
+        for (std::size_t i = 0; i < parsed.faces.size(); ++i) {
+            if (!is_selected(
+                    parsed.face_object_names[i],
+                    parsed.face_group_names[i]
+                )) {
+                continue;
+            }
+
+            faces.push_back(parsed.faces[i]);
+            face_texcoords.push_back(parsed.face_texcoords[i]);
+            face_normals.push_back(parsed.face_normals[i]);
+
+            face_has_uv.push_back(parsed.face_has_uv[i]);
+            face_has_normals.push_back(
+                parsed.face_has_normals[i]
+            );
+
+            face_corner_has_normals.push_back(
+                parsed.face_corner_has_normals[i]
+            );
+
+            face_smoothing_groups.push_back(
+                parsed.face_smoothing_groups[i]
+            );
+
+            face_material_names.push_back(
+                parsed.face_material_names[i]
+            );
+
+            face_object_names.push_back(
+                parsed.face_object_names[i]
+            );
+
+            face_group_names.push_back(
+                parsed.face_group_names[i]
+            );
+        }
+
+        if (faces.empty()) {
+            throw std::runtime_error(
+                "OBJ object selection produced no faces."
+            );
+        }
+
+        parsed.faces = std::move(faces);
+        parsed.face_texcoords = std::move(face_texcoords);
+        parsed.face_normals = std::move(face_normals);
+
+        parsed.face_has_uv = std::move(face_has_uv);
+        parsed.face_has_normals = std::move(face_has_normals);
+
+        parsed.face_corner_has_normals =
+            std::move(face_corner_has_normals);
+
+        parsed.face_smoothing_groups =
+            std::move(face_smoothing_groups);
+
+        parsed.face_material_names =
+            std::move(face_material_names);
+
+        parsed.face_object_names =
+            std::move(face_object_names);
+
+        parsed.face_group_names =
+            std::move(face_group_names);
     }
 
     static void generate_smoothing_normals(
@@ -1209,7 +1364,8 @@ public:
         const std::string& filename,
         std::shared_ptr<const Material> fallback_material = nullptr,
         double target_height = 0.0,
-        const Vec3& base_position = Vec3(0.0, 0.0, 0.0)
+        const Vec3& base_position = Vec3(0.0, 0.0, 0.0),
+        const std::vector<std::string>& object_names = {}
     ) {
         std::ifstream file(filename);
 
@@ -1220,6 +1376,7 @@ public:
         }
 
         ParsedObj parsed = parse(file, filename);
+        filter_objects(parsed, object_names);
 
         if (!std::isfinite(target_height) ||
             target_height < 0.0) {
@@ -1229,17 +1386,31 @@ public:
         }
 
         if (target_height > 0.0) {
-            Vec3 minimum = parsed.vertices.front();
-            Vec3 maximum = parsed.vertices.front();
+            if (parsed.faces.empty()) {
+                throw std::runtime_error(
+                    "OBJ model contains no faces."
+                );
+            }
 
-            for (const Vec3& vertex : parsed.vertices) {
-                minimum.x = std::min(minimum.x, vertex.x);
-                minimum.y = std::min(minimum.y, vertex.y);
-                minimum.z = std::min(minimum.z, vertex.z);
+            const TriangleMesh::Face& first_face =
+                parsed.faces.front();
 
-                maximum.x = std::max(maximum.x, vertex.x);
-                maximum.y = std::max(maximum.y, vertex.y);
-                maximum.z = std::max(maximum.z, vertex.z);
+            Vec3 minimum = parsed.vertices[first_face[0]];
+            Vec3 maximum = parsed.vertices[first_face[0]];
+
+            for (const TriangleMesh::Face& face : parsed.faces) {
+                for (const std::size_t vertex_index : face) {
+                    const Vec3& vertex =
+                        parsed.vertices[vertex_index];
+
+                    minimum.x = std::min(minimum.x, vertex.x);
+                    minimum.y = std::min(minimum.y, vertex.y);
+                    minimum.z = std::min(minimum.z, vertex.z);
+
+                    maximum.x = std::max(maximum.x, vertex.x);
+                    maximum.y = std::max(maximum.y, vertex.y);
+                    maximum.z = std::max(maximum.z, vertex.z);
+                }
             }
 
             const double source_height =
