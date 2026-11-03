@@ -14,6 +14,7 @@
 #include "materials/diffuse_light.h"
 #include "materials/lambertian.h"
 #include "materials/principled.h"
+#include "materials/procedural_texture.h"
 #include "materials/thin_glass.h"
 
 inline void greenhouse_box(
@@ -38,6 +39,215 @@ inline void greenhouse_box(
         Vec3(lo.x, hi.y, hi.z), Vec3(x, 0, 0), Vec3(0, 0, -z), material));
     world.add(std::make_shared<Quad>(
         Vec3(lo.x, lo.y, lo.z), Vec3(x, 0, 0), Vec3(0, 0, z), material));
+}
+
+inline void greenhouse_add_stone_path(
+    HittableList& world,
+    const std::shared_ptr<const Material>& stone_material,
+    const std::shared_ptr<const Material>& joint_material
+) {
+    constexpr int ROWS = 7;
+    constexpr int COLUMNS = 2;
+    constexpr int SIDES = 6;
+
+    constexpr double PATH_CENTER_X = 0.0;
+    constexpr double FIRST_ROW_Z = 2.75;
+
+    constexpr double COLUMN_OFFSET = 0.34;
+    constexpr double ROW_SPACING = 0.88;
+
+    constexpr double HALF_WIDTH = 0.295;
+    constexpr double HALF_LENGTH = 0.375;
+
+    constexpr double BOTTOM_Y = 0.008;
+    constexpr double TOP_Y = 0.105;
+
+    constexpr double PI = 3.14159265358979323846;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    const int slab_count = ROWS * COLUMNS;
+
+    vertices.reserve(
+        static_cast<std::size_t>(slab_count)
+        * (2 * SIDES + 2)
+    );
+
+    faces.reserve(
+        static_cast<std::size_t>(slab_count)
+        * (4 * SIDES)
+    );
+
+    const auto variation = [](
+        int row,
+        int column,
+        int index
+    ) {
+        const double value =
+            std::sin(
+                row * 12.9898
+                + column * 78.233
+                + index * 37.719
+            ) * 43758.5453;
+
+        return value - std::floor(value);
+    };
+
+    // Dark substrate remains visible through the stone joints.
+    world.add(std::make_shared<Quad>(
+        Vec3(-0.78, 0.003, 3.15),
+        Vec3(1.56, 0.0, 0.0),
+        Vec3(0.0, 0.0, -6.35),
+        joint_material
+    ));
+
+    for (int row = 0; row < ROWS; ++row) {
+        for (int column = 0; column < COLUMNS; ++column) {
+            const double row_shift =
+                (row % 2 == 0) ? 0.0 : 0.055;
+
+            const double center_x =
+                PATH_CENTER_X
+                + (column == 0 ? -COLUMN_OFFSET : COLUMN_OFFSET)
+                + row_shift;
+
+            const double center_z =
+                FIRST_ROW_Z - row * ROW_SPACING;
+
+            const double width_variation =
+                0.94 + 0.10 * variation(row, column, 0);
+
+            const double length_variation =
+                0.94 + 0.10 * variation(row, column, 1);
+
+            const double rotation =
+                (variation(row, column, 2) - 0.5) * 0.10;
+
+            const double cos_rotation = std::cos(rotation);
+            const double sin_rotation = std::sin(rotation);
+
+            const std::size_t base =
+                vertices.size();
+
+            vertices.emplace_back(
+                center_x,
+                BOTTOM_Y,
+                center_z
+            );
+
+            vertices.emplace_back(
+                center_x,
+                TOP_Y + 0.012 * (variation(row, column, 3) - 0.5),
+                center_z
+            );
+
+            for (int side = 0; side < SIDES; ++side) {
+                const double angle =
+                    -2.0 * PI * side / SIDES;
+
+                const double corner_x =
+                    std::cos(angle)
+                    * HALF_WIDTH
+                    * width_variation;
+
+                const double corner_z =
+                    std::sin(angle)
+                    * HALF_LENGTH
+                    * length_variation;
+
+                const double local_x =
+                    corner_x * cos_rotation
+                    - corner_z * sin_rotation;
+
+                const double local_z =
+                    corner_x * sin_rotation
+                    + corner_z * cos_rotation;
+
+                const double edge_variation =
+                    0.94 + 0.12 * variation(
+                        row,
+                        column,
+                        side + 4
+                    );
+
+                const double x =
+                    center_x + local_x * edge_variation;
+
+                const double z =
+                    center_z + local_z * edge_variation;
+
+                const double top_offset =
+                    0.008 * (
+                        variation(row, column, side + 12) - 0.5
+                    );
+
+                vertices.emplace_back(
+                    x,
+                    BOTTOM_Y,
+                    z
+                );
+
+                vertices.emplace_back(
+                    x,
+                    TOP_Y + top_offset,
+                    z
+                );
+            }
+
+            const std::size_t bottom_center = base;
+            const std::size_t top_center = base + 1;
+
+            for (int side = 0; side < SIDES; ++side) {
+                const int next = (side + 1) % SIDES;
+
+                const std::size_t bottom_a =
+                    base + 2 + static_cast<std::size_t>(side * 2);
+
+                const std::size_t top_a =
+                    bottom_a + 1;
+
+                const std::size_t bottom_b =
+                    base + 2 + static_cast<std::size_t>(next * 2);
+
+                const std::size_t top_b =
+                    bottom_b + 1;
+
+                // Top surface.
+                faces.push_back({
+                    top_center,
+                    top_a,
+                    top_b
+                });
+
+                // Bottom surface.
+                faces.push_back({
+                    bottom_center,
+                    bottom_b,
+                    bottom_a
+                });
+
+                // Two triangles close each side wall.
+                faces.push_back({
+                    top_b,
+                    bottom_b,
+                    bottom_a
+                });
+
+                faces.push_back({
+                    top_b,
+                    bottom_a,
+                    top_a
+                });
+            }
+        }
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        stone_material
+    ));
 }
 
 inline void greenhouse_add_leaf(
@@ -301,10 +511,29 @@ inline HittableList make_greenhouse_scene() {
     HittableList world;
 
     auto floor = std::make_shared<PrincipledBSDF>(
-        Vec3(0.48, 0.46, 0.41), 0.0, 0.72);
+        Vec3(0.34, 0.33, 0.29), 0.0, 0.78);
+
+    auto stone_path_texture =
+        std::make_shared<PerlinNoiseTexture>(
+            Vec3(0.22, 0.205, 0.175),
+            Vec3(0.36, 0.33, 0.28),
+            4.5,
+            5,
+            2026
+        );
+
+    auto stone_path_material =
+        std::make_shared<Lambertian>(
+            stone_path_texture
+        );
+
+    auto stone_joint_material =
+        std::make_shared<Lambertian>(
+            Vec3(0.075, 0.060, 0.042)
+        );
 
     auto stone = std::make_shared<PrincipledBSDF>(
-        Vec3(0.48, 0.43, 0.34), 0.0, 0.62);
+        Vec3(0.36, 0.31, 0.23), 0.0, 0.72);
 
     auto iron = std::make_shared<PrincipledBSDF>(
         Vec3(0.045, 0.095, 0.065), 0.45, 0.48);
@@ -322,6 +551,12 @@ inline HittableList make_greenhouse_scene() {
 
     world.add(std::make_shared<Quad>(
         Vec3(-4, 0, 4), Vec3(8, 0, 0), Vec3(0, 0, -12), floor));
+
+    greenhouse_add_stone_path(
+        world,
+        stone_path_material,
+        stone_joint_material
+    );
 
     // Exterior landscape surrounding the conservatory.
     auto exterior_ground = std::make_shared<PrincipledBSDF>(
@@ -627,7 +862,7 @@ inline HittableList make_greenhouse_scene() {
         "assets/pachira_aquatica_01_2k.blend/"
         "pachira_aquatica_01_2k.obj",
         pachira_fallback,
-        2.05,
+        2.30,
         Vec3(0.0, pachira_pot_height, -6.55),
         {
             "pachira_aquatica_01_bark_d",
@@ -719,7 +954,7 @@ inline HittableList make_greenhouse_scene() {
 
     // Large soft fill light, facing downward.
     auto emitter = std::make_shared<DiffuseLight>(
-        Vec3(1.5, 1.65, 1.4)
+        Vec3(0.85, 0.95, 0.80)
     );
 
     world.add(std::make_shared<Quad>(

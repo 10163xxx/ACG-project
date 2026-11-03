@@ -1,8 +1,15 @@
+
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <exception>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "acceleration/bvh.h"
@@ -24,6 +31,7 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
+
         if (arg == "--preview") {
             request.preview = true;
         } else if (arg == "--draft") {
@@ -33,6 +41,7 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
                 std::cerr << "Missing value after " << arg << ".\n";
                 return false;
             }
+
             if (arg == "--scene") scene_name = argv[i];
             else if (arg == "--test") test_name = argv[i];
             else request.obj_path = argv[i];
@@ -54,16 +63,19 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
         request.scene = SceneKind::Showcase;
         return test_name.empty() && request.obj_path.empty();
     }
+
     if (scene_name == "greenhouse") {
         request.scene = SceneKind::Greenhouse;
         return test_name.empty() && request.obj_path.empty();
     }
+
     if (scene_name != "test" || test_name.empty()) {
         std::cerr << "Select --scene showcase, greenhouse, or test.\n";
         return false;
     }
 
     request.scene = SceneKind::Test;
+
     if (test_name == "uv") request.test = TestKind::UV;
     else if (test_name == "volume") request.test = TestKind::Volume;
     else if (test_name == "inhomogeneous-volume")
@@ -93,7 +105,7 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
         std::cerr << "--preview and --draft are currently for Greenhouse only.\n";
         return false;
     }
-    
+
     return true;
 }
 
@@ -102,10 +114,12 @@ bool parse_request(int argc, char* argv[], SceneRequest& request) {
 int main(int argc, char* argv[]) {
     try {
         SceneRequest request;
-        if (!parse_request(argc, argv, request)) return 1;
+
+        if (!parse_request(argc, argv, request)) {
+            return 1;
+        }
 
         RenderSetup setup = make_render_setup(request);
-        Random::seed(2026);
 
         Image image(setup.width, setup.height);
         BVHNode world(setup.geometry.objects());
@@ -113,6 +127,7 @@ int main(int argc, char* argv[]) {
 
         EnvironmentMap environment;
         const EnvironmentMap* active_environment = nullptr;
+
         if (setup.use_environment) {
             environment.load(
                 "assets/environments/"
@@ -123,32 +138,164 @@ int main(int argc, char* argv[]) {
 
         const auto light_indices =
             DirectLighting::collect_light_indices(setup.geometry);
-        const auto* point_lights = setup.point_lights.empty()
-            ? nullptr : &setup.point_lights;
 
-        for (int y = 0; y < setup.height; ++y) {
-            std::cerr << "\rRendering row " << (y + 1)
-                      << " / " << setup.height << std::flush;
-            for (int x = 0; x < setup.width; ++x) {
-                Vec3 color(0, 0, 0);
-                for (int sample = 0; sample < setup.samples; ++sample) {
-                    const double u =
-                        (x + Random::random_double()) / setup.width;
-                    const double v =
-                        1.0 - (y + Random::random_double()) / setup.height;
-                    const Ray ray = setup.camera->get_ray(
-                        u, v, 1.0 / setup.width, -1.0 / setup.height);
-                    color = color + tracer.trace(
-                        ray, world, setup.geometry, point_lights,
-                        active_environment, &light_indices);
+        const auto* point_lights = setup.point_lights.empty()
+            ? nullptr
+            : &setup.point_lights;
+
+        const unsigned int hardware_threads =
+            std::max(1U, std::thread::hardware_concurrency());
+
+        const unsigned int worker_count =
+            std::min(
+                hardware_threads,
+                static_cast<unsigned int>(setup.height)
+            );
+
+        std::atomic<int> next_row{0};
+        std::atomic<int> completed_rows{0};
+        std::atomic<bool> stop_workers{false};
+
+        std::mutex output_mutex;
+        std::mutex exception_mutex;
+        std::exception_ptr worker_exception;
+
+        const auto render_start =
+            std::chrono::steady_clock::now();
+
+        std::cout
+            << "Rendering "
+            << setup.width << " x " << setup.height
+            << ", " << setup.samples << " samples, "
+            << setup.max_depth << " max depth\n"
+            << "Using " << worker_count
+            << " worker threads\n";
+
+        auto render_worker = [&](unsigned int worker_index) {
+            // Each worker owns an independent thread-local RNG state.
+            const std::uint64_t seed =
+                2026ULL
+                + static_cast<std::uint64_t>(worker_index)
+                    * 0x9E3779B97F4A7C15ULL;
+
+            Random::seed(seed);
+
+            try {
+                while (!stop_workers.load(std::memory_order_relaxed)) {
+                    const int y =
+                        next_row.fetch_add(1, std::memory_order_relaxed);
+
+                    if (y >= setup.height) {
+                        break;
+                    }
+
+                    for (int x = 0; x < setup.width; ++x) {
+                        Vec3 color(0.0, 0.0, 0.0);
+
+                        for (int sample = 0;
+                             sample < setup.samples;
+                             ++sample) {
+                            const double u =
+                                (x + Random::random_double())
+                                / setup.width;
+
+                            const double v =
+                                1.0
+                                - (y + Random::random_double())
+                                    / setup.height;
+
+                            const Ray ray = setup.camera->get_ray(
+                                u,
+                                v,
+                                1.0 / setup.width,
+                                -1.0 / setup.height
+                            );
+
+                            color = color + tracer.trace(
+                                ray,
+                                world,
+                                setup.geometry,
+                                point_lights,
+                                active_environment,
+                                &light_indices
+                            );
+                        }
+
+                        color = color / setup.samples;
+                        image.set_pixel(x, y, color);
+                    }
+
+                    const int finished =
+                        completed_rows.fetch_add(
+                            1,
+                            std::memory_order_relaxed
+                        ) + 1;
+
+                    // Avoid excessive console synchronization.
+                    if (finished % 5 == 0 ||
+                        finished == setup.height) {
+                        std::lock_guard<std::mutex> lock(output_mutex);
+
+                        std::cout
+                            << "\rRendering rows: "
+                            << finished << " / " << setup.height
+                            << std::flush;
+                    }
                 }
-                color = color / setup.samples;
-                image.set_pixel(x, y, color);
+            } catch (...) {
+                stop_workers.store(true, std::memory_order_relaxed);
+
+                std::lock_guard<std::mutex> lock(exception_mutex);
+
+                if (!worker_exception) {
+                    worker_exception = std::current_exception();
+                }
             }
+        };
+
+        std::vector<std::thread> workers;
+        workers.reserve(worker_count);
+
+        try {
+            for (unsigned int i = 0; i < worker_count; ++i) {
+                workers.emplace_back(render_worker, i);
+            }
+        } catch (...) {
+            stop_workers.store(true, std::memory_order_relaxed);
+
+            for (std::thread& worker : workers) {
+                if (worker.joinable()) {
+                    worker.join();
+                }
+            }
+
+            throw;
         }
 
+        for (std::thread& worker : workers) {
+            worker.join();
+        }
+
+        if (worker_exception) {
+            std::rethrow_exception(worker_exception);
+        }
+
+        const auto render_end =
+            std::chrono::steady_clock::now();
+
+        const double elapsed_seconds =
+            std::chrono::duration<double>(
+                render_end - render_start
+            ).count();
+
+        std::cout << '\n';
+
         image.write_ppm(setup.output);
-        std::cerr << "\nRender complete: " << setup.output << '\n';
+
+        std::cout
+            << "Render complete: " << setup.output << '\n'
+            << "Render time: " << elapsed_seconds << " seconds\n";
+
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "\nRender failed: " << error.what() << '\n';

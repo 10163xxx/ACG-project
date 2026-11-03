@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(ACGPathTracer LANGUAGES CXX)
 
+find_package(Threads REQUIRED)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -13,6 +15,8 @@ add_executable(path_tracer
 target_include_directories(path_tracer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(path_tracer PRIVATE Threads::Threads)
 
 add_executable(test_materials
     tests/test_materials.cpp

@@ -40,11 +40,11 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         s.height = 360;
         s.samples = 192;
         s.max_depth = 24;
-        from = Vec3(4.2, 3.2, 10.0);
-        at = Vec3(0.0, 2.0, -2.4);
-        fov = 43;
+        from = Vec3(3.6, 2.8, 10.5);
+        at = Vec3(0.0, 1.85, -2.7);
+        fov = 39;
         aperture = 0.0;
-        focus = 13.0;
+        focus = 13.5;
         s.geometry = make_greenhouse_scene();
         s.output = OutputPaths::RenderDirectory + "greenhouse_scene.ppm";
         s.point_lights.clear();
