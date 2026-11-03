@@ -844,7 +844,7 @@ inline HittableList make_greenhouse_scene() {
     greenhouse_add_tapered_pot(
         world,
         0.0,
-        -6.55,
+        -6.15,
         0.34,
         0.43,
         pachira_pot_height,
@@ -852,7 +852,7 @@ inline HittableList make_greenhouse_scene() {
     );
 
     world.add(std::make_shared<Quad>(
-        Vec3(-0.36, pachira_pot_height - 0.025, -6.91),
+        Vec3(-0.36, pachira_pot_height - 0.025, -6.51),
         Vec3(0.72, 0.0, 0.0),
         Vec3(0.0, 0.0, 0.72),
         fern_soil
@@ -863,13 +863,13 @@ inline HittableList make_greenhouse_scene() {
         "pachira_aquatica_01_2k.obj",
         pachira_fallback,
         2.30,
-        Vec3(0.0, pachira_pot_height, -6.55),
+        Vec3(0.0, pachira_pot_height, -6.15),
         {
             "pachira_aquatica_01_bark_d",
             "pachira_aquatica_01_leaves_d"
         }
     );
-
+    
     world.add(
         std::make_shared<TriangleMesh>(
             std::move(pachira)
@@ -934,8 +934,9 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    add_calathea(-2.75, -2.15);
-    add_calathea(2.75, -2.15);
+    // Matching broad-leaf specimens beside the central exhibition.
+    add_calathea(-2.45, -2.15);
+    add_calathea(2.45, -2.15);
 
     // Restrained stone exhibition plinth.
     greenhouse_box(
