@@ -780,7 +780,7 @@ inline HittableList make_greenhouse_scene() {
         "anthurium_botany_01_2k.obj",
         anthurium_fallback,
         2.35,
-        Vec3(0.0, 1.10, -2.20)
+        Vec3(1.90, 0.82, -2.70)
     );
 
     world.add(
@@ -978,9 +978,9 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Matching broad-leaf specimens beside the central exhibition.
+    // Broad-leaf specimens frame the exhibition area.
     add_calathea(-2.40, -2.25);
-    add_calathea(2.40, -3.05);
+    add_calathea(2.40, 1.50);
 
     // Side exhibition plinth.
     greenhouse_box(
