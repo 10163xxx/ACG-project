@@ -507,6 +507,28 @@ inline void greenhouse_add_tapered_pot(
     );
 }
 
+struct GreenhousePlantPlacement {
+    Vec3 position;
+    double target_height;
+    double target_width;
+    double pot_height;
+    double pot_half_width;
+    double clearance;
+};
+
+struct GreenhouseLayout {
+    static constexpr double FLOOR_Y = 0.0;
+
+    static constexpr double INTERIOR_HALF_WIDTH = 3.72;
+    static constexpr double REAR_WALL_Z = -7.82;
+
+    static constexpr double PATH_HALF_WIDTH = 0.78;
+
+    static constexpr double PLINTH_HEIGHT = 0.98;
+
+    static constexpr double MIN_PLANT_CLEARANCE = 0.25;
+};
+
 inline HittableList make_greenhouse_scene() {
     HittableList world;
 
@@ -818,11 +840,33 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Foreground and middle-ground ferns.
-    add_fern(-2.45, 0.65, 1.45);
-    add_fern(2.45, -0.15, 1.55);
-    add_fern(-2.55, -3.95, 1.85);
-    add_fern(2.55, -5.65, 2.05);
+    // Ferns: foreground and rear exhibition zones.
+    const std::array<GreenhousePlantPlacement, 4> fern_layout = {{
+        {
+            Vec3(-2.35, 0.0, 0.75),
+            1.45, 0.0, 0.42, 0.36, 0.25
+        },
+        {
+            Vec3(2.35, 0.0, -0.10),
+            1.55, 0.0, 0.42, 0.36, 0.25
+        },
+        {
+            Vec3(-2.45, 0.0, -4.35),
+            1.85, 0.0, 0.42, 0.36, 0.25
+        },
+        {
+            Vec3(2.45, 0.0, -5.25),
+            2.05, 0.0, 0.42, 0.36, 0.25
+        }
+    }};
+
+    for (const GreenhousePlantPlacement& placement : fern_layout) {
+        add_fern(
+            placement.position.x,
+            placement.position.z,
+            placement.target_height
+        );
+    }
 
     // Background Pachira: a single tall focal silhouette.
     auto pachira_fallback =
@@ -935,21 +979,21 @@ inline HittableList make_greenhouse_scene() {
     };
 
     // Matching broad-leaf specimens beside the central exhibition.
-    add_calathea(-2.45, -2.15);
-    add_calathea(2.45, -2.15);
+    add_calathea(-2.40, -2.25);
+    add_calathea(2.40, -3.05);
 
-    // Restrained stone exhibition plinth.
+    // Side exhibition plinth.
     greenhouse_box(
         world,
-        Vec3(-0.95, 0.0, -3.15),
-        Vec3(0.95, 0.88, -1.25),
+        Vec3(1.25, 0.0, -3.35),
+        Vec3(2.55, 0.72, -2.05),
         stone
     );
 
     greenhouse_box(
         world,
-        Vec3(-1.02, 0.88, -3.22),
-        Vec3(1.02, 0.98, -1.18),
+        Vec3(1.18, 0.72, -3.42),
+        Vec3(2.62, 0.82, -1.98),
         stone
     );
 
