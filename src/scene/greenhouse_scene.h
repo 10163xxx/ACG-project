@@ -830,16 +830,16 @@ inline HittableList make_greenhouse_scene() {
             1.45
         },
         {
-            Vec3(2.35, 0.0, -0.10),
-            1.55
+            Vec3(2.85, 0.0, -0.55),
+            1.45
         },
         {
             Vec3(-2.45, 0.0, -4.35),
             1.85
         },
         {
-            Vec3(2.45, 0.0, -4.65),
-            2.05
+            Vec3(2.75, 0.0, -4.80),
+            1.90
         }
     }};
 
@@ -961,9 +961,8 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Broad-leaf specimens frame the exhibition area.
+    // A single broad-leaf specimen frames the left exhibition area.
     add_calathea(-2.40, -2.25);
-    add_calathea(2.40, 1.50);
 
     // Side exhibition plinth.
     greenhouse_box(
