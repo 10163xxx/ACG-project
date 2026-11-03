@@ -515,8 +515,17 @@ struct GreenhousePlantPlacement {
 inline HittableList make_greenhouse_scene() {
     HittableList world;
 
-    auto floor = std::make_shared<PrincipledBSDF>(
-        Vec3(0.34, 0.33, 0.29), 0.0, 0.78);
+    auto floor_texture = std::make_shared<PerlinNoiseTexture>(
+        Vec3(0.22, 0.215, 0.19),
+        Vec3(0.39, 0.37, 0.32),
+        0.72,
+        5,
+        417
+    );
+
+    auto floor = std::make_shared<Lambertian>(
+        floor_texture
+    );
 
     auto stone_path_texture =
         std::make_shared<PerlinNoiseTexture>(
@@ -564,10 +573,16 @@ inline HittableList make_greenhouse_scene() {
     );
 
     // Exterior landscape surrounding the conservatory.
-    auto exterior_ground = std::make_shared<PrincipledBSDF>(
-        Vec3(0.16, 0.21, 0.12),
-        0.0,
-        0.92
+    auto exterior_ground_texture = std::make_shared<PerlinNoiseTexture>(
+        Vec3(0.075, 0.105, 0.045),
+        Vec3(0.22, 0.27, 0.12),
+        0.38,
+        5,
+        913
+    );
+
+    auto exterior_ground = std::make_shared<Lambertian>(
+        exterior_ground_texture
     );
 
     auto exterior_path = std::make_shared<PrincipledBSDF>(
@@ -590,6 +605,31 @@ inline HittableList make_greenhouse_scene() {
         Vec3(0.0, 0.0, -11.0),
         exterior_path
     ));
+
+    // Small irregular gravel pieces soften the hard edge of the approach path.
+    auto gravel_material = std::make_shared<PrincipledBSDF>(
+        Vec3(0.29, 0.27, 0.22),
+        0.0,
+        0.94
+    );
+
+    for (int i = 0; i < 72; ++i) {
+        const double a = std::sin(i * 12.9898 + 4.17);
+        const double b = std::sin(i * 78.233 + 1.91);
+        const double c = std::sin(i * 37.719 + 8.31);
+
+        const double x = (i % 2 == 0 ? -1.0 : 1.0)
+            * (1.38 + 0.34 * std::abs(a));
+
+        const double z = 12.5 - 0.19 * i;
+        const double radius = 0.018 + 0.018 * (0.5 + 0.5 * c);
+
+        world.add(std::make_shared<Sphere>(
+            Vec3(x, -0.025 + 0.006 * b, z),
+            radius,
+            gravel_material
+        ));
+    }
 
     greenhouse_box(world, Vec3(-4, 0, -8), Vec3(-3.72, .62, 4), stone);
     greenhouse_box(world, Vec3(3.72, 0, -8), Vec3(4, .62, 4), stone);
@@ -726,6 +766,49 @@ inline HittableList make_greenhouse_scene() {
         Vec3(0.0, 0.0, -11.64),
         glass_pane
     ));
+
+    // Slim pressure caps divide the roof glazing into believable panels.
+    // These sit just above the glass and follow each roof pitch.
+    for (double t : {0.25, 0.50, 0.75}) {
+        const double left_x = -3.96 + 3.92 * t;
+        const double left_y = 4.08 + 1.94 * t;
+
+        world.add(std::make_shared<Quad>(
+            Vec3(left_x, left_y + 0.018, 3.82),
+            Vec3(0.035, 0.017, 0.0),
+            Vec3(0.0, 0.0, -11.64),
+            iron
+        ));
+
+        const double right_x = 0.04 + 3.92 * t;
+        const double right_y = 5.98 - 1.94 * t;
+
+        world.add(std::make_shared<Quad>(
+            Vec3(right_x, right_y + 0.018, 3.82),
+            Vec3(0.035, -0.017, 0.0),
+            Vec3(0.0, 0.0, -11.64),
+            iron
+        ));
+    }
+
+    // Fine transverse glazing caps create smaller roof-light modules.
+    for (int i = 0; i <= 10; ++i) {
+        const double z = 3.82 - 1.16 * i;
+
+        world.add(std::make_shared<Quad>(
+            Vec3(-3.96, 4.105, z),
+            Vec3(3.92, 1.94, 0.0),
+            Vec3(0.0, 0.025, 0.0),
+            iron
+        ));
+
+        world.add(std::make_shared<Quad>(
+            Vec3(0.04, 5.985, z),
+            Vec3(3.92, -1.94, 0.0),
+            Vec3(0.0, -0.025, 0.0),
+            iron
+        ));
+    }
 
     // Front entrance glazing, leaving a central doorway.
     world.add(std::make_shared<Quad>(
