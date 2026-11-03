@@ -510,23 +510,6 @@ inline void greenhouse_add_tapered_pot(
 struct GreenhousePlantPlacement {
     Vec3 position;
     double target_height;
-    double target_width;
-    double pot_height;
-    double pot_half_width;
-    double clearance;
-};
-
-struct GreenhouseLayout {
-    static constexpr double FLOOR_Y = 0.0;
-
-    static constexpr double INTERIOR_HALF_WIDTH = 3.72;
-    static constexpr double REAR_WALL_Z = -7.82;
-
-    static constexpr double PATH_HALF_WIDTH = 0.78;
-
-    static constexpr double PLINTH_HEIGHT = 0.98;
-
-    static constexpr double MIN_PLANT_CLEARANCE = 0.25;
 };
 
 inline HittableList make_greenhouse_scene() {
@@ -844,19 +827,19 @@ inline HittableList make_greenhouse_scene() {
     const std::array<GreenhousePlantPlacement, 4> fern_layout = {{
         {
             Vec3(-2.35, 0.0, 0.75),
-            1.45, 0.0, 0.42, 0.36, 0.25
+            1.45
         },
         {
             Vec3(2.35, 0.0, -0.10),
-            1.55, 0.0, 0.42, 0.36, 0.25
+            1.55
         },
         {
             Vec3(-2.45, 0.0, -4.35),
-            1.85, 0.0, 0.42, 0.36, 0.25
+            1.85
         },
         {
-            Vec3(2.45, 0.0, -5.25),
-            2.05, 0.0, 0.42, 0.36, 0.25
+            Vec3(2.45, 0.0, -4.65),
+            2.05
         }
     }};
 
