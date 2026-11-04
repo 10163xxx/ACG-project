@@ -140,8 +140,8 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
     if (request.preview) {
         s.width = std::max(1, s.width / 2);
         s.height = std::max(1, s.height / 2);
-        s.samples = 12;
-        s.max_depth = 12;
+        s.samples = 48;
+        s.max_depth = 16;
 
         const std::size_t extension = s.output.rfind(".ppm");
         if (extension != std::string::npos) {

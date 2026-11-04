@@ -606,7 +606,8 @@ inline HittableList make_greenhouse_scene() {
         exterior_path
     ));
 
-    // Small irregular gravel pieces soften the hard edge of the approach path.
+    // Irregular gravel stays outside the greenhouse, along both edges
+    // of the approach path (whose z range is 4.0 to 15.0).
     auto gravel_material = std::make_shared<PrincipledBSDF>(
         Vec3(0.29, 0.27, 0.22),
         0.0,
@@ -618,11 +619,11 @@ inline HittableList make_greenhouse_scene() {
         const double b = std::sin(i * 78.233 + 1.91);
         const double c = std::sin(i * 37.719 + 8.31);
 
-        const double x = (i % 2 == 0 ? -1.0 : 1.0)
-            * (1.38 + 0.34 * std::abs(a));
-
-        const double z = 12.5 - 0.19 * i;
-        const double radius = 0.018 + 0.018 * (0.5 + 0.5 * c);
+        const double side = (i % 2 == 0) ? -1.0 : 1.0;
+        const double x = side * (1.38 + 0.30 * std::abs(a));
+        const double z = 4.25 + 10.45 * (i / 2) / 35.0
+            + 0.12 * b;
+        const double radius = 0.022 + 0.020 * (0.5 + 0.5 * c);
 
         world.add(std::make_shared<Sphere>(
             Vec3(x, -0.025 + 0.006 * b, z),
