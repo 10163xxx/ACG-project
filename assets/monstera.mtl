@@ -1,0 +1,27 @@
+# Material definitions for potted-split-leaf-monstera.obj.
+# Original model: Innerscene Corp, dedicated under CC0 1.0 Universal.
+# The source OBJ has no accompanying MTL or texture package.
+
+newmtl Matte_ivory_plant_pot
+Kd 0.72 0.68 0.58
+Ks 0.04 0.04 0.04
+Pr 0.78
+illum 2
+
+newmtl Potting_soil
+Kd 0.095 0.060 0.030
+Ks 0.02 0.02 0.02
+Pr 0.96
+illum 2
+
+newmtl Green_stems
+Kd 0.12 0.28 0.075
+Ks 0.04 0.04 0.04
+Pr 0.58
+illum 2
+
+newmtl Living_foliage
+Kd 0.075 0.24 0.045
+Ks 0.04 0.04 0.04
+Pr 0.50
+illum 2

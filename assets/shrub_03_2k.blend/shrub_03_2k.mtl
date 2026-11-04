@@ -1,12 +1,13 @@
-# Blender 5.4.0 Alpha MTL File: 'shrub_03_2k.blend'
-# www.blender.org
+# Converted for ACG Path Tracer.
+# Diffuse and alpha maps are converted by scripts/prepare_botanical_assets.py.
 
 newmtl shrub_03
-Ns 360.000000
+Ns 80.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.04 0.04 0.04
 Ni 1.000000
 d 1.000000
 illum 2
+map_Kd textures/shrub_03_diff_2k.ppm
+map_d textures/shrub_03_alpha_2k.ppm
