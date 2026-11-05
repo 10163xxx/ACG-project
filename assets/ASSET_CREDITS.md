@@ -59,3 +59,29 @@ For every new external asset, record:
 - License: CC0 1.0 Universal
 - Original files: OBJ, MTL, Blender project and PBR textures
 - Modifications: Selected one tree from the multi-tree OBJ; diffuse, alpha and roughness textures converted to P6 PPM; MTL updated for the renderer; imported into the greenhouse scene.
+
+### Shrub 03
+- Source: https://polyhaven.com/a/shrub_03
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/shrub_03_2k.blend/
+- Original files: OBJ, MTL and PBR textures
+- Modifications: Diffuse and alpha textures converted to P6 PPM for the renderer. The source geometry is retained in its original Y-up orientation.
+
+### Shrub 04
+- Source: https://polyhaven.com/a/shrub_04
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/shrub_04_2k.blend/
+- Original files: OBJ, MTL and PBR textures, including the original mask map
+- Modifications: Diffuse and alpha textures converted to P6 PPM for the renderer. The original mask map is retained but is not currently used by the renderer. The source geometry is retained in its original Y-up orientation.
+
+### Potted Split Leaf Monstera
+- Source: https://www.innerscene.com/tools/library/3d-parts/potted-split-leaf-monstera-c29ea101
+- Creator / source: Innerscene (source OBJ metadata identifies Innerscene Corp.)
+- License: CC0 1.0 Universal
+- Local paths:
+  - assets/potted-split-leaf-monstera.obj
+  - assets/monstera.mtl
+- Original files: OBJ geometry
+- Modifications: Source geometry converted from Z-up to Y-up by the asset preparation script. A project-authored MTL supplies simple pot, soil, stem and foliage materials because the source OBJ has no accompanying texture package.

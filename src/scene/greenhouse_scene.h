@@ -935,6 +935,27 @@ inline HittableList make_greenhouse_scene() {
         );
     }
 
+    // Foreground Monstera: the source model includes its own planter.
+    auto monstera_fallback =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.075, 0.24, 0.045),
+            0.0,
+            0.52
+        );
+
+    TriangleMesh monstera = ObjLoader::load_file(
+        "assets/potted-split-leaf-monstera.obj",
+        monstera_fallback,
+        1.55,
+        Vec3(2.35, 0.0, 1.35)
+    );
+
+    world.add(
+        std::make_shared<TriangleMesh>(
+            std::move(monstera)
+        )
+    );
+
     // Background Pachira: a single tall focal silhouette.
     auto pachira_fallback =
         std::make_shared<PrincipledBSDF>(
@@ -985,6 +1006,59 @@ inline HittableList make_greenhouse_scene() {
         std::make_shared<TriangleMesh>(
             std::move(pachira)
         )
+    );
+
+    // Dense rear understory: overlapping low shrub clusters.
+    auto shrub_fallback =
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.075, 0.22, 0.045),
+            0.0,
+            0.72
+        );
+
+    auto add_shrub = [&](
+        const std::string& path,
+        double x,
+        double z,
+        double width
+    ) {
+        TriangleMesh shrub = ObjLoader::load_file(
+            path,
+            shrub_fallback,
+            0.0,
+            Vec3(x, 0.0, z),
+            {},
+            width
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(shrub)
+            )
+        );
+    };
+
+    // Shrub 03: wider, low-growing foliage.
+    add_shrub(
+        "assets/shrub_03_2k.blend/shrub_03_2k.obj",
+        -1.45,
+        -7.25,
+        1.55
+    );
+
+    // Shrub 04: compact foliage clusters.
+    add_shrub(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        0.0,
+        -7.25,
+        1.05
+    );
+
+    add_shrub(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        1.0,
+        -7.25,
+        1.05
     );
 
     // Calathea: broad, low foliage on both sides of the walkway.

@@ -1,31 +1,51 @@
-# Greenhouse Scene
+# Greenhouse Botanical Assets
 
-The greenhouse scene uses two imported botanical assets:
+The greenhouse scene uses the following imported botanical models:
 
 - Anthurium Botany 01: central exhibition subject.
-- Fern 02: foreground and background vegetation.
+- Fern 02: foreground and background foliage.
+- Pachira Aquatica 01: tall background focal plant.
+- Calathea Orbifolia 01: broad-leaf specimen beside the walkway.
+- Potted Split Leaf Monstera: foreground broad-leaf specimen.
+- Shrub 03 and Shrub 04: dense rear understory planting.
 
 ## Scene layout
 
-- The anthurium is placed on the central exhibition plinth.
-- Fern instances are placed in planters on both sides.
-- The greenhouse architecture and lighting remain procedural.
+- Anthurium occupies the central exhibition area.
+- Fern instances provide foreground and background depth.
+- Pachira forms the tall rear focal silhouette.
+- Calathea adds broad foliage beside the walkway.
+- Monstera frames the foreground entrance area.
+- Shrub 03 and Shrub 04 form overlapping low vegetation near the rear wall.
 
 ## Asset locations
 
-The original OBJ, MTL, Blender and texture files are retained under:
+Original OBJ, MTL and source texture files are retained under their
+respective directories in `assets/`.
 
-- `assets/anthurium_botany_01_2k.blend/`
-- `assets/fern_02_2k.blend/`
+Directories whose names end in `.blend` are asset-package folders,
+not standalone Blender project files.
 
-The OBJ loader normalizes imported models to a requested world-space
-height while preserving UVs, normals and material assignments.
+See `assets/ASSET_CREDITS.md` for source URLs, creators, licenses
+and local modifications.
 
-See `assets/ASSET_CREDITS.md` for asset sources and licenses.
+## Renderer compatibility
 
-## Texture limitation
+The current OBJ/MTL pipeline supports PPM image textures.
 
-The current scene integration uses the MTL base colors.
-The original JPG, PNG and EXR texture maps are retained but are not
-yet connected to the renderer's PPM-only image texture loader.
-Alpha cutouts and full PBR texture reproduction remain future work.
+The preparation script converts the texture maps required by the
+renderer into P6 PPM while retaining the original JPG and PNG sources.
+
+- Diffuse maps are loaded as RGB textures.
+- Opacity maps are converted to PPM and used for leaf cutouts.
+- Pachira additionally uses supported roughness and OpenGL normal maps.
+- Shrub 03 and Shrub 04 use diffuse and alpha maps.
+- Unsupported mask, AO and displacement maps remain archived source assets.
+
+Run the following commands from the repository root:
+
+    py -m pip install Pillow
+    py scripts/prepare_botanical_assets.py
+
+The preparation script converts textures, applies required coordinate
+transforms and validates OBJ/MTL/texture references.
