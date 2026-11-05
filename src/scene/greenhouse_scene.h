@@ -907,23 +907,33 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Ferns: foreground and rear exhibition zones.
-    const std::array<GreenhousePlantPlacement, 4> fern_layout = {{
+    // Ferns form two staggered planting bands along the path.
+    // The gaps are intentionally uneven so the foliage reads as a
+    // continuous garden edge rather than a row of matching pots.
+    const std::array<GreenhousePlantPlacement, 6> fern_layout = {{
         {
-            Vec3(-2.35, 0.0, 0.75),
-            1.45
+            Vec3(-2.55, 0.0, 0.95),
+            1.55
         },
         {
-            Vec3(2.85, 0.0, -0.55),
-            1.45
+            Vec3(-2.90, 0.0, -1.25),
+            1.30
         },
         {
-            Vec3(-2.45, 0.0, -4.35),
-            1.85
+            Vec3(-2.50, 0.0, -4.45),
+            1.70
         },
         {
-            Vec3(2.75, 0.0, -4.80),
-            1.90
+            Vec3(2.90, 0.0, -0.55),
+            1.35
+        },
+        {
+            Vec3(3.00, 0.0, -3.05),
+            1.65
+        },
+        {
+            Vec3(2.60, 0.0, -5.20),
+            1.55
         }
     }};
 
@@ -1038,27 +1048,35 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Shrub 03: wider, low-growing foliage.
+    // Rear understory is arranged as an irregular, overlapping mass.
+    // Larger shrubs anchor the outer ends; smaller shrubs soften the
+    // transition toward the central Pachira without blocking its trunk.
     add_shrub(
         "assets/shrub_03_2k.blend/shrub_03_2k.obj",
-        -1.45,
-        -7.25,
-        1.55
-    );
-
-    // Shrub 04: compact foliage clusters.
-    add_shrub(
-        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
-        0.0,
-        -7.25,
-        1.05
+        -2.25,
+        -6.95,
+        1.75
     );
 
     add_shrub(
         "assets/shrub_04_2k.blend/shrub_04_2k.obj",
-        1.0,
-        -7.25,
-        1.05
+        -1.05,
+        -7.18,
+        1.18
+    );
+
+    add_shrub(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        1.05,
+        -7.05,
+        1.28
+    );
+
+    add_shrub(
+        "assets/shrub_03_2k.blend/shrub_03_2k.obj",
+        2.30,
+        -6.90,
+        1.60
     );
 
     // Calathea: broad, low foliage on both sides of the walkway.
@@ -1119,8 +1137,9 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // A single broad-leaf specimen frames the left exhibition area.
-    add_calathea(-2.40, -2.25);
+    // Broad leaves bridge the fern bands and soften the hard edge
+    // of the display area without intruding into the central path.
+    add_calathea(-2.25, -2.75);
 
     // Side exhibition plinth.
     greenhouse_box(
