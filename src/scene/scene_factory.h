@@ -48,6 +48,13 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         s.geometry = make_greenhouse_scene();
         s.output = OutputPaths::RenderDirectory + "greenhouse_scene.ppm";
         s.point_lights.clear();
+        // A high warm sun acts as the directional key light; its
+        // shadow rays rake through the roof glazing and cast the
+        // frame pattern onto the floor.
+        s.point_lights.emplace_back(
+            Vec3(14.0, 22.0, 16.0),
+            Vec3(5200.0, 4900.0, 4300.0)
+        );
     } else {
         switch (request.test) {
         case TestKind::Mipmap:

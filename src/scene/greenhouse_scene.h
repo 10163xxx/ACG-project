@@ -1244,10 +1244,10 @@ inline HittableList make_greenhouse_scene() {
 
     // Exterior landscape surrounding the conservatory.
     auto exterior_ground_texture = std::make_shared<PerlinNoiseTexture>(
-        Vec3(0.075, 0.105, 0.045),
-        Vec3(0.22, 0.27, 0.12),
-        0.38,
-        5,
+        Vec3(0.055, 0.082, 0.030),
+        Vec3(0.19, 0.24, 0.095),
+        0.22,
+        6,
         913
     );
 
@@ -1301,6 +1301,95 @@ inline HittableList make_greenhouse_scene() {
             gravel_material
         ));
     }
+
+    // Exterior planting visible through the glazing, so the view
+    // outward reads as garden instead of bare lawn. These plants
+    // stand outside the interior bounds and are loaded without the
+    // interior clearance validation.
+    auto exterior_foliage = std::make_shared<PrincipledBSDF>(
+        Vec3(0.085, 0.155, 0.045),
+        0.0,
+        0.62
+    );
+
+    const auto add_exterior_shrub01 = [&](
+        const std::string& variant,
+        double x,
+        double z,
+        double height
+    ) {
+        TriangleMesh plant = ObjLoader::load_file(
+            "assets/shrub_01_2k.blend/shrub_01_2k.obj",
+            exterior_foliage,
+            height,
+            Vec3(x, 0.0, z),
+            { "shrub_01_" + variant + "_LOD0" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
+    const auto add_exterior_model = [&](
+        const std::string& path,
+        double x,
+        double z,
+        double height,
+        double width
+    ) {
+        TriangleMesh plant = ObjLoader::load_file(
+            path,
+            exterior_foliage,
+            height,
+            Vec3(x, 0.0, z),
+            {},
+            width
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
+    // Left of the conservatory.
+    add_exterior_shrub01("b", -4.60, 0.50, 1.50);
+    add_exterior_shrub01("d", -5.00, -2.20, 1.70);
+    add_exterior_model(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        -4.30, -1.20, 0.90, 0.0);
+    add_exterior_model(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        -4.50, -4.00, 1.00, 0.0);
+    add_exterior_model(
+        "assets/shrub_03_2k.blend/shrub_03_2k.obj",
+        -4.90, -5.20, 0.0, 1.60);
+    add_exterior_shrub01("f", -4.40, -6.20, 1.40);
+
+    // Right of the conservatory.
+    add_exterior_shrub01("c", 4.50, 0.20, 1.60);
+    add_exterior_model(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        4.40, -1.60, 0.90, 0.0);
+    add_exterior_shrub01("e", 5.00, -3.40, 1.70);
+    add_exterior_model(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        4.60, -5.00, 0.0, 1.50);
+    add_exterior_model(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        4.30, -6.40, 0.85, 0.0);
+
+    // Behind the rear wall.
+    add_exterior_shrub01("g", -1.60, -8.90, 1.50);
+    add_exterior_shrub01("i", 0.80, -9.20, 1.60);
+    add_exterior_shrub01("h", 2.20, -8.80, 1.30);
+    add_exterior_model(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        -0.20, -9.00, 1.00, 0.0);
 
     greenhouse_box(world, Vec3(-4, 0, -8), Vec3(-3.72, .62, 4), stone);
     greenhouse_box(world, Vec3(3.72, 0, -8), Vec3(4, .62, 4), stone);
