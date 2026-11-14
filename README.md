@@ -147,6 +147,22 @@ Render the showcase scene:
 .\scripts\render.ps1 -Config Release -Scene Showcase
 ```
 
+Render the greenhouse conservatory scene:
+
+```powershell
+.\scripts\render.ps1 -Config Release -Scene Greenhouse
+```
+
+The greenhouse scene assembles imported botanical models (recorded
+in `assets/ASSET_CREDITS.md`) with procedural architecture. `-Draft`
+and `-Preview` produce reduced-quality variants for quick iteration.
+The default output files are:
+
+```text
+results/renders/greenhouse_scene.ppm
+results/renders/greenhouse_scene.jpg
+```
+
 Render the UV test scene:
 
 ```powershell
