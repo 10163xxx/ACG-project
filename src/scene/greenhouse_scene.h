@@ -865,6 +865,318 @@ inline void greenhouse_add_hanging_basket(
     }
 }
 
+inline void greenhouse_add_octagon_disc(
+    HittableList& world,
+    double center_x,
+    double y,
+    double center_z,
+    double radius,
+    const std::shared_ptr<const Material>& material
+) {
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.emplace_back(center_x, y, center_z);
+
+    for (int side = 0; side < 8; ++side) {
+        const double angle =
+            2.0 * 3.14159265358979323846 * static_cast<double>(side) / 8.0;
+
+        vertices.emplace_back(
+            center_x + std::cos(angle) * radius,
+            y,
+            center_z + std::sin(angle) * radius
+        );
+    }
+
+    for (int side = 0; side < 8; ++side) {
+        const std::size_t next =
+            static_cast<std::size_t>((side + 1) % 8) + 1;
+
+        faces.push_back({
+            static_cast<std::size_t>(0),
+            static_cast<std::size_t>(side) + 1,
+            next
+        });
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        material
+    ));
+}
+
+// A round stone cistern holding a shallow sheet of still water.
+// The water surface is a thin-glass sheet so the pebbles on the
+// basin floor stay visible through it with a slight refraction.
+inline void greenhouse_add_cistern(
+    HittableList& world,
+    double center_x,
+    double center_z,
+    const std::shared_ptr<const Material>& stone_material,
+    const std::shared_ptr<const Material>& water_material,
+    const std::shared_ptr<const Material>& basin_floor_material
+) {
+    constexpr int SIDES = 8;
+
+    const double outer_radius = 0.58;
+    const double inner_radius = 0.42;
+    const double wall_top = 0.36;
+    const double water_level = 0.34;
+    const double floor_level = 0.12;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.reserve(4 * SIDES);
+
+    for (int ring = 0; ring < 4; ++ring) {
+        const double radius =
+            (ring < 2) ? outer_radius : inner_radius;
+
+        const double y =
+            (ring % 2 == 0) ? 0.0 : wall_top;
+
+        for (int side = 0; side < SIDES; ++side) {
+            const double angle =
+                2.0 * 3.14159265358979323846
+                * static_cast<double>(side) / SIDES;
+
+            vertices.emplace_back(
+                center_x + std::cos(angle) * radius,
+                y,
+                center_z + std::sin(angle) * radius
+            );
+        }
+    }
+
+    for (int side = 0; side < SIDES; ++side) {
+        const int next = (side + 1) % SIDES;
+
+        const std::size_t outer_bottom =
+            static_cast<std::size_t>(side);
+
+        const std::size_t outer_top =
+            static_cast<std::size_t>(SIDES + side);
+
+        const std::size_t outer_bottom_next =
+            static_cast<std::size_t>(next);
+
+        const std::size_t outer_top_next =
+            static_cast<std::size_t>(SIDES + next);
+
+        // Outer wall.
+        faces.push_back({outer_bottom, outer_bottom_next, outer_top_next});
+        faces.push_back({outer_bottom, outer_top_next, outer_top});
+
+        const std::size_t inner_ring = 2 * SIDES;
+
+        const std::size_t inner_bottom =
+            inner_ring + static_cast<std::size_t>(side);
+
+        const std::size_t inner_top =
+            inner_ring + static_cast<std::size_t>(SIDES + side);
+
+        const std::size_t inner_bottom_next =
+            inner_ring + static_cast<std::size_t>(next);
+
+        const std::size_t inner_top_next =
+            inner_ring + static_cast<std::size_t>(SIDES + next);
+
+        // Inner wall.
+        faces.push_back({inner_bottom, inner_top_next, inner_bottom_next});
+        faces.push_back({inner_bottom, inner_top, inner_top_next});
+
+        // Rim top ring.
+        faces.push_back({outer_top, inner_top, inner_top_next});
+        faces.push_back({outer_top, inner_top_next, outer_top_next});
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        stone_material
+    ));
+
+    // Dark basin floor just below the water line.
+    greenhouse_add_octagon_disc(
+        world,
+        center_x,
+        floor_level,
+        center_z,
+        inner_radius,
+        basin_floor_material
+    );
+
+    // Still water sheet.
+    greenhouse_add_octagon_disc(
+        world,
+        center_x,
+        water_level,
+        center_z,
+        inner_radius - 0.01,
+        water_material
+    );
+
+    // Pebbles rest on the basin floor, partly submerged.
+    auto pebble_material = std::make_shared<PrincipledBSDF>(
+        Vec3(0.30, 0.29, 0.26),
+        0.0,
+        0.62
+    );
+
+    for (int pebble = 0; pebble < 9; ++pebble) {
+        const double value = std::sin(
+            pebble * 12.9898 + 4.17
+        ) * 43758.5453;
+
+        const double fraction = value - std::floor(value);
+
+        const double angle =
+            2.0 * 3.14159265358979323846 * fraction
+            + 0.7 * pebble;
+
+        const double radial =
+            inner_radius * (0.25 + 0.55 * fraction);
+
+        const double radius =
+            0.042 + 0.030 * (0.5 + 0.5 * fraction);
+
+        world.add(std::make_shared<Sphere>(
+            Vec3(
+                center_x + std::cos(angle) * radial,
+                floor_level + radius * 0.45,
+                center_z + std::sin(angle) * radial
+            ),
+            radius,
+            pebble_material
+        ));
+    }
+}
+
+// A rectangular stone trough with the same still-water treatment.
+inline void greenhouse_add_stone_trough(
+    HittableList& world,
+    double min_x,
+    double min_z,
+    double max_x,
+    double max_z,
+    const std::shared_ptr<const Material>& stone_material,
+    const std::shared_ptr<const Material>& water_material,
+    const std::shared_ptr<const Material>& basin_floor_material
+) {
+    const double wall_top = 0.40;
+    const double water_level = 0.37;
+    const double floor_level = 0.14;
+    const double wall = 0.11;
+
+    // Four walls.
+    greenhouse_box(
+        world,
+        Vec3(min_x, 0.0, min_z),
+        Vec3(max_x, wall_top, min_z + wall),
+        stone_material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(min_x, 0.0, max_z - wall),
+        Vec3(max_x, wall_top, max_z),
+        stone_material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(min_x, 0.0, min_z),
+        Vec3(min_x + wall, wall_top, max_z),
+        stone_material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(max_x - wall, 0.0, min_z),
+        Vec3(max_x, wall_top, max_z),
+        stone_material
+    );
+
+    // Stone coping slabs overhang the walls slightly.
+    greenhouse_box(
+        world,
+        Vec3(min_x - 0.02, wall_top, min_z - 0.02),
+        Vec3(max_x + 0.02, wall_top + 0.05, min_z + wall + 0.02),
+        stone_material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(min_x - 0.02, wall_top, max_z - wall - 0.02),
+        Vec3(max_x + 0.02, wall_top + 0.05, max_z + 0.02),
+        stone_material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(min_x - 0.02, wall_top, min_z),
+        Vec3(min_x + wall + 0.02, wall_top + 0.05, max_z),
+        stone_material
+    );
+
+    greenhouse_box(
+        world,
+        Vec3(max_x - wall - 0.02, wall_top, min_z),
+        Vec3(max_x + 0.02, wall_top + 0.05, max_z),
+        stone_material
+    );
+
+    // Basin floor and still water sheet, inset from the walls.
+    world.add(std::make_shared<Quad>(
+        Vec3(min_x + wall, floor_level, max_z - wall),
+        Vec3(max_x - min_x - 2.0 * wall, 0.0, 0.0),
+        Vec3(0.0, 0.0, -(max_z - min_z - 2.0 * wall)),
+        basin_floor_material
+    ));
+
+    world.add(std::make_shared<Quad>(
+        Vec3(min_x + wall + 0.01, water_level, max_z - wall - 0.01),
+        Vec3(max_x - min_x - 2.0 * wall - 0.02, 0.0, 0.0),
+        Vec3(0.0, 0.0, -(max_z - min_z - 2.0 * wall - 0.02)),
+        water_material
+    ));
+
+    // A few submerged pebbles.
+    auto pebble_material = std::make_shared<PrincipledBSDF>(
+        Vec3(0.30, 0.29, 0.26),
+        0.0,
+        0.62
+    );
+
+    for (int pebble = 0; pebble < 5; ++pebble) {
+        const double value = std::sin(
+            pebble * 37.719 + 2.53
+        ) * 43758.5453;
+
+        const double fraction = value - std::floor(value);
+
+        const double x =
+            min_x + wall + 0.14
+            + fraction * (max_x - min_x - 2.0 * wall - 0.30);
+
+        const double z =
+            min_z + wall + 0.16
+            + (1.0 - fraction) * (max_z - min_z - 2.0 * wall - 0.34);
+
+        const double radius =
+            0.045 + 0.028 * fraction;
+
+        world.add(std::make_shared<Sphere>(
+            Vec3(x, floor_level + radius * 0.45, z),
+            radius,
+            pebble_material
+        ));
+    }
+}
+
 struct GreenhousePlantPlacement {
     Vec3 position;
     double target_height;
@@ -1860,6 +2172,138 @@ inline HittableList make_greenhouse_scene() {
     // A second pair of calatheas softens the bed front.
     add_calathea(-2.85, -5.55);
     add_calathea(2.75, -5.90);
+
+    // Interior water features and stone dressing.
+    auto water_surface = std::make_shared<ThinGlass>(
+        1.33,
+        Vec3(0.90, 0.96, 0.93)
+    );
+
+    auto basin_floor = std::make_shared<Lambertian>(
+        Vec3(0.05, 0.045, 0.038)
+    );
+
+    auto rock_fallback = std::make_shared<PrincipledBSDF>(
+        Vec3(0.28, 0.27, 0.25),
+        0.0,
+        0.78
+    );
+
+    auto moss_fallback = std::make_shared<PrincipledBSDF>(
+        Vec3(0.10, 0.18, 0.05),
+        0.0,
+        0.85
+    );
+
+    // Round cistern on the open floor left of the walkway.
+    greenhouse_add_cistern(
+        world,
+        -1.45,
+        1.55,
+        stone,
+        water_surface,
+        basin_floor
+    );
+
+    // Rectangular trough tucked into the front-right corner.
+    greenhouse_add_stone_trough(
+        world,
+        2.72,
+        2.32,
+        3.52,
+        3.32,
+        stone,
+        water_surface,
+        basin_floor
+    );
+
+    // Mossy boulders from the imported rock set.
+    const auto add_rock = [&](
+        const std::string& rock_name,
+        double x,
+        double z,
+        double width,
+        double base_y
+    ) {
+        TriangleMesh rock = greenhouse_load_plant_obj(
+            "assets/rock_moss_set_01_2k.blend/rock_moss_set_01_2k.obj",
+            rock_fallback,
+            0.0,
+            Vec3(x, base_y, z),
+            { rock_name },
+            width
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(rock)
+            )
+        );
+    };
+
+    add_rock("rock_moss_set_01_rock03", -1.10, 2.45, 0.50, 0.0);
+    add_rock("rock_moss_set_01_rock01", -2.05, 0.30, 0.62, 0.0);
+    add_rock("rock_moss_set_01_rock02", -2.85, -6.80, 0.45, 0.02);
+    add_rock("rock_moss_set_01_rock04", 0.95, -6.90, 0.55, 0.02);
+    add_rock("rock_moss_set_01_rock05", 2.60, -6.72, 0.42, 0.02);
+    add_rock("rock_moss_set_01_rock06", 3.10, -2.30, 0.45, 0.0);
+
+    // Moss tufts layer the bed, wall bases and stone edges.
+    const auto add_moss = [&](
+        const std::string& clump_name,
+        double x,
+        double y,
+        double z,
+        double size
+    ) {
+        TriangleMesh clump = greenhouse_load_plant_obj(
+            "assets/moss_01_2k.blend/moss_01_2k.obj",
+            moss_fallback,
+            size,
+            Vec3(x, y, z),
+            { clump_name }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(clump)
+            )
+        );
+    };
+
+    // Around the cistern.
+    add_moss("moss_01_c_LOD0", -1.90, 0.365, 1.25, 0.05);
+    add_moss("moss_01_e_LOD0", -1.05, 0.365, 1.95, 0.045);
+    add_moss("moss_01_tall_b_LOD0", -1.80, 0.365, 1.90, 0.055);
+    add_moss("moss_01_a_LOD0", -1.90, 0.005, 2.10, 0.07);
+    add_moss("moss_01_b_LOD0", -0.95, 0.005, 1.05, 0.06);
+    add_moss("moss_01_d_LOD0", -2.05, 0.005, 1.75, 0.075);
+
+    // At the pachira base.
+    add_moss("moss_01_d_LOD0", -0.45, 0.02, -5.80, 0.08);
+    add_moss("moss_01_g_LOD0", 0.50, 0.02, -5.65, 0.07);
+    add_moss("moss_01_tall_a_LOD0", 0.05, 0.02, -5.45, 0.06);
+    add_moss("moss_01_e_LOD0", -0.20, 0.02, -5.90, 0.075);
+
+    // Rear bed ground layer.
+    add_moss("moss_01_f_LOD0", -2.55, 0.02, -6.90, 0.09);
+    add_moss("moss_01_h_LOD0", -1.55, 0.02, -7.05, 0.08);
+    add_moss("moss_01_i_LOD0", -0.55, 0.02, -6.85, 0.075);
+    add_moss("moss_01_g_LOD0", 1.45, 0.02, -6.95, 0.085);
+    add_moss("moss_01_j_LOD0", 2.10, 0.02, -6.80, 0.08);
+    add_moss("moss_01_i_LOD0", 2.95, 0.02, -7.00, 0.09);
+    add_moss("moss_01_c_LOD0", -3.20, 0.02, -6.65, 0.07);
+    add_moss("moss_01_tall_b_LOD0", 1.30, 0.02, -7.25, 0.095);
+
+    // Along the side wall bases.
+    add_moss("moss_01_a_LOD0", -3.30, 0.005, -2.20, 0.075);
+    add_moss("moss_01_b_LOD0", -3.35, 0.005, -4.90, 0.08);
+    add_moss("moss_01_f_LOD0", 3.30, 0.005, -4.30, 0.075);
+    add_moss("moss_01_e_LOD0", 3.35, 0.005, -1.10, 0.07);
+
+    // Beside the trough.
+    add_moss("moss_01_f_LOD0", 2.45, 0.005, 3.35, 0.07);
+    add_moss("moss_01_h_LOD0", 3.30, 0.005, 2.15, 0.075);
 
     // Side exhibition plinth.
     greenhouse_box(

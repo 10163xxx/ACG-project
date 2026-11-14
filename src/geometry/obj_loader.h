@@ -1132,8 +1132,15 @@ private:
         }
 
         if (faces.empty()) {
+            std::string requested;
+
+            for (const std::string& name : object_names) {
+                requested += " '" + name + "'";
+            }
+
             throw std::runtime_error(
-                "OBJ object selection produced no faces."
+                "OBJ object selection produced no faces. Requested:" +
+                requested
             );
         }
 
