@@ -2305,6 +2305,129 @@ inline HittableList make_greenhouse_scene() {
     add_moss("moss_01_f_LOD0", 2.45, 0.005, 3.35, 0.07);
     add_moss("moss_01_h_LOD0", 3.30, 0.005, 2.15, 0.075);
 
+    // Layered planting pass: the imported shrub 01 variants knit
+    // the bed into a deep understory, ferns climb the wall bases,
+    // and periwinkle accents edge the walkway.
+    auto periwinkle_fallback = std::make_shared<PrincipledBSDF>(
+        Vec3(0.30, 0.20, 0.30),
+        0.0,
+        0.60
+    );
+
+    const auto add_shrub01 = [&](
+        const std::string& variant,
+        double x,
+        double z,
+        double height,
+        double base_y
+    ) {
+        TriangleMesh plant = greenhouse_load_plant_obj(
+            "assets/shrub_01_2k.blend/shrub_01_2k.obj",
+            shrub_fallback,
+            height,
+            Vec3(x, base_y, z),
+            { "shrub_01_" + variant + "_LOD0" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
+    const auto add_periwinkle = [&](
+        const std::string& variant,
+        double x,
+        double z,
+        double height,
+        double base_y
+    ) {
+        TriangleMesh plant = greenhouse_load_plant_obj(
+            "assets/periwinkle_plant_2k.blend/"
+            "periwinkle_plant_2k.obj",
+            periwinkle_fallback,
+            height,
+            Vec3(x, base_y, z),
+            { "periwinkle_plant_" + variant + "_LOD0" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
+    // Rear understory, filled between the established shrubs.
+    add_shrub01("b", 0.00, -6.88, 0.70, 0.02);
+    add_shrub01("c", -1.68, -7.12, 0.75, 0.02);
+    add_shrub01("d", 1.70, -7.02, 0.80, 0.02);
+    add_shrub01("e", -3.15, -7.18, 0.60, 0.02);
+    add_shrub01("a", 2.85, -7.05, 0.72, 0.02);
+    add_shrub01("h", -2.85, -7.32, 0.55, 0.02);
+    add_shrub01("i", 1.78, -7.22, 0.50, 0.02);
+
+    // Side wall bases: ferns rise over the moss layer.
+    add_bed_fern(-3.25, -0.10, 0.72);
+    add_bed_fern(-3.25, -5.70, 0.66);
+    add_bed_fern(3.25, -0.15, 0.72);
+    add_bed_fern(3.30, -4.60, 0.68);
+    add_shrub01("f", -3.12, -3.80, 0.62, 0.005);
+    add_shrub01("g", 3.15, 1.10, 0.70, 0.005);
+
+    // Periwinkle border along the walkway edges.
+    add_periwinkle("01", 1.02, 2.30, 0.32, 0.005);
+    add_periwinkle("02", -1.05, 1.90, 0.28, 0.005);
+    add_periwinkle("03", 1.08, 0.55, 0.30, 0.005);
+    add_periwinkle("04", -0.98, -0.35, 0.34, 0.005);
+    add_periwinkle("05", 1.05, -1.65, 0.28, 0.005);
+    add_periwinkle("06", -1.06, -3.35, 0.30, 0.005);
+    add_periwinkle("01", 1.02, -3.70, 0.33, 0.005);
+    add_periwinkle("02", -1.20, -6.70, 0.30, 0.02);
+    add_periwinkle("03", 2.10, -6.72, 0.28, 0.02);
+    add_periwinkle("04", -0.85, -5.30, 0.30, 0.005);
+
+    // Two flowering pots on the bench lower shelf.
+    greenhouse_add_tapered_pot(
+        world,
+        -3.24,
+        2.00,
+        0.075,
+        0.105,
+        0.16,
+        terracotta,
+        0.185
+    );
+
+    greenhouse_add_tapered_pot(
+        world,
+        -2.79,
+        2.62,
+        0.075,
+        0.105,
+        0.16,
+        terracotta,
+        0.185
+    );
+
+    world.add(std::make_shared<Quad>(
+        Vec3(-3.14, 0.333, 2.10),
+        Vec3(-0.20, 0.0, 0.0),
+        Vec3(0.0, 0.0, -0.20),
+        fern_soil
+    ));
+
+    world.add(std::make_shared<Quad>(
+        Vec3(-2.69, 0.333, 2.72),
+        Vec3(-0.20, 0.0, 0.0),
+        Vec3(0.0, 0.0, -0.20),
+        fern_soil
+    ));
+
+    add_periwinkle("05", -3.24, 2.00, 0.20, 0.333);
+    add_periwinkle("06", -2.79, 2.62, 0.18, 0.333);
+
     // Side exhibition plinth.
     greenhouse_box(
         world,
