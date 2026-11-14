@@ -109,33 +109,29 @@ inline void greenhouse_box(
         Vec3(lo.x, lo.y, lo.z), Vec3(x, 0, 0), Vec3(0, 0, z), material));
 }
 
-inline void greenhouse_add_stone_path(
+inline void greenhouse_add_stone_slab_path(
     HittableList& world,
-    const std::shared_ptr<const Material>& stone_material,
-    const std::shared_ptr<const Material>& joint_material
+    const std::vector<std::shared_ptr<const Material>>& stone_materials,
+    const std::shared_ptr<const Material>& joint_material,
+    double path_center_x,
+    double first_row_z,
+    int rows,
+    int columns,
+    double column_offset,
+    double row_spacing,
+    double half_width,
+    double half_length,
+    double top_y,
+    int seed
 ) {
-    constexpr int ROWS = 7;
-    constexpr int COLUMNS = 2;
     constexpr int SIDES = 6;
-
-    constexpr double PATH_CENTER_X = 0.0;
-    constexpr double FIRST_ROW_Z = 2.75;
-
-    constexpr double COLUMN_OFFSET = 0.34;
-    constexpr double ROW_SPACING = 0.88;
-
-    constexpr double HALF_WIDTH = 0.295;
-    constexpr double HALF_LENGTH = 0.375;
-
     constexpr double BOTTOM_Y = 0.008;
-    constexpr double TOP_Y = 0.105;
-
     constexpr double PI = 3.14159265358979323846;
 
     std::vector<Vec3> vertices;
     std::vector<TriangleMesh::Face> faces;
 
-    const int slab_count = ROWS * COLUMNS;
+    const int slab_count = rows * columns;
 
     vertices.reserve(
         static_cast<std::size_t>(slab_count)
@@ -147,15 +143,15 @@ inline void greenhouse_add_stone_path(
         * (4 * SIDES)
     );
 
-    const auto variation = [](
+    const auto variation = [&](
         int row,
         int column,
         int index
     ) {
         const double value =
             std::sin(
-                row * 12.9898
-                + column * 78.233
+                (seed + row) * 12.9898
+                + (seed * 2 + column) * 78.233
                 + index * 37.719
             ) * 43758.5453;
 
@@ -163,34 +159,64 @@ inline void greenhouse_add_stone_path(
     };
 
     // Dark substrate remains visible through the stone joints.
+    const double joint_first_z =
+        first_row_z + half_length + 0.06;
+
+    const double joint_last_z =
+        first_row_z - (rows - 1) * row_spacing
+        - half_length - 0.06;
+
+    const double joint_half_width =
+        columns > 1
+            ? column_offset + half_width + 0.09
+            : half_width + 0.09;
+
     world.add(std::make_shared<Quad>(
-        Vec3(-0.78, 0.003, 3.15),
-        Vec3(1.56, 0.0, 0.0),
-        Vec3(0.0, 0.0, -6.35),
+        Vec3(
+            path_center_x - joint_half_width,
+            0.003,
+            joint_first_z
+        ),
+        Vec3(2.0 * joint_half_width, 0.0, 0.0),
+        Vec3(0.0, 0.0, joint_last_z - joint_first_z),
         joint_material
     ));
 
-    for (int row = 0; row < ROWS; ++row) {
-        for (int column = 0; column < COLUMNS; ++column) {
+    for (int row = 0; row < rows; ++row) {
+        for (int column = 0; column < columns; ++column) {
             const double row_shift =
-                (row % 2 == 0) ? 0.0 : 0.055;
+                (row % 2 == 0)
+                    ? 0.0
+                    : (variation(row, column, 9) - 0.5) * 0.14;
 
             const double center_x =
-                PATH_CENTER_X
-                + (column == 0 ? -COLUMN_OFFSET : COLUMN_OFFSET)
+                path_center_x
+                + (
+                    (columns == 1)
+                        ? (variation(row, column, 10) - 0.5) * 0.30
+                        : (
+                            (column % 2 == 0 ? -1.0 : 1.0)
+                            * column_offset
+                            * (0.88 + 0.24 * variation(row, column, 11))
+                          )
+                    )
                 + row_shift;
 
             const double center_z =
-                FIRST_ROW_Z - row * ROW_SPACING;
+                first_row_z
+                - static_cast<double>(row) * row_spacing
+                + (variation(row, column, 12) - 0.5) * 0.22;
 
+            // Flagstone-like variety: strongly uneven width, length
+            // and rotation so no two slabs match.
             const double width_variation =
-                0.94 + 0.10 * variation(row, column, 0);
+                0.82 + 0.36 * variation(row, column, 0);
 
             const double length_variation =
-                0.94 + 0.10 * variation(row, column, 1);
+                0.82 + 0.36 * variation(row, column, 1);
 
             const double rotation =
-                (variation(row, column, 2) - 0.5) * 0.10;
+                (variation(row, column, 2) - 0.5) * 0.48;
 
             const double cos_rotation = std::cos(rotation);
             const double sin_rotation = std::sin(rotation);
@@ -206,7 +232,7 @@ inline void greenhouse_add_stone_path(
 
             vertices.emplace_back(
                 center_x,
-                TOP_Y + 0.012 * (variation(row, column, 3) - 0.5),
+                top_y + 0.018 * (variation(row, column, 3) - 0.5),
                 center_z
             );
 
@@ -216,12 +242,12 @@ inline void greenhouse_add_stone_path(
 
                 const double corner_x =
                     std::cos(angle)
-                    * HALF_WIDTH
+                    * half_width
                     * width_variation;
 
                 const double corner_z =
                     std::sin(angle)
-                    * HALF_LENGTH
+                    * half_length
                     * length_variation;
 
                 const double local_x =
@@ -233,7 +259,7 @@ inline void greenhouse_add_stone_path(
                     + corner_z * cos_rotation;
 
                 const double edge_variation =
-                    0.94 + 0.12 * variation(
+                    0.82 + 0.30 * variation(
                         row,
                         column,
                         side + 4
@@ -246,7 +272,7 @@ inline void greenhouse_add_stone_path(
                     center_z + local_z * edge_variation;
 
                 const double top_offset =
-                    0.008 * (
+                    0.014 * (
                         variation(row, column, side + 12) - 0.5
                     );
 
@@ -258,7 +284,7 @@ inline void greenhouse_add_stone_path(
 
                 vertices.emplace_back(
                     x,
-                    TOP_Y + top_offset,
+                    top_y + top_offset,
                     z
                 );
             }
@@ -314,7 +340,11 @@ inline void greenhouse_add_stone_path(
     world.add(std::make_shared<TriangleMesh>(
         vertices,
         faces,
-        stone_material
+        stone_materials.empty()
+            ? nullptr
+            : stone_materials[static_cast<std::size_t>(
+                (seed + 7) % static_cast<int>(stone_materials.size())
+            )]
     ));
 }
 
@@ -1197,23 +1227,48 @@ inline HittableList make_greenhouse_scene() {
         floor_texture
     );
 
-    auto stone_path_texture =
+    // Flagstone palette: three weathered granite variants so the
+    // path reads as pieced-together stone rather than stamped tiles.
+    auto stone_path_material_a = std::make_shared<Lambertian>(
         std::make_shared<PerlinNoiseTexture>(
-            Vec3(0.22, 0.205, 0.175),
-            Vec3(0.36, 0.33, 0.28),
-            4.5,
+            Vec3(0.26, 0.24, 0.21),
+            Vec3(0.40, 0.385, 0.35),
+            9.0,
             5,
             2026
-        );
+        )
+    );
 
-    auto stone_path_material =
-        std::make_shared<Lambertian>(
-            stone_path_texture
-        );
+    auto stone_path_material_b = std::make_shared<Lambertian>(
+        std::make_shared<PerlinNoiseTexture>(
+            Vec3(0.23, 0.215, 0.19),
+            Vec3(0.375, 0.36, 0.33),
+            7.0,
+            5,
+            2027
+        )
+    );
+
+    auto stone_path_material_c = std::make_shared<Lambertian>(
+        std::make_shared<PerlinNoiseTexture>(
+            Vec3(0.28, 0.255, 0.215),
+            Vec3(0.43, 0.41, 0.37),
+            11.0,
+            5,
+            2028
+        )
+    );
+
+    const std::vector<std::shared_ptr<const Material>>
+        stone_path_materials = {
+            stone_path_material_a,
+            stone_path_material_b,
+            stone_path_material_c
+        };
 
     auto stone_joint_material =
         std::make_shared<Lambertian>(
-            Vec3(0.075, 0.060, 0.042)
+            Vec3(0.062, 0.052, 0.038)
         );
 
     auto stone = std::make_shared<PrincipledBSDF>(
@@ -1236,10 +1291,52 @@ inline HittableList make_greenhouse_scene() {
     world.add(std::make_shared<Quad>(
         Vec3(-4, 0, 4), Vec3(8, 0, 0), Vec3(0, 0, -12), floor));
 
-    greenhouse_add_stone_path(
+    greenhouse_add_stone_slab_path(
         world,
-        stone_path_material,
-        stone_joint_material
+        stone_path_materials,
+        stone_joint_material,
+        0.0,
+        3.40,
+        8,
+        2,
+        0.34,
+        0.88,
+        0.295,
+        0.375,
+        0.105,
+        3
+    );
+
+    greenhouse_add_stone_slab_path(
+        world,
+        stone_path_materials,
+        stone_joint_material,
+        0.0,
+        3.94,
+        1,
+        1,
+        0.0,
+        0.88,
+        0.30,
+        0.30,
+        0.090,
+        29
+    );
+
+    greenhouse_add_stone_slab_path(
+        world,
+        stone_path_materials,
+        stone_joint_material,
+        0.0,
+        12.60,
+        9,
+        3,
+        0.46,
+        1.02,
+        0.34,
+        0.42,
+        0.075,
+        17
     );
 
     // Exterior landscape surrounding the conservatory.
@@ -1255,25 +1352,11 @@ inline HittableList make_greenhouse_scene() {
         exterior_ground_texture
     );
 
-    auto exterior_path = std::make_shared<PrincipledBSDF>(
-        Vec3(0.34, 0.32, 0.27),
-        0.0,
-        0.88
-    );
-
     world.add(std::make_shared<Quad>(
         Vec3(-30.0, -0.08, 30.0),
         Vec3(60.0, 0.0, 0.0),
         Vec3(0.0, 0.0, -60.0),
         exterior_ground
-    ));
-
-    // A stone approach path outside the entrance.
-    world.add(std::make_shared<Quad>(
-        Vec3(-1.25, -0.035, 15.0),
-        Vec3(2.5, 0.0, 0.0),
-        Vec3(0.0, 0.0, -11.0),
-        exterior_path
     ));
 
     // Irregular gravel stays outside the greenhouse, along both edges
