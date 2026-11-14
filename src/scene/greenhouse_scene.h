@@ -546,10 +546,11 @@ inline void greenhouse_add_tapered_pot(
     double bottom_half_width,
     double top_half_width,
     double height,
-    const std::shared_ptr<const Material>& material
+    const std::shared_ptr<const Material>& material,
+    double base_y = 0.0
 ) {
-    const double y0 = 0.0;
-    const double y1 = height;
+    const double y0 = base_y;
+    const double y1 = base_y + height;
 
     const Vec3 p0(
         x - bottom_half_width, y0, z - bottom_half_width);
@@ -860,6 +861,85 @@ inline void greenhouse_add_hanging_basket(
             0.09,
             -0.02,
             vine_a
+        );
+    }
+}
+
+inline void greenhouse_add_potted_seedling(
+    HittableList& world,
+    double x,
+    double base_y,
+    double z,
+    double bottom_half_width,
+    double top_half_width,
+    double pot_height,
+    int leaf_count,
+    double leaf_spread,
+    double leaf_height,
+    const std::shared_ptr<const Material>& pot_material,
+    const std::shared_ptr<const Material>& soil_material,
+    const std::shared_ptr<const Material>& leaf_a,
+    const std::shared_ptr<const Material>& leaf_b,
+    int seed
+) {
+    constexpr double PI = 3.14159265358979323846;
+
+    greenhouse_add_tapered_pot(
+        world,
+        x,
+        z,
+        bottom_half_width,
+        top_half_width,
+        pot_height,
+        pot_material,
+        base_y
+    );
+
+    world.add(std::make_shared<Quad>(
+        Vec3(
+            x + top_half_width * 0.92,
+            base_y + pot_height - 0.012,
+            z + top_half_width * 0.92
+        ),
+        Vec3(-top_half_width * 1.84, 0.0, 0.0),
+        Vec3(0.0, 0.0, -top_half_width * 1.84),
+        soil_material
+    ));
+
+    const auto variation = [seed](int index) {
+        const double value = std::sin(
+            seed * 12.9898 + index * 78.233
+        ) * 43758.5453;
+
+        return value - std::floor(value);
+    };
+
+    const Vec3 base(x, base_y + pot_height - 0.01, z);
+
+    for (int leaf = 0; leaf < leaf_count; ++leaf) {
+        const double angle =
+            2.0 * PI * static_cast<double>(leaf) / leaf_count
+            + 0.4 * (variation(leaf) - 0.5);
+
+        const double horizontal =
+            leaf_spread * (0.55 + 0.35 * variation(leaf + 8));
+
+        const double vertical =
+            leaf_height * (0.75 + 0.30 * variation(leaf + 16));
+
+        const Vec3 direction(
+            horizontal * std::cos(angle),
+            vertical,
+            horizontal * std::sin(angle)
+        );
+
+        greenhouse_add_leaf(
+            world,
+            base,
+            direction,
+            leaf_spread * (0.22 + 0.05 * variation(leaf + 24)),
+            leaf_height * 0.14,
+            (leaf % 3 == 0) ? leaf_b : leaf_a
         );
     }
 }
@@ -1569,6 +1649,117 @@ inline HittableList make_greenhouse_scene() {
         vine_a,
         vine_b,
         71
+    );
+
+    // Wooden staging bench along the front-left wall.
+    // Iron legs carry slatted timber tops holding young potted
+    // seedlings, filling the bare floor near the entrance.
+    auto bench_wood_texture = std::make_shared<PerlinNoiseTexture>(
+        Vec3(0.26, 0.165, 0.09),
+        Vec3(0.42, 0.30, 0.18),
+        8.5,
+        4,
+        517
+    );
+
+    auto bench_wood = std::make_shared<Lambertian>(
+        bench_wood_texture
+    );
+
+    auto terracotta = std::make_shared<PrincipledBSDF>(
+        Vec3(0.45, 0.23, 0.13),
+        0.0,
+        0.78
+    );
+
+    auto seedling_leaf = std::make_shared<PrincipledBSDF>(
+        Vec3(0.14, 0.30, 0.08),
+        0.0,
+        0.55
+    );
+
+    constexpr double BENCH_MIN_X = -3.45;
+    constexpr double BENCH_MAX_X = -2.15;
+    constexpr double BENCH_MIN_Z = 1.30;
+    constexpr double BENCH_MAX_Z = 3.20;
+
+    // Four iron legs, inset from the bench corners.
+    for (double leg_x : {-3.35, -2.25}) {
+        for (double leg_z : {1.42, 3.08}) {
+            greenhouse_box(
+                world,
+                Vec3(leg_x - 0.028, 0.0, leg_z - 0.028),
+                Vec3(leg_x + 0.028, 0.56, leg_z + 0.028),
+                iron
+            );
+        }
+    }
+
+    // Five timber slats form the bench top.
+    for (int slat = 0; slat < 5; ++slat) {
+        const double slat_center_x =
+            BENCH_MIN_X + 0.10 + slat * 0.275;
+
+        greenhouse_box(
+            world,
+            Vec3(slat_center_x - 0.10, 0.56, BENCH_MIN_Z),
+            Vec3(slat_center_x + 0.10, 0.595, BENCH_MAX_Z),
+            bench_wood
+        );
+    }
+
+    // Three lower shelf boards between the legs.
+    for (int shelf = 0; shelf < 3; ++shelf) {
+        const double shelf_center_x =
+            BENCH_MIN_X + 0.21 + shelf * 0.45;
+
+        greenhouse_box(
+            world,
+            Vec3(shelf_center_x - 0.19, 0.16, BENCH_MIN_Z + 0.05),
+            Vec3(shelf_center_x + 0.19, 0.185, BENCH_MAX_Z - 0.05),
+            bench_wood
+        );
+    }
+
+    // A row of seedlings in terracotta pots on the bench top.
+    greenhouse_add_potted_seedling(
+        world,
+        -3.08,
+        0.595,
+        1.78,
+        0.11, 0.15, 0.22,
+        8, 0.24, 0.30,
+        terracotta, fern_soil, seedling_leaf, vine_b, 83
+    );
+
+    greenhouse_add_potted_seedling(
+        world,
+        -2.52,
+        0.595,
+        2.14,
+        0.14, 0.185, 0.26,
+        11, 0.33, 0.42,
+        terracotta, fern_soil, seedling_leaf, vine_b, 97
+    );
+
+    greenhouse_add_potted_seedling(
+        world,
+        -3.05,
+        0.595,
+        2.82,
+        0.13, 0.17, 0.24,
+        9, 0.29, 0.37,
+        terracotta, fern_soil, seedling_leaf, vine_b, 113
+    );
+
+    greenhouse_add_potted_seedling(
+        world,
+        -2.28,
+        0.595,
+        2.92,
+        0.10, 0.135, 0.20,
+        7, 0.21, 0.27,
+        terracotta, fern_soil, seedling_leaf, vine_b, 131
     );
 
     // Side exhibition plinth.
