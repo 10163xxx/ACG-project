@@ -1763,6 +1763,104 @@ inline HittableList make_greenhouse_scene() {
         )
     );
 
+    // Naturalistic rear planting bed.
+    // The bed edge wanders instead of running straight, and the
+    // planting inside is layered and irregular so it reads as a
+    // curated garden border rather than a nursery row.
+    auto bed_soil_texture = std::make_shared<PerlinNoiseTexture>(
+        Vec3(0.10, 0.07, 0.045),
+        Vec3(0.21, 0.15, 0.10),
+        3.0,
+        4,
+        731
+    );
+
+    auto bed_soil = std::make_shared<Lambertian>(
+        bed_soil_texture
+    );
+
+    const auto add_bed_segment = [&](
+        double x0,
+        double x1,
+        double front_z
+    ) {
+        world.add(std::make_shared<Quad>(
+            Vec3(x0, 0.012, front_z),
+            Vec3(x1 - x0, 0.0, 0.0),
+            Vec3(0.0, 0.0, -7.55 - front_z),
+            bed_soil
+        ));
+
+        // Low stone curb along the wandering bed edge.
+        greenhouse_box(
+            world,
+            Vec3(x0, 0.0, front_z - 0.075),
+            Vec3(x1, 0.10, front_z + 0.02),
+            stone
+        );
+    };
+
+    add_bed_segment(-3.45, -1.85, -6.55);
+    add_bed_segment(-1.85, -0.15, -6.40);
+    add_bed_segment(-0.15, 1.75, -6.62);
+    add_bed_segment(1.75, 3.45, -6.45);
+
+    // Weathered stones scattered along the bed edge.
+    const auto add_bed_stone = [&](double x, double z, double radius) {
+        world.add(std::make_shared<Sphere>(
+            Vec3(x, radius * 0.55, z),
+            radius,
+            stone
+        ));
+    };
+
+    add_bed_stone(-2.85, -6.34, 0.09);
+    add_bed_stone(-2.05, -6.28, 0.07);
+    add_bed_stone(-1.15, -6.24, 0.11);
+    add_bed_stone(0.85, -6.44, 0.08);
+    add_bed_stone(1.75, -6.30, 0.12);
+    add_bed_stone(2.72, -6.26, 0.07);
+
+    // Corner shrubs close the understory mass against the walls.
+    add_shrub(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        -3.10,
+        -6.70,
+        0.65
+    );
+
+    add_shrub(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        3.05,
+        -6.75,
+        0.70
+    );
+
+    // Low ferns knit the shrubs together at ground level.
+    const auto add_bed_fern = [&](double x, double z, double height) {
+        TriangleMesh bed_fern = greenhouse_load_plant_obj(
+            "assets/fern_02_2k.blend/fern_02_2k.obj",
+            fern_fallback,
+            height,
+            Vec3(x, 0.02, z)
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(bed_fern)
+            )
+        );
+    };
+
+    add_bed_fern(-3.15, -6.90, 0.55);
+    add_bed_fern(-1.55, -6.65, 0.50);
+    add_bed_fern(0.42, -6.95, 0.52);
+    add_bed_fern(3.02, -6.55, 0.48);
+
+    // A second pair of calatheas softens the bed front.
+    add_calathea(-2.85, -5.55);
+    add_calathea(2.75, -5.90);
+
     // Side exhibition plinth.
     greenhouse_box(
         world,
