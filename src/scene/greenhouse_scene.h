@@ -632,6 +632,238 @@ inline void greenhouse_add_tapered_pot(
     );
 }
 
+inline void greenhouse_add_hanging_basket(
+    HittableList& world,
+    double x,
+    double z,
+    double chain_top_y,
+    const std::shared_ptr<const Material>& basket_material,
+    const std::shared_ptr<const Material>& chain_material,
+    const std::shared_ptr<const Material>& soil_material,
+    const std::shared_ptr<const Material>& vine_a,
+    const std::shared_ptr<const Material>& vine_b,
+    int seed
+) {
+    constexpr double PI = 3.14159265358979323846;
+
+    const double top_half = 0.21;
+    const double bottom_half = 0.13;
+    const double basket_height = 0.20;
+
+    const double rim_y = chain_top_y - 0.34;
+    const double bottom_y = rim_y - basket_height;
+
+    greenhouse_validate_plant_bounds(
+        AABB(
+            Vec3(
+                x - top_half - 0.35,
+                bottom_y - 0.60,
+                z - top_half - 0.35
+            ),
+            Vec3(
+                x + top_half + 0.35,
+                chain_top_y,
+                z + top_half + 0.35
+            )
+        ),
+        "hanging basket"
+    );
+
+    const auto variation = [seed](int index) {
+        const double value = std::sin(
+            seed * 12.9898 + index * 78.233
+        ) * 43758.5453;
+
+        return value - std::floor(value);
+    };
+
+    // Three slender chains hang the basket from the tie above.
+    // Two crossed narrow quads per chain keep it visible
+    // from every direction.
+    for (int chain = 0; chain < 3; ++chain) {
+        const double angle =
+            PI / 2.0
+            + 2.0 * PI * static_cast<double>(chain) / 3.0;
+
+        const Vec3 top(x, chain_top_y, z);
+
+        const Vec3 bottom(
+            x + std::cos(angle) * top_half * 0.82,
+            rim_y,
+            z + std::sin(angle) * top_half * 0.82
+        );
+
+        const Vec3 span = bottom - top;
+
+        Vec3 side(-span.z, 0.0, span.x);
+
+        const double side_length = side.length();
+
+        if (side_length > 1e-8) {
+            side = side * (0.016 / side_length);
+        } else {
+            side = Vec3(0.016, 0.0, 0.0);
+        }
+
+        world.add(std::make_shared<Quad>(
+            top - side,
+            span,
+            side * 2.0,
+            chain_material
+        ));
+
+        const Vec3 crossed_side(side.z, 0.0, -side.x);
+
+        world.add(std::make_shared<Quad>(
+            top - crossed_side,
+            span,
+            crossed_side * 2.0,
+            chain_material
+        ));
+    }
+
+    // Hexagonal woven bowl, open at the top and closed below.
+    constexpr int SIDES = 6;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.reserve(2 * SIDES + 1);
+    faces.reserve(4 * SIDES);
+
+    for (int side_index = 0; side_index < SIDES; ++side_index) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side_index) / SIDES;
+
+        vertices.emplace_back(
+            x + std::cos(angle) * top_half,
+            rim_y,
+            z + std::sin(angle) * top_half
+        );
+    }
+
+    for (int side_index = 0; side_index < SIDES; ++side_index) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side_index) / SIDES;
+
+        vertices.emplace_back(
+            x + std::cos(angle) * bottom_half,
+            bottom_y,
+            z + std::sin(angle) * bottom_half
+        );
+    }
+
+    vertices.emplace_back(x, bottom_y, z);
+
+    for (int side_index = 0; side_index < SIDES; ++side_index) {
+        const int next = (side_index + 1) % SIDES;
+
+        const std::size_t top_a =
+            static_cast<std::size_t>(side_index);
+
+        const std::size_t top_b =
+            static_cast<std::size_t>(next);
+
+        const std::size_t bottom_a =
+            static_cast<std::size_t>(SIDES + side_index);
+
+        const std::size_t bottom_b =
+            static_cast<std::size_t>(SIDES + next);
+
+        faces.push_back({top_a, top_b, bottom_b});
+        faces.push_back({top_a, bottom_b, bottom_a});
+
+        faces.push_back({
+            static_cast<std::size_t>(2 * SIDES),
+            bottom_b,
+            bottom_a
+        });
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        basket_material
+    ));
+
+    // Dark soil just below the rim closes the bowl from above.
+    world.add(std::make_shared<Quad>(
+        Vec3(
+            x + top_half * 0.92,
+            rim_y - 0.015,
+            z + top_half * 0.92
+        ),
+        Vec3(-top_half * 1.84, 0.0, 0.0),
+        Vec3(0.0, 0.0, -top_half * 1.84),
+        soil_material
+    ));
+
+    // Trailing vines spill over the rim on all sides.
+    for (int vine = 0; vine < 10; ++vine) {
+        const double angle =
+            2.0 * PI * static_cast<double>(vine) / 10.0
+            + 0.35 * (variation(vine) - 0.5);
+
+        const double radial =
+            top_half * (0.86 + 0.10 * variation(vine + 8));
+
+        const Vec3 base(
+            x + std::cos(angle) * radial,
+            rim_y + 0.02,
+            z + std::sin(angle) * radial
+        );
+
+        const double outward =
+            0.14 + 0.10 * variation(vine + 24);
+
+        const double droop =
+            0.42 + 0.22 * variation(vine + 16);
+
+        const Vec3 direction(
+            std::cos(angle) * outward,
+            -droop,
+            std::sin(angle) * outward
+        );
+
+        greenhouse_add_leaf(
+            world,
+            base,
+            direction,
+            0.115 + 0.03 * variation(vine + 32),
+            0.10,
+            (vine % 2 == 0) ? vine_a : vine_b
+        );
+    }
+
+    // A few young leaves stand upright in the middle.
+    for (int upright = 0; upright < 4; ++upright) {
+        const double angle =
+            2.0 * PI * static_cast<double>(upright) / 4.0
+            + 0.5 * variation(upright + 40);
+
+        const Vec3 base(
+            x + std::cos(angle) * 0.05,
+            rim_y,
+            z + std::sin(angle) * 0.05
+        );
+
+        const Vec3 direction(
+            std::cos(angle) * 0.09,
+            0.20 + 0.06 * variation(upright + 48),
+            std::sin(angle) * 0.09
+        );
+
+        greenhouse_add_leaf(
+            world,
+            base,
+            direction,
+            0.09,
+            -0.02,
+            vine_a
+        );
+    }
+}
+
 struct GreenhousePlantPlacement {
     Vec3 position;
     double target_height;
@@ -1266,6 +1498,79 @@ inline HittableList make_greenhouse_scene() {
     // of the display area without intruding into the central path.
     add_calathea(-2.25, -2.75);
 
+    // Hanging baskets suspended from the transverse roof ties.
+    // They fill the empty upper volume without crowding the
+    // central sight line down the walkway.
+    auto basket_weave = std::make_shared<PrincipledBSDF>(
+        Vec3(0.36, 0.25, 0.13),
+        0.0,
+        0.85
+    );
+
+    auto vine_a = std::make_shared<PrincipledBSDF>(
+        Vec3(0.10, 0.26, 0.06),
+        0.0,
+        0.50
+    );
+
+    auto vine_b = std::make_shared<PrincipledBSDF>(
+        Vec3(0.22, 0.34, 0.09),
+        0.0,
+        0.55
+    );
+
+    greenhouse_add_hanging_basket(
+        world,
+        -1.60,
+        3.00,
+        3.82,
+        basket_weave,
+        iron,
+        fern_soil,
+        vine_a,
+        vine_b,
+        11
+    );
+
+    greenhouse_add_hanging_basket(
+        world,
+        1.60,
+        0.00,
+        3.82,
+        basket_weave,
+        iron,
+        fern_soil,
+        vine_a,
+        vine_b,
+        29
+    );
+
+    greenhouse_add_hanging_basket(
+        world,
+        -1.60,
+        -3.00,
+        3.82,
+        basket_weave,
+        iron,
+        fern_soil,
+        vine_a,
+        vine_b,
+        47
+    );
+
+    greenhouse_add_hanging_basket(
+        world,
+        1.60,
+        -6.00,
+        3.82,
+        basket_weave,
+        iron,
+        fern_soil,
+        vine_a,
+        vine_b,
+        71
+    );
+
     // Side exhibition plinth.
     greenhouse_box(
         world,
@@ -1282,13 +1587,15 @@ inline HittableList make_greenhouse_scene() {
     );
 
     // Large soft fill light, facing downward.
+    // The panel stays inside the roof envelope: its outer corners
+    // must remain below the glazing line 5.98 - 0.485 * |x|.
     auto emitter = std::make_shared<DiffuseLight>(
         Vec3(0.85, 0.95, 0.80)
     );
 
     world.add(std::make_shared<Quad>(
-        Vec3(-1.8, 5.35, -4.0),
-        Vec3(3.6, 0.0, 0.0),
+        Vec3(-1.2, 5.28, -4.0),
+        Vec3(2.4, 0.0, 0.0),
         Vec3(0.0, 0.0, 2.0),
         emitter
     ));
