@@ -1,0 +1,14 @@
+# Converted for ACG Path Tracer.
+# Original asset: Poly Haven - Periwinkle Plant
+# License: CC0 1.0
+
+newmtl periwinkle_plant
+Ns 80.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.040000 0.040000 0.040000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/periwinkle_diffuse.ppm
+map_d textures/periwinkle_opacity.ppm

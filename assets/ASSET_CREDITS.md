@@ -85,3 +85,35 @@ For every new external asset, record:
   - assets/monstera.mtl
 - Original files: OBJ geometry
 - Modifications: Source geometry converted from Z-up to Y-up by the asset preparation script. A project-authored MTL supplies simple pot, soil, stem and foliage materials because the source OBJ has no accompanying texture package.
+
+### Moss 01
+- Source: https://polyhaven.com/a/moss_01
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/moss_01_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and alpha textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.
+
+### Rock Moss Set 01
+- Source: https://polyhaven.com/a/rock_moss_set_01
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/rock_moss_set_01_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py; diffuse and roughness textures converted to P6 PPM for the renderer; MTL rewritten for the renderer; the normal map is not currently used. The Blender project itself is kept locally and not committed.
+
+### Shrub 01
+- Source: https://polyhaven.com/a/shrub_01
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/shrub_01_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and alpha textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.
+
+### Periwinkle Plant
+- Source: https://polyhaven.com/a/periwinkle_plant
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/periwinkle_plant_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and opacity textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.

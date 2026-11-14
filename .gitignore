@@ -22,3 +22,7 @@ x64/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Blender source projects are kept locally but not committed;
+# only the exported OBJ/MTL/PPM pipeline is tracked.
+assets/*_2k.blend/*_2k.blend
