@@ -2466,16 +2466,16 @@ inline HittableList make_greenhouse_scene() {
     add_shrub01("g", 3.15, 1.10, 0.70, 0.005);
 
     // Periwinkle border along the walkway edges.
-    add_periwinkle("01", 1.02, 2.30, 0.32, 0.005);
-    add_periwinkle("02", -1.05, 1.90, 0.28, 0.005);
-    add_periwinkle("03", 1.08, 0.55, 0.30, 0.005);
-    add_periwinkle("04", -0.98, -0.35, 0.34, 0.005);
-    add_periwinkle("05", 1.05, -1.65, 0.28, 0.005);
-    add_periwinkle("06", -1.06, -3.35, 0.30, 0.005);
-    add_periwinkle("01", 1.02, -3.70, 0.33, 0.005);
-    add_periwinkle("02", -1.20, -6.70, 0.30, 0.02);
-    add_periwinkle("03", 2.10, -6.72, 0.28, 0.02);
-    add_periwinkle("04", -0.85, -5.30, 0.30, 0.005);
+    add_periwinkle("01", 1.02, 2.30, 0.44, 0.005);
+    add_periwinkle("02", -1.05, 1.90, 0.38, 0.005);
+    add_periwinkle("03", 1.08, 0.55, 0.40, 0.005);
+    add_periwinkle("04", -0.98, -0.35, 0.46, 0.005);
+    add_periwinkle("05", 1.05, -1.65, 0.38, 0.005);
+    add_periwinkle("06", -1.06, -3.35, 0.42, 0.005);
+    add_periwinkle("01", 1.02, -3.70, 0.45, 0.005);
+    add_periwinkle("02", -1.20, -6.70, 0.42, 0.02);
+    add_periwinkle("03", 2.10, -6.72, 0.40, 0.02);
+    add_periwinkle("04", -0.85, -5.30, 0.42, 0.005);
 
     // Two flowering pots on the bench lower shelf.
     greenhouse_add_tapered_pot(

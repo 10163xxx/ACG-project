@@ -40,17 +40,38 @@ results/renders/greenhouse_scene.jpg
 - Naturalistic rear planting bed with a wandering stone curb,
   layered irregularly with shrubs, low ferns and calatheas;
   weathered stones line the edge.
+- Nine shrub 01 variants knit the bed into a continuous deep
+  understory, wall-base ferns rise over the moss layer on both
+  sides, and periwinkle clusters edge the walkway with two
+  flowering pots on the bench lower shelf.
 - Four hanging baskets suspended from the transverse ties with
   trailing procedural vines.
 - Wooden specimen display bench along the front-left wall holding
   potted fern and calathea specimens with tilted species-label
   plaques facing the walkway.
 
-### Lighting
+### Water and stone
+
+- A round stone cistern on the open floor left of the walkway and a
+  rectangular coping-capped trough in the front-right corner, both
+  holding still-water sheets rendered as thin glass over dark basin
+  floors with partly submerged pebbles.
+- Six mossy boulders from the imported rock set along the bed edges,
+  wall bases and water features, with moss tufts layered through the
+  bed, at the pachira base, along the wall bases and over the stone
+  rims.
+
+### Environment and lighting
 
 - Kloofendal 48d partly cloudy environment map.
+- A high warm sun point light as the directional key light; its
+  shadow rays rake through the roof glazing so plants and the frame
+  cast directional shadows across the floor.
 - A soft downward fill panel under the ridge, sized to stay inside
   the roof envelope.
+- Exterior shrubs and ferns outside both side walls and behind the
+  rear wall, so views through the glass meet garden foliage instead
+  of bare lawn.
 
 ## Layout Validation
 
