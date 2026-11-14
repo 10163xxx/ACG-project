@@ -937,6 +937,82 @@ inline void greenhouse_add_octagon_disc(
     ));
 }
 
+// Closed octagonal prism used as the water body: a real volume so
+// refraction, Fresnel reflections and absorption behave correctly.
+inline void greenhouse_add_octagon_prism(
+    HittableList& world,
+    double center_x,
+    double bottom_y,
+    double top_y,
+    double center_z,
+    double radius,
+    const std::shared_ptr<const Material>& material
+) {
+    constexpr int SIDES = 8;
+    constexpr double PI = 3.14159265358979323846;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.reserve(2 * SIDES + 2);
+
+    vertices.emplace_back(center_x, top_y, center_z);
+    vertices.emplace_back(center_x, bottom_y, center_z);
+
+    for (int side = 0; side < SIDES; ++side) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side) / SIDES;
+
+        vertices.emplace_back(
+            center_x + std::cos(angle) * radius,
+            top_y,
+            center_z + std::sin(angle) * radius
+        );
+    }
+
+    for (int side = 0; side < SIDES; ++side) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side) / SIDES;
+
+        vertices.emplace_back(
+            center_x + std::cos(angle) * radius,
+            bottom_y,
+            center_z + std::sin(angle) * radius
+        );
+    }
+
+    const std::size_t top_center = 0;
+    const std::size_t bottom_center = 1;
+
+    for (int side = 0; side < SIDES; ++side) {
+        const int next = (side + 1) % SIDES;
+
+        const std::size_t top_a =
+            2 + static_cast<std::size_t>(side);
+
+        const std::size_t top_b =
+            2 + static_cast<std::size_t>(next);
+
+        const std::size_t bottom_a =
+            2 + static_cast<std::size_t>(SIDES + side);
+
+        const std::size_t bottom_b =
+            2 + static_cast<std::size_t>(SIDES + next);
+
+        faces.push_back({top_center, top_b, top_a});
+        faces.push_back({bottom_center, bottom_a, bottom_b});
+
+        faces.push_back({top_a, top_b, bottom_b});
+        faces.push_back({top_a, bottom_b, bottom_a});
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        material
+    ));
+}
+
 // A round stone cistern holding a shallow sheet of still water.
 // The water surface is a thin-glass sheet so the pebbles on the
 // basin floor stay visible through it with a slight refraction.
@@ -954,7 +1030,7 @@ inline void greenhouse_add_cistern(
     const double inner_radius = 0.42;
     const double wall_top = 0.36;
     const double water_level = 0.34;
-    const double floor_level = 0.12;
+    const double basin_floor_y = 0.13;
 
     std::vector<Vec3> vertices;
     std::vector<TriangleMesh::Face> faces;
@@ -1033,16 +1109,20 @@ inline void greenhouse_add_cistern(
     greenhouse_add_octagon_disc(
         world,
         center_x,
-        floor_level,
+        basin_floor_y,
         center_z,
-        inner_radius,
+        inner_radius - 0.02,
         basin_floor_material
     );
 
-    // Still water sheet.
-    greenhouse_add_octagon_disc(
+    // Closed water body: refraction, Fresnel reflections and
+    // absorption all behave like real water. The bottom rim is
+    // buried below the opaque basin floor so no ray can travel in
+    // the gap between water and floor while inside the medium.
+    greenhouse_add_octagon_prism(
         world,
         center_x,
+        basin_floor_y - 0.02,
         water_level,
         center_z,
         inner_radius - 0.01,
@@ -1076,7 +1156,7 @@ inline void greenhouse_add_cistern(
         world.add(std::make_shared<Sphere>(
             Vec3(
                 center_x + std::cos(angle) * radial,
-                floor_level + radius * 0.45,
+                basin_floor_y + radius,
                 center_z + std::sin(angle) * radial
             ),
             radius,
@@ -1098,8 +1178,13 @@ inline void greenhouse_add_stone_trough(
 ) {
     const double wall_top = 0.40;
     const double water_level = 0.37;
-    const double floor_level = 0.14;
+    const double floor_level = 0.15;
     const double wall = 0.11;
+    const double water_bottom = 0.13;
+    const double wx0 = min_x + wall + 0.01;
+    const double wx1 = max_x - wall - 0.01;
+    const double wz0 = min_z + wall + 0.01;
+    const double wz1 = max_z - wall - 0.01;
 
     // Four walls.
     greenhouse_box(
@@ -1159,20 +1244,44 @@ inline void greenhouse_add_stone_trough(
         stone_material
     );
 
-    // Basin floor and still water sheet, inset from the walls.
+    // Basin floor below the water body.
     world.add(std::make_shared<Quad>(
-        Vec3(min_x + wall, floor_level, max_z - wall),
-        Vec3(max_x - min_x - 2.0 * wall, 0.0, 0.0),
-        Vec3(0.0, 0.0, -(max_z - min_z - 2.0 * wall)),
+        Vec3(wx0 + 0.01, floor_level, wz1 - 0.01),
+        Vec3(wx1 - wx0 - 0.02, 0.0, 0.0),
+        Vec3(0.0, 0.0, -(wz1 - wz0 - 0.02)),
         basin_floor_material
     ));
 
-    world.add(std::make_shared<Quad>(
-        Vec3(min_x + wall + 0.01, water_level, max_z - wall - 0.01),
-        Vec3(max_x - min_x - 2.0 * wall - 0.02, 0.0, 0.0),
-        Vec3(0.0, 0.0, -(max_z - min_z - 2.0 * wall - 0.02)),
-        water_material
-    ));
+    // Closed water volume as a single watertight mesh so refraction
+    // and Fresnel reflections behave like real water. The bottom is
+    // buried below the basin floor so the medium stays consistent.
+    {
+        std::vector<Vec3> water_vertices = {
+            Vec3(wx0, water_level, wz0),
+            Vec3(wx1, water_level, wz0),
+            Vec3(wx1, water_level, wz1),
+            Vec3(wx0, water_level, wz1),
+            Vec3(wx0, water_bottom, wz0),
+            Vec3(wx1, water_bottom, wz0),
+            Vec3(wx1, water_bottom, wz1),
+            Vec3(wx0, water_bottom, wz1)
+        };
+
+        const std::vector<TriangleMesh::Face> water_faces = {
+            {0, 2, 1}, {0, 3, 2},   // top, outward up
+            {4, 5, 6}, {4, 6, 7},   // bottom, outward down
+            {0, 1, 5}, {0, 5, 4},   // front z0
+            {2, 3, 7}, {2, 7, 6},   // back z1
+            {3, 0, 4}, {3, 4, 7},   // left x0
+            {1, 2, 6}, {1, 6, 5}    // right x1
+        };
+
+        world.add(std::make_shared<TriangleMesh>(
+            water_vertices,
+            water_faces,
+            water_material
+        ));
+    }
 
     // A few submerged pebbles.
     auto pebble_material = std::make_shared<PrincipledBSDF>(
@@ -1189,18 +1298,18 @@ inline void greenhouse_add_stone_trough(
         const double fraction = value - std::floor(value);
 
         const double x =
-            min_x + wall + 0.14
-            + fraction * (max_x - min_x - 2.0 * wall - 0.30);
+            wx0 + 0.10
+            + fraction * (wx1 - wx0 - 0.24);
 
         const double z =
-            min_z + wall + 0.16
-            + (1.0 - fraction) * (max_z - min_z - 2.0 * wall - 0.34);
+            wz0 + 0.12
+            + (1.0 - fraction) * (wz1 - wz0 - 0.28);
 
         const double radius =
             0.045 + 0.028 * fraction;
 
         world.add(std::make_shared<Sphere>(
-            Vec3(x, floor_level + radius * 0.45, z),
+            Vec3(x, floor_level + radius, z),
             radius,
             pebble_material
         ));
@@ -1216,8 +1325,8 @@ inline HittableList make_greenhouse_scene() {
     HittableList world;
 
     auto floor_texture = std::make_shared<PerlinNoiseTexture>(
-        Vec3(0.22, 0.215, 0.19),
-        Vec3(0.39, 0.37, 0.32),
+        Vec3(0.20, 0.195, 0.175),
+        Vec3(0.33, 0.315, 0.275),
         0.72,
         5,
         417
@@ -1284,8 +1393,15 @@ inline HittableList make_greenhouse_scene() {
     // This material is designed for open Quad surfaces,
     // not closed dielectric volumes.
     auto glass_pane = std::make_shared<ThinGlass>(
-        1.52,
-        Vec3(0.96, 0.985, 1.0)
+        1.58,
+        Vec3(0.88, 0.95, 0.92)
+    );
+
+    // Weathered panes alternate with clean ones so the glazing
+    // reads as individual sheets of glass rather than open air.
+    auto glass_pane_weathered = std::make_shared<ThinGlass>(
+        1.58,
+        Vec3(0.82, 0.92, 0.87)
     );
 
     world.add(std::make_shared<Quad>(
@@ -1536,18 +1652,21 @@ inline HittableList make_greenhouse_scene() {
             const Vec3 pane_u(0.0, 0.0, z_end - z_start);
             const Vec3 pane_v(0.0, pane_height, 0.0);
 
+            const auto pane_material =
+                ((zi + yi) % 2 == 0) ? glass_pane : glass_pane_weathered;
+
             world.add(std::make_shared<Quad>(
                 Vec3(side_glass_left_x, y_start, z_start),
                 pane_u,
                 pane_v,
-                glass_pane
+                pane_material
             ));
 
             world.add(std::make_shared<Quad>(
                 Vec3(side_glass_right_x, y_start, z_start),
                 pane_u,
                 pane_v,
-                glass_pane
+                pane_material
             ));
         }
     }
@@ -2346,9 +2465,12 @@ inline HittableList make_greenhouse_scene() {
     add_calathea(2.75, -5.90);
 
     // Interior water features and stone dressing.
-    auto water_surface = std::make_shared<ThinGlass>(
+    // Water is a closed dielectric volume so refraction, Fresnel
+    // reflections and absorption all behave like real water.
+    auto water_surface = std::make_shared<Dielectric>(
         1.33,
-        Vec3(0.90, 0.96, 0.93)
+        Vec3(0.92, 0.98, 0.96),
+        Vec3(0.9, 0.25, 0.15)
     );
 
     auto basin_floor = std::make_shared<Lambertian>(

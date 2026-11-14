@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -227,20 +228,34 @@ public:
 
             MediumState::Transition medium_transition;
 
+            // Opaque geometry may intersect a dielectric boundary
+            // (foliage drooping into water, stones half-buried in a
+            // medium, ...). When the tracked medium then disagrees
+            // with the geometric side of a hit, scatter without a
+            // medium change instead of aborting the render.
+            bool medium_transition_valid = false;
+
             if (hit.material->is_medium_boundary()) {
-                if (!active_media.prepare_transition(
+                medium_transition_valid =
+                    active_media.prepare_transition(
                         hit,
-                        medium_transition)) {
-                    throw std::runtime_error(
-                        "Dielectric medium boundary transition is invalid."
-                    );
+                        medium_transition);
+
+                if (medium_transition_valid) {
+                    scatter_info.incident_ior =
+                        medium_transition.incident_ior;
+
+                    scatter_info.transmitted_ior =
+                        medium_transition.transmitted_ior;
+                } else {
+                    const double same_ior =
+                        active_media.empty()
+                            ? 1.0
+                            : active_media.current_ior();
+
+                    scatter_info.incident_ior = same_ior;
+                    scatter_info.transmitted_ior = same_ior;
                 }
-
-                scatter_info.incident_ior =
-                    medium_transition.incident_ior;
-
-                scatter_info.transmitted_ior =
-                    medium_transition.transmitted_ior;
             }
 
             if (!hit.material->scatter(
@@ -255,7 +270,8 @@ public:
             // Update the medium state only after actual transmission.
             // Reflection and total internal reflection leave it unchanged.
             if (scatter_info.is_transmission &&
-                hit.material->is_medium_boundary()) {
+                hit.material->is_medium_boundary() &&
+                medium_transition_valid) {
                 if (!active_media.commit_transition(
                         hit,
                         medium_transition)) {
