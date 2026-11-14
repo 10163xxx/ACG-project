@@ -4,6 +4,8 @@
 #include <array>
 #include <cmath>
 #include <vector>
+#include <string>
+#include <stdexcept>
 
 #include "geometry/mesh.h"
 #include "geometry/hittable_list.h"
@@ -16,6 +18,72 @@
 #include "materials/principled.h"
 #include "materials/procedural_texture.h"
 #include "materials/thin_glass.h"
+
+inline const AABB& greenhouse_plant_bounds() {
+    static const AABB bounds(
+        Vec3(-3.55, 0.0, -7.65),
+        Vec3(3.55, 4.0, 3.65)
+    );
+
+    return bounds;
+}
+
+inline void greenhouse_validate_plant_bounds(
+    const AABB& bounds,
+    const std::string& plant_name
+) {
+    constexpr double EPSILON = 1e-6;
+
+    const AABB& allowed = greenhouse_plant_bounds();
+
+    if (bounds.minimum.x < allowed.minimum.x - EPSILON ||
+        bounds.minimum.y < allowed.minimum.y - EPSILON ||
+        bounds.minimum.z < allowed.minimum.z - EPSILON ||
+        bounds.maximum.x > allowed.maximum.x + EPSILON ||
+        bounds.maximum.y > allowed.maximum.y + EPSILON ||
+        bounds.maximum.z > allowed.maximum.z + EPSILON) {
+        throw std::runtime_error(
+            "Greenhouse plant is outside the interior bounds: " +
+            plant_name
+        );
+    }
+
+    const double maximum_abs_x = std::max(
+        std::abs(bounds.minimum.x),
+        std::abs(bounds.maximum.x)
+    );
+
+    const double roof_height =
+        5.98 - 0.485 * maximum_abs_x;
+
+    if (bounds.maximum.y > roof_height - 0.12 + EPSILON) {
+        throw std::runtime_error(
+            "Greenhouse plant intersects the roof clearance: " +
+            plant_name
+        );
+    }
+}
+
+inline TriangleMesh greenhouse_load_plant_obj(
+    const std::string& filename,
+    std::shared_ptr<const Material> fallback_material,
+    double target_height,
+    const Vec3& base_position,
+    const std::vector<std::string>& object_names = {},
+    double target_width = 0.0
+) {
+    TriangleMesh mesh = ObjLoader::load_file(
+        filename,
+        std::move(fallback_material),
+        target_height,
+        base_position,
+        object_names,
+        target_width,
+        &greenhouse_plant_bounds()
+    );
+
+    return mesh;
+}
 
 inline void greenhouse_box(
     HittableList& world,
@@ -334,6 +402,24 @@ inline void greenhouse_add_leaf(
         faces.push_back({a + 2, b + 1, b + 2});
     }
 
+    Vec3 bounds_min = vertices.front();
+    Vec3 bounds_max = vertices.front();
+
+    for (const Vec3& vertex : vertices) {
+        bounds_min.x = std::min(bounds_min.x, vertex.x);
+        bounds_min.y = std::min(bounds_min.y, vertex.y);
+        bounds_min.z = std::min(bounds_min.z, vertex.z);
+
+        bounds_max.x = std::max(bounds_max.x, vertex.x);
+        bounds_max.y = std::max(bounds_max.y, vertex.y);
+        bounds_max.z = std::max(bounds_max.z, vertex.z);
+    }
+
+    greenhouse_validate_plant_bounds(
+        AABB(bounds_min, bounds_max),
+        "procedural leaf"
+    );
+
     world.add(std::make_shared<TriangleMesh>(
         vertices,
         faces,
@@ -354,6 +440,29 @@ inline void greenhouse_add_plant(
 ) {
     const double pot_width = radius * 1.35;
     const double pot_height = 0.42;
+
+    const double maximum_leaf_radius =
+        radius * 1.18 + radius * 0.22;
+
+    const double maximum_leaf_height =
+        pot_height + 0.035 + height * 1.08
+        + height * 0.10 + height * 0.06;
+
+    greenhouse_validate_plant_bounds(
+        AABB(
+            Vec3(
+                x - maximum_leaf_radius,
+                0.0,
+                z - maximum_leaf_radius
+            ),
+            Vec3(
+                x + maximum_leaf_radius,
+                maximum_leaf_height,
+                z + maximum_leaf_radius
+            )
+        ),
+        "procedural plant"
+    );
 
     greenhouse_box(
         world,
@@ -477,6 +586,22 @@ inline void greenhouse_add_tapered_pot(
     const double rim_width = 0.045;
     const double outer = top_half_width + rim_width;
     const double inner = top_half_width;
+
+    greenhouse_validate_plant_bounds(
+        AABB(
+            Vec3(
+                x - outer,
+                y0,
+                z - outer
+            ),
+            Vec3(
+                x + outer,
+                y1,
+                z + outer
+            )
+        ),
+        "procedural planter"
+    );
 
     greenhouse_box(
         world,
@@ -842,7 +967,7 @@ inline HittableList make_greenhouse_scene() {
         );
 
     // Anthurium: the main botanical subject on the exhibition plinth.
-    TriangleMesh anthurium = ObjLoader::load_file(
+    TriangleMesh anthurium = greenhouse_load_plant_obj(
         "assets/anthurium_botany_01_2k.blend/"
         "anthurium_botany_01_2k.obj",
         anthurium_fallback,
@@ -893,7 +1018,7 @@ inline HittableList make_greenhouse_scene() {
             fern_soil
         ));
 
-        TriangleMesh fern = ObjLoader::load_file(
+        TriangleMesh fern = greenhouse_load_plant_obj(
             "assets/fern_02_2k.blend/fern_02_2k.obj",
             fern_fallback,
             height,
@@ -912,27 +1037,27 @@ inline HittableList make_greenhouse_scene() {
     // continuous garden edge rather than a row of matching pots.
     const std::array<GreenhousePlantPlacement, 6> fern_layout = {{
         {
-            Vec3(-2.55, 0.0, 0.95),
+            Vec3(-2.45, 0.0, 0.95),
             1.55
         },
         {
-            Vec3(-2.90, 0.0, -1.25),
+            Vec3(-2.65, 0.0, -1.25),
             1.30
         },
         {
-            Vec3(-2.50, 0.0, -4.45),
+            Vec3(-2.35, 0.0, -4.45),
             1.70
         },
         {
-            Vec3(2.90, 0.0, -0.55),
+            Vec3(2.45, 0.0, -0.55),
             1.35
         },
         {
-            Vec3(3.00, 0.0, -3.05),
+            Vec3(2.65, 0.0, -3.05),
             1.65
         },
         {
-            Vec3(2.60, 0.0, -5.20),
+            Vec3(2.35, 0.0, -5.20),
             1.55
         }
     }};
@@ -953,7 +1078,7 @@ inline HittableList make_greenhouse_scene() {
             0.52
         );
 
-    TriangleMesh monstera = ObjLoader::load_file(
+    TriangleMesh monstera = greenhouse_load_plant_obj(
         "assets/potted-split-leaf-monstera.obj",
         monstera_fallback,
         1.55,
@@ -1000,7 +1125,7 @@ inline HittableList make_greenhouse_scene() {
         fern_soil
     ));
 
-    TriangleMesh pachira = ObjLoader::load_file(
+    TriangleMesh pachira = greenhouse_load_plant_obj(
         "assets/pachira_aquatica_01_2k.blend/"
         "pachira_aquatica_01_2k.obj",
         pachira_fallback,
@@ -1032,7 +1157,7 @@ inline HittableList make_greenhouse_scene() {
         double z,
         double width
     ) {
-        TriangleMesh shrub = ObjLoader::load_file(
+        TriangleMesh shrub = greenhouse_load_plant_obj(
             path,
             shrub_fallback,
             0.0,
@@ -1114,7 +1239,7 @@ inline HittableList make_greenhouse_scene() {
             fern_soil
         ));
 
-        TriangleMesh calathea = ObjLoader::load_file(
+        TriangleMesh calathea = greenhouse_load_plant_obj(
             "assets/calathea_orbifolia_01_2k.blend/"
             "calathea_orbifolia_01_2k.obj",
             calathea_fallback,

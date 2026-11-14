@@ -1392,7 +1392,8 @@ public:
         double target_height = 0.0,
         const Vec3& base_position = Vec3(0.0, 0.0, 0.0),
         const std::vector<std::string>& object_names = {},
-        double target_width = 0.0
+        double target_width = 0.0,
+        const AABB* allowed_bounds = nullptr
     ) {
         std::ifstream file(filename);
 
@@ -1414,6 +1415,42 @@ public:
                 "OBJ target dimensions must be finite and non-negative. "
                 "Specify either target height or target width, not both."
             );
+        }
+
+        if (allowed_bounds != nullptr) {
+            const Vec3& bounds_min = allowed_bounds->minimum;
+            const Vec3& bounds_max = allowed_bounds->maximum;
+
+            if (!std::isfinite(bounds_min.x) ||
+                !std::isfinite(bounds_min.y) ||
+                !std::isfinite(bounds_min.z) ||
+                !std::isfinite(bounds_max.x) ||
+                !std::isfinite(bounds_max.y) ||
+                !std::isfinite(bounds_max.z) ||
+                bounds_min.x >= bounds_max.x ||
+                bounds_min.y >= bounds_max.y ||
+                bounds_min.z >= bounds_max.z) {
+                throw std::invalid_argument(
+                    "OBJ allowed bounds are invalid."
+                );
+            }
+
+            if (target_height <= 0.0 &&
+                target_width <= 0.0) {
+                throw std::invalid_argument(
+                    "Bounded OBJ loading requires a target height or width."
+                );
+            }
+
+            if (!std::isfinite(base_position.x) ||
+                !std::isfinite(base_position.y) ||
+                !std::isfinite(base_position.z) ||
+                base_position.y < bounds_min.y ||
+                base_position.y >= bounds_max.y) {
+                throw std::invalid_argument(
+                    "OBJ base position is outside the allowed vertical range."
+                );
+            }
         }
 
         if (target_height > 0.0 ||
@@ -1451,6 +1488,9 @@ public:
             const double source_width =
                 maximum.x - minimum.x;
 
+            const double source_depth =
+                maximum.z - minimum.z;
+
             const double source_dimension =
                 target_width > 0.0
                     ? source_width
@@ -1463,7 +1503,7 @@ public:
                 );
             }
 
-            const double scale =
+            double scale =
                 target_width > 0.0
                     ? target_width / source_width
                     : target_height / source_height;
@@ -1474,15 +1514,136 @@ public:
             const double center_z =
                 0.5 * (minimum.z + maximum.z);
 
+            if (allowed_bounds != nullptr) {
+                const Vec3 allowed_extent =
+                    allowed_bounds->maximum -
+                    allowed_bounds->minimum;
+
+                const double available_height =
+                    allowed_bounds->maximum.y -
+                    base_position.y;
+
+                if (source_width > 1e-8) {
+                    scale = std::min(
+                        scale,
+                        allowed_extent.x / source_width
+                    );
+                }
+
+                if (source_depth > 1e-8) {
+                    scale = std::min(
+                        scale,
+                        allowed_extent.z / source_depth
+                    );
+                }
+
+                if (source_height > 1e-8) {
+                    scale = std::min(
+                        scale,
+                        available_height / source_height
+                    );
+                }
+
+                if (!std::isfinite(scale) || scale <= 0.0) {
+                    throw std::runtime_error(
+                        "OBJ model cannot fit inside the allowed bounds."
+                    );
+                }
+            }
+
+            double fitted_center_x = base_position.x;
+            double fitted_center_z = base_position.z;
+
+            if (allowed_bounds != nullptr) {
+                const double half_width =
+                    0.5 * source_width * scale;
+
+                const double half_depth =
+                    0.5 * source_depth * scale;
+
+                fitted_center_x = std::clamp(
+                    base_position.x,
+                    allowed_bounds->minimum.x + half_width,
+                    allowed_bounds->maximum.x - half_width
+                );
+
+                fitted_center_z = std::clamp(
+                    base_position.z,
+                    allowed_bounds->minimum.z + half_depth,
+                    allowed_bounds->maximum.z - half_depth
+                );
+            }
+
             for (Vec3& vertex : parsed.vertices) {
                 vertex = Vec3(
                     (vertex.x - center_x) * scale
-                        + base_position.x,
+                        + fitted_center_x,
                     (vertex.y - minimum.y) * scale
                         + base_position.y,
                     (vertex.z - center_z) * scale
-                        + base_position.z
+                        + fitted_center_z
                 );
+            }
+
+            if (allowed_bounds != nullptr) {
+                constexpr double BOUNDS_EPSILON = 1e-8;
+
+                Vec3 fitted_minimum = parsed.vertices[
+                    parsed.faces.front()[0]
+                ];
+
+                Vec3 fitted_maximum = fitted_minimum;
+
+                for (const TriangleMesh::Face& face : parsed.faces) {
+                    for (const std::size_t vertex_index : face) {
+                        const Vec3& vertex =
+                            parsed.vertices[vertex_index];
+
+                        fitted_minimum.x = std::min(
+                            fitted_minimum.x,
+                            vertex.x
+                        );
+                        fitted_minimum.y = std::min(
+                            fitted_minimum.y,
+                            vertex.y
+                        );
+                        fitted_minimum.z = std::min(
+                            fitted_minimum.z,
+                            vertex.z
+                        );
+
+                        fitted_maximum.x = std::max(
+                            fitted_maximum.x,
+                            vertex.x
+                        );
+                        fitted_maximum.y = std::max(
+                            fitted_maximum.y,
+                            vertex.y
+                        );
+                        fitted_maximum.z = std::max(
+                            fitted_maximum.z,
+                            vertex.z
+                        );
+                    }
+                }
+
+                const Vec3& bounds_min =
+                    allowed_bounds->minimum;
+
+                const Vec3& bounds_max =
+                    allowed_bounds->maximum;
+
+                if (fitted_minimum.x < bounds_min.x - BOUNDS_EPSILON ||
+                    fitted_minimum.y < bounds_min.y - BOUNDS_EPSILON ||
+                    fitted_minimum.z < bounds_min.z - BOUNDS_EPSILON ||
+                    fitted_maximum.x > bounds_max.x + BOUNDS_EPSILON ||
+                    fitted_maximum.y > bounds_max.y + BOUNDS_EPSILON ||
+                    fitted_maximum.z > bounds_max.z + BOUNDS_EPSILON) {
+                    throw std::runtime_error(
+                        "OBJ model remains outside the allowed bounds "
+                        "after fitting: " + filename
+                    );
+                }
             }
         }
 
