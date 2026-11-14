@@ -865,85 +865,6 @@ inline void greenhouse_add_hanging_basket(
     }
 }
 
-inline void greenhouse_add_potted_seedling(
-    HittableList& world,
-    double x,
-    double base_y,
-    double z,
-    double bottom_half_width,
-    double top_half_width,
-    double pot_height,
-    int leaf_count,
-    double leaf_spread,
-    double leaf_height,
-    const std::shared_ptr<const Material>& pot_material,
-    const std::shared_ptr<const Material>& soil_material,
-    const std::shared_ptr<const Material>& leaf_a,
-    const std::shared_ptr<const Material>& leaf_b,
-    int seed
-) {
-    constexpr double PI = 3.14159265358979323846;
-
-    greenhouse_add_tapered_pot(
-        world,
-        x,
-        z,
-        bottom_half_width,
-        top_half_width,
-        pot_height,
-        pot_material,
-        base_y
-    );
-
-    world.add(std::make_shared<Quad>(
-        Vec3(
-            x + top_half_width * 0.92,
-            base_y + pot_height - 0.012,
-            z + top_half_width * 0.92
-        ),
-        Vec3(-top_half_width * 1.84, 0.0, 0.0),
-        Vec3(0.0, 0.0, -top_half_width * 1.84),
-        soil_material
-    ));
-
-    const auto variation = [seed](int index) {
-        const double value = std::sin(
-            seed * 12.9898 + index * 78.233
-        ) * 43758.5453;
-
-        return value - std::floor(value);
-    };
-
-    const Vec3 base(x, base_y + pot_height - 0.01, z);
-
-    for (int leaf = 0; leaf < leaf_count; ++leaf) {
-        const double angle =
-            2.0 * PI * static_cast<double>(leaf) / leaf_count
-            + 0.4 * (variation(leaf) - 0.5);
-
-        const double horizontal =
-            leaf_spread * (0.55 + 0.35 * variation(leaf + 8));
-
-        const double vertical =
-            leaf_height * (0.75 + 0.30 * variation(leaf + 16));
-
-        const Vec3 direction(
-            horizontal * std::cos(angle),
-            vertical,
-            horizontal * std::sin(angle)
-        );
-
-        greenhouse_add_leaf(
-            world,
-            base,
-            direction,
-            leaf_spread * (0.22 + 0.05 * variation(leaf + 24)),
-            leaf_height * 0.14,
-            (leaf % 3 == 0) ? leaf_b : leaf_a
-        );
-    }
-}
-
 struct GreenhousePlantPlacement {
     Vec3 position;
     double target_height;
@@ -1651,9 +1572,10 @@ inline HittableList make_greenhouse_scene() {
         71
     );
 
-    // Wooden staging bench along the front-left wall.
-    // Iron legs carry slatted timber tops holding young potted
-    // seedlings, filling the bare floor near the entrance.
+    // Wooden specimen display bench along the front-left wall.
+    // Iron legs carry slatted timber tops holding a small curated
+    // collection of potted plants with species labels, filling the
+    // bare floor near the entrance.
     auto bench_wood_texture = std::make_shared<PerlinNoiseTexture>(
         Vec3(0.26, 0.165, 0.09),
         Vec3(0.42, 0.30, 0.18),
@@ -1672,16 +1594,17 @@ inline HittableList make_greenhouse_scene() {
         0.78
     );
 
-    auto seedling_leaf = std::make_shared<PrincipledBSDF>(
-        Vec3(0.14, 0.30, 0.08),
+    auto label_plaque = std::make_shared<PrincipledBSDF>(
+        Vec3(0.78, 0.74, 0.62),
         0.0,
-        0.55
+        0.60
     );
 
     constexpr double BENCH_MIN_X = -3.45;
     constexpr double BENCH_MAX_X = -2.15;
     constexpr double BENCH_MIN_Z = 1.30;
     constexpr double BENCH_MAX_Z = 3.20;
+    constexpr double BENCH_TOP_Y = 0.595;
 
     // Four iron legs, inset from the bench corners.
     for (double leg_x : {-3.35, -2.25}) {
@@ -1703,7 +1626,7 @@ inline HittableList make_greenhouse_scene() {
         greenhouse_box(
             world,
             Vec3(slat_center_x - 0.10, 0.56, BENCH_MIN_Z),
-            Vec3(slat_center_x + 0.10, 0.595, BENCH_MAX_Z),
+            Vec3(slat_center_x + 0.10, BENCH_TOP_Y, BENCH_MAX_Z),
             bench_wood
         );
     }
@@ -1721,45 +1644,123 @@ inline HittableList make_greenhouse_scene() {
         );
     }
 
-    // A row of seedlings in terracotta pots on the bench top.
-    greenhouse_add_potted_seedling(
-        world,
-        -3.08,
-        0.595,
-        1.78,
-        0.11, 0.15, 0.22,
-        8, 0.24, 0.30,
-        terracotta, fern_soil, seedling_leaf, vine_b, 83
+    // A display pot with a small species label plaque facing the
+    // walkway, the way botanical gardens annotate their exhibits.
+    const auto add_bench_specimen_pot = [&](
+        double x,
+        double z,
+        double bottom_hw,
+        double top_hw,
+        double pot_h
+    ) {
+        greenhouse_add_tapered_pot(
+            world,
+            x,
+            z,
+            bottom_hw,
+            top_hw,
+            pot_h,
+            terracotta,
+            BENCH_TOP_Y
+        );
+
+        world.add(std::make_shared<Quad>(
+            Vec3(
+                x + top_hw * 0.92,
+                BENCH_TOP_Y + pot_h - 0.012,
+                z + top_hw * 0.92
+            ),
+            Vec3(-top_hw * 1.84, 0.0, 0.0),
+            Vec3(0.0, 0.0, -top_hw * 1.84),
+            fern_soil
+        ));
+
+        const double post_x = x + top_hw + 0.10;
+        const double post_z = z + 0.10;
+        const double post_top = BENCH_TOP_Y + 0.17;
+
+        greenhouse_box(
+            world,
+            Vec3(post_x - 0.007, BENCH_TOP_Y, post_z - 0.007),
+            Vec3(post_x + 0.007, post_top, post_z + 0.007),
+            iron
+        );
+
+        constexpr double PLAQUE_WIDTH = 0.15;
+        constexpr double PLAQUE_HEIGHT = 0.09;
+        constexpr double PLAQUE_TILT = 0.35;
+
+        world.add(std::make_shared<Quad>(
+            Vec3(
+                post_x,
+                post_top - 0.03,
+                post_z + PLAQUE_WIDTH / 2
+            ),
+            Vec3(0.0, 0.0, -PLAQUE_WIDTH),
+            Vec3(
+                -std::sin(PLAQUE_TILT) * PLAQUE_HEIGHT,
+                std::cos(PLAQUE_TILT) * PLAQUE_HEIGHT,
+                0.0
+            ),
+            label_plaque
+        ));
+    };
+
+    // Specimen 1: young tree fern in a deep pot.
+    add_bench_specimen_pot(-3.02, 1.85, 0.13, 0.175, 0.25);
+
+    TriangleMesh bench_fern_a = greenhouse_load_plant_obj(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        fern_fallback,
+        0.52,
+        Vec3(-3.02, BENCH_TOP_Y + 0.24, 1.85)
     );
 
-    greenhouse_add_potted_seedling(
-        world,
-        -2.52,
-        0.595,
-        2.14,
-        0.14, 0.185, 0.26,
-        11, 0.33, 0.42,
-        terracotta, fern_soil, seedling_leaf, vine_b, 97
+    world.add(
+        std::make_shared<TriangleMesh>(
+            std::move(bench_fern_a)
+        )
     );
 
-    greenhouse_add_potted_seedling(
-        world,
-        -3.05,
-        0.595,
-        2.82,
-        0.13, 0.17, 0.24,
-        9, 0.29, 0.37,
-        terracotta, fern_soil, seedling_leaf, vine_b, 113
+    // Specimen 2: calathea with broad ornamental leaves.
+    add_bench_specimen_pot(-2.50, 2.35, 0.155, 0.20, 0.27);
+
+    TriangleMesh bench_calathea = greenhouse_load_plant_obj(
+        "assets/calathea_orbifolia_01_2k.blend/"
+        "calathea_orbifolia_01_2k.obj",
+        calathea_fallback,
+        0.0,
+        Vec3(-2.50, BENCH_TOP_Y + 0.26, 2.35),
+        {
+            "calathea_orbifolia_01_a",
+            "calathea_orbifolia_01_b",
+            "calathea_orbifolia_01_c",
+            "calathea_orbifolia_01_d",
+            "calathea_orbifolia_01_e"
+        },
+        0.55
     );
 
-    greenhouse_add_potted_seedling(
-        world,
-        -2.28,
-        0.595,
-        2.92,
-        0.10, 0.135, 0.20,
-        7, 0.21, 0.27,
-        terracotta, fern_soil, seedling_leaf, vine_b, 131
+    world.add(
+        std::make_shared<TriangleMesh>(
+            std::move(bench_calathea)
+        )
+    );
+
+    // Specimen 3: compact fern.
+    add_bench_specimen_pot(-2.90, 2.90, 0.125, 0.165, 0.23);
+
+    TriangleMesh bench_fern_b = greenhouse_load_plant_obj(
+        "assets/fern_02_2k.blend/fern_02_2k.obj",
+        fern_fallback,
+        0.44,
+        Vec3(-2.90, BENCH_TOP_Y + 0.22, 2.90)
+    );
+
+    world.add(
+        std::make_shared<TriangleMesh>(
+            std::move(bench_fern_b)
+        )
     );
 
     // Side exhibition plinth.
