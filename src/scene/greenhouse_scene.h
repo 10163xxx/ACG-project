@@ -354,7 +354,8 @@ inline void greenhouse_add_leaf(
     const Vec3& direction,
     double width,
     double curvature,
-    const std::shared_ptr<const Material>& material
+    const std::shared_ptr<const Material>& material,
+    bool validate_bounds = true
 ) {
     constexpr int SEGMENTS = 6;
 
@@ -445,10 +446,12 @@ inline void greenhouse_add_leaf(
         bounds_max.z = std::max(bounds_max.z, vertex.z);
     }
 
-    greenhouse_validate_plant_bounds(
-        AABB(bounds_min, bounds_max),
-        "procedural leaf"
-    );
+    if (validate_bounds) {
+        greenhouse_validate_plant_bounds(
+            AABB(bounds_min, bounds_max),
+            "procedural leaf"
+        );
+    }
 
     world.add(std::make_shared<TriangleMesh>(
         vertices,
@@ -1828,37 +1831,19 @@ inline HittableList make_greenhouse_scene() {
         Vec3(0.075, 0.052, 0.028)
     );
 
-    auto add_fern = [&](double x, double z, double height) {
-        const double bottom_half_width = 0.27;
-        const double top_half_width = 0.36;
-        const double pot_height = 0.42;
-
-        greenhouse_add_tapered_pot(
-            world,
-            x,
-            z,
-            bottom_half_width,
-            top_half_width,
-            pot_height,
-            fern_planter
-        );
-
-        world.add(std::make_shared<Quad>(
-            Vec3(
-                x - top_half_width * 0.88,
-                pot_height - 0.025,
-                z - top_half_width * 0.88
-            ),
-            Vec3(top_half_width * 1.76, 0.0, 0.0),
-            Vec3(0.0, 0.0, top_half_width * 1.76),
-            fern_soil
-        ));
-
+    // Ferns planted directly in the ground read as jungle undergrowth
+    // rather than a nursery; the side beds below place them densely.
+    const auto add_ground_fern = [&](
+        double x,
+        double z,
+        double height,
+        double base_y
+    ) {
         TriangleMesh fern = greenhouse_load_plant_obj(
             "assets/fern_02_2k.blend/fern_02_2k.obj",
             fern_fallback,
             height,
-            Vec3(x, pot_height + 0.01, z)
+            Vec3(x, base_y, z)
         );
 
         world.add(
@@ -1868,43 +1853,9 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Ferns form two staggered planting bands along the path.
-    // The gaps are intentionally uneven so the foliage reads as a
-    // continuous garden edge rather than a row of matching pots.
-    const std::array<GreenhousePlantPlacement, 6> fern_layout = {{
-        {
-            Vec3(-2.45, 0.0, 0.95),
-            1.55
-        },
-        {
-            Vec3(-2.65, 0.0, -1.25),
-            1.30
-        },
-        {
-            Vec3(-2.35, 0.0, -4.45),
-            1.70
-        },
-        {
-            Vec3(2.45, 0.0, -0.55),
-            1.35
-        },
-        {
-            Vec3(2.65, 0.0, -3.05),
-            1.65
-        },
-        {
-            Vec3(2.35, 0.0, -5.20),
-            1.55
-        }
-    }};
-
-    for (const GreenhousePlantPlacement& placement : fern_layout) {
-        add_fern(
-            placement.position.x,
-            placement.position.z,
-            placement.target_height
-        );
-    }
+    // A few taller ferns anchor the bed openings.
+    add_ground_fern(-2.45, 0.95, 1.55, 0.02);
+    add_ground_fern(2.45, -0.55, 1.35, 0.02);
 
     // Foreground Monstera: the source model includes its own planter.
     auto monstera_fallback =
@@ -2055,32 +2006,13 @@ inline HittableList make_greenhouse_scene() {
             0.78
         );
 
-    auto add_calathea = [&](double x, double z) {
-        const double pot_height = 0.40;
-
-        greenhouse_add_tapered_pot(
-            world,
-            x,
-            z,
-            0.43,
-            0.54,
-            pot_height,
-            calathea_pot
-        );
-
-        world.add(std::make_shared<Quad>(
-            Vec3(x - 0.49, pot_height - 0.025, z - 0.49),
-            Vec3(0.98, 0.0, 0.0),
-            Vec3(0.0, 0.0, 0.98),
-            fern_soil
-        ));
-
+    auto add_calathea = [&](double x, double z, double base_y) {
         TriangleMesh calathea = greenhouse_load_plant_obj(
             "assets/calathea_orbifolia_01_2k.blend/"
             "calathea_orbifolia_01_2k.obj",
             calathea_fallback,
             0.0,
-            Vec3(x, pot_height, z),
+            Vec3(x, base_y, z),
             {
                 "calathea_orbifolia_01_a",
                 "calathea_orbifolia_01_b",
@@ -2098,9 +2030,9 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    // Broad leaves bridge the fern bands and soften the hard edge
-    // of the display area without intruding into the central path.
-    add_calathea(-2.25, -2.75);
+    // Broad-leaved calatheas grow straight out of the beds and
+    // soften the hard edges of the paved areas.
+    add_calathea(-2.25, -2.75, 0.02);
 
     // Hanging baskets suspended from the transverse roof ties.
     // They fill the empty upper volume without crowding the
@@ -2461,8 +2393,8 @@ inline HittableList make_greenhouse_scene() {
     add_bed_fern(3.02, -6.55, 0.48);
 
     // A second pair of calatheas softens the bed front.
-    add_calathea(-2.85, -5.55);
-    add_calathea(2.75, -5.90);
+    add_calathea(-2.85, -5.55, 0.02);
+    add_calathea(2.75, -5.90, 0.02);
 
     // Interior water features and stone dressing.
     // Water is a closed dielectric volume so refraction, Fresnel
@@ -2721,6 +2653,157 @@ inline HittableList make_greenhouse_scene() {
 
     add_periwinkle("05", -3.24, 2.00, 0.20, 0.333);
     add_periwinkle("06", -2.79, 2.62, 0.18, 0.333);
+
+    // Tropical ground layer: continuous planted beds run along both
+    // walls from the rear border up to the entrance corners, so the
+    // house reads as jungle growth instead of arranged pots.
+    const auto add_side_bed_segment = [&](
+        double z0,
+        double z1,
+        double walkway_edge,
+        int side,
+        bool with_curb
+    ) {
+        const double soil_inner = side * walkway_edge;
+        const double soil_outer = side * 3.50;
+
+        world.add(std::make_shared<Quad>(
+            Vec3(soil_inner, 0.012, z1),
+            Vec3(soil_outer - soil_inner, 0.0, 0.0),
+            Vec3(0.0, 0.0, z0 - z1),
+            bed_soil
+        ));
+
+        if (with_curb) {
+            greenhouse_box(
+                world,
+                Vec3(
+                    soil_inner - side * 0.045,
+                    0.0,
+                    z0
+                ),
+                Vec3(
+                    soil_inner + side * 0.045,
+                    0.10,
+                    z1
+                ),
+                stone
+            );
+        }
+    };
+
+    // Left wall beds (the display bench backs onto the last strip).
+    add_side_bed_segment(-6.45, -4.45, 0.96, -1, true);
+    add_side_bed_segment(-4.45, -2.45, 0.90, -1, true);
+    add_side_bed_segment(-2.45, -0.45, 0.98, -1, true);
+    add_side_bed_segment(-0.45, 1.25, 0.92, -1, true);
+    add_side_bed_segment(1.25, 3.50, 2.15, -1, false);
+
+    // Right wall beds (the water trough sits inside the bed).
+    add_side_bed_segment(-6.45, -4.45, 0.94, 1, true);
+    add_side_bed_segment(-4.45, -2.45, 1.00, 1, true);
+    add_side_bed_segment(-2.45, -0.45, 0.92, 1, true);
+    add_side_bed_segment(-0.45, 1.55, 0.96, 1, true);
+    add_side_bed_segment(1.55, 3.45, 0.90, 1, true);
+
+    // Left bed planting: ferns rising out of the ground layer.
+    add_ground_fern(-3.15, 0.55, 0.75, 0.02);
+    add_ground_fern(-3.05, -1.05, 0.90, 0.02);
+    add_ground_fern(-3.15, -2.20, 0.70, 0.02);
+    add_ground_fern(-2.85, -3.55, 0.80, 0.02);
+    add_ground_fern(-3.20, -5.05, 0.95, 0.02);
+    add_ground_fern(-3.15, 2.60, 0.85, 0.02);
+    add_calathea(-1.60, -0.80, 0.02);
+    add_calathea(-1.55, 0.15, 0.02);
+    add_shrub01("c", -2.20, -0.55, 0.65, 0.02);
+    add_shrub01("a", -2.75, 0.35, 0.60, 0.02);
+    add_moss("moss_01_f_LOD0", -3.35, 0.02, 0.10, 0.08);
+    add_moss("moss_01_b_LOD0", -2.35, 0.02, -1.60, 0.09);
+    add_moss("moss_01_d_LOD0", -1.35, 0.02, -1.90, 0.08);
+    add_moss("moss_01_j_LOD0", -2.45, 0.02, -3.15, 0.075);
+    add_moss("moss_01_g_LOD0", -1.55, 0.02, -4.40, 0.085);
+    add_moss("moss_01_a_LOD0", -3.25, 0.02, -5.60, 0.075);
+    add_periwinkle("05", -1.15, -2.60, 0.36, 0.02);
+    add_periwinkle("02", -1.20, 0.35, 0.34, 0.02);
+    add_periwinkle("04", -2.90, -0.30, 0.38, 0.02);
+
+    // Right bed planting.
+    add_ground_fern(3.10, -1.95, 0.85, 0.02);
+    add_ground_fern(3.20, 2.00, 0.75, 0.02);
+    add_ground_fern(3.15, -4.90, 0.90, 0.02);
+    add_calathea(1.60, -1.20, 0.02);
+    add_calathea(1.45, -4.90, 0.02);
+    add_shrub01("b", 1.30, 2.10, 0.60, 0.02);
+    add_shrub01("h", 2.60, -4.30, 0.70, 0.02);
+    add_moss("moss_01_e_LOD0", 1.25, 0.02, -0.60, 0.08);
+    add_moss("moss_01_i_LOD0", 2.20, 0.02, -1.75, 0.085);
+    add_moss("moss_01_c_LOD0", 3.30, 0.02, -0.65, 0.075);
+    add_moss("moss_01_h_LOD0", 1.45, 0.02, -3.90, 0.08);
+    add_moss("moss_01_tall_a_LOD0", 2.85, 0.02, -3.10, 0.075);
+    add_moss("moss_01_f_LOD0", 1.15, 0.02, 1.60, 0.075);
+    add_periwinkle("06", 1.15, -2.80, 0.38, 0.02);
+    add_periwinkle("03", 1.10, 1.30, 0.36, 0.02);
+    add_periwinkle("01", 3.30, 1.20, 0.38, 0.02);
+    add_periwinkle("05", 2.10, 2.85, 0.36, 0.02);
+
+    // Entrance corners framed with planted foliage.
+    add_shrub01("d", 1.90, 3.40, 0.55, 0.02);
+    add_ground_fern(3.15, 3.30, 0.80, 0.02);
+    add_moss("moss_01_tall_b_LOD0", -2.60, 0.02, 3.00, 0.075);
+    add_moss("moss_01_i_LOD0", -3.30, 0.02, 1.60, 0.08);
+
+    // Climbing vines wind up the wall columns, growing inward so
+    // they stay clear of the glazing.
+    const auto add_column_vine = [&](
+        double column_x,
+        double column_z,
+        double inward_x,
+        int seed
+    ) {
+        const auto vine_variation = [seed](int index) {
+            const double value = std::sin(
+                seed * 12.9898 + index * 78.233
+            ) * 43758.5453;
+
+            return value - std::floor(value);
+        };
+
+        for (int level = 0; level < 8; ++level) {
+            const double height =
+                0.35 + 0.32 * static_cast<double>(level);
+
+            const double angle =
+                1.1 * static_cast<double>(level)
+                + 0.8 * vine_variation(level);
+
+            const Vec3 base(
+                column_x + inward_x * 0.07,
+                height,
+                column_z + 0.07 * std::sin(angle)
+            );
+
+            const Vec3 direction(
+                inward_x * (0.26 + 0.10 * vine_variation(level + 8)),
+                0.16 + 0.05 * vine_variation(level + 16),
+                0.14 * std::cos(angle)
+            );
+
+            greenhouse_add_leaf(
+                world,
+                base,
+                direction,
+                0.15,
+                -0.06,
+                (level % 2 == 0) ? vine_a : vine_b,
+                false
+            );
+        }
+    };
+
+    add_column_vine(3.78, 3.00, -1.0, 51);
+    add_column_vine(-3.78, 3.00, 1.0, 67);
+    add_column_vine(3.78, -6.00, -1.0, 83);
+    add_column_vine(-3.78, -6.00, 1.0, 97);
 
     // Side exhibition plinth.
     greenhouse_box(

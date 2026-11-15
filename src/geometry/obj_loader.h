@@ -1455,7 +1455,10 @@ public:
                 base_position.y < bounds_min.y ||
                 base_position.y >= bounds_max.y) {
                 throw std::invalid_argument(
-                    "OBJ base position is outside the allowed vertical range."
+                    "OBJ base position is outside the allowed vertical range: ("
+                    + std::to_string(base_position.x) + ", "
+                    + std::to_string(base_position.y) + ", "
+                    + std::to_string(base_position.z) + ")"
                 );
             }
         }
