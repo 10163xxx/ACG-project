@@ -119,10 +119,30 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
+        const auto build_start = std::chrono::steady_clock::now();
+
         RenderSetup setup = make_render_setup(request);
+
+        const auto setup_done = std::chrono::steady_clock::now();
 
         Image image(setup.width, setup.height);
         BVHNode world(setup.geometry.objects());
+
+        const auto bvh_done = std::chrono::steady_clock::now();
+
+        std::cout
+            << "[timing] scene build: "
+            << std::chrono::duration_cast<
+                std::chrono::milliseconds>(
+                setup_done - build_start
+            ).count() << " ms"
+            << ", world BVH: "
+            << std::chrono::duration_cast<
+                std::chrono::milliseconds>(
+                bvh_done - setup_done
+            ).count() << " ms"
+            << std::endl;
+
         PathTracer tracer(setup.max_depth);
 
         EnvironmentMap environment;

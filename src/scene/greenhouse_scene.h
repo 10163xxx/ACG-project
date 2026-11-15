@@ -3496,10 +3496,8 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    add_exterior_tree(-5.80, 0.20, 5.00);
     add_exterior_tree(5.90, -1.50, 4.60);
     add_exterior_tree(-1.50, -10.50, 5.20);
-    add_exterior_tree(4.20, -9.80, 4.40);
 
     // Climbing vines wind up the wall columns, growing inward so
     // they stay clear of the glazing.

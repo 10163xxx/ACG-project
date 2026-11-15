@@ -52,8 +52,9 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         // shadow rays rake through the roof glazing and cast the
         // frame pattern onto the floor. Strong enough to give the
         // dappled light/shadow contrast real photographs have.
+        // A lower sun rakes long shadows through the side glazing.
         s.point_lights.emplace_back(
-            Vec3(14.0, 22.0, 16.0),
+            Vec3(17.0, 15.0, 19.0),
             Vec3(9800.0, 9200.0, 8000.0)
         );
         // The forest sky only fills the shadows; the sun carries

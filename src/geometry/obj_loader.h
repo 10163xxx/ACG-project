@@ -1402,16 +1402,43 @@ public:
         double target_width = 0.0,
         const AABB* allowed_bounds = nullptr
     ) {
-        std::ifstream file(filename);
+        // Dense scenes place the same plant dozens of times; parse
+        // each (file, object selection) combination once and reuse
+        // the filtered result. Scene building is single-threaded, so
+        // a plain static cache is safe. The cached copy is pristine:
+        // scale/position below mutate only the local working copy.
+        static std::map<std::string, ParsedObj> parse_cache;
 
-        if (!file) {
-            throw std::runtime_error(
-                "Failed to open OBJ file: " + filename
-            );
+        std::string cache_signature = filename;
+
+        for (const std::string& object_name : object_names) {
+            cache_signature += "|";
+            cache_signature += object_name;
         }
 
-        ParsedObj parsed = parse(file, filename);
-        filter_objects(parsed, object_names);
+        ParsedObj parsed;
+
+        const auto cached = parse_cache.find(cache_signature);
+
+        if (cached != parse_cache.end()) {
+            parsed = cached->second;
+        } else {
+            std::ifstream file(filename);
+
+            if (!file) {
+                throw std::runtime_error(
+                    "Failed to open OBJ file: " + filename
+                );
+            }
+
+            parsed = parse(file, filename);
+            filter_objects(parsed, object_names);
+
+            parse_cache.emplace(
+                cache_signature,
+                parsed
+            );
+        }
 
         if (!std::isfinite(target_height) ||
             target_height < 0.0 ||
