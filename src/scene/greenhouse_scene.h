@@ -2263,15 +2263,15 @@ inline HittableList make_greenhouse_scene() {
     );
 
     auto vine_a = std::make_shared<PrincipledBSDF>(
-        Vec3(0.10, 0.26, 0.06),
+        Vec3(0.075, 0.155, 0.042),
         0.0,
-        0.50
+        0.58
     );
 
     auto vine_b = std::make_shared<PrincipledBSDF>(
-        Vec3(0.22, 0.34, 0.09),
+        Vec3(0.13, 0.215, 0.055),
         0.0,
-        0.55
+        0.62
     );
 
     greenhouse_add_hanging_basket(
