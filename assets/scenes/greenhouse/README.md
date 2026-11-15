@@ -73,7 +73,9 @@ results/renders/greenhouse_scene.jpg
 
 ### Environment and lighting
 
-- Kloofendal 48d partly cloudy environment map.
+- Rainforest Trail environment map: the house sits inside a forest
+  clearing, so every view through the glazing meets trees and
+  dappled canopy light.
 - A high warm sun point light as the directional key light; its
   shadow rays rake through the roof glazing so plants and the frame
   cast directional shadows across the floor.

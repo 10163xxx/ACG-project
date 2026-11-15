@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
         if (setup.use_environment) {
             environment.load(
                 "assets/environments/"
-                "kloofendal_48d_partly_cloudy_puresky_2k.hdr"
+                "rainforest_trail_2k.hdr"
             );
             active_environment = &environment;
         }

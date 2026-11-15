@@ -117,3 +117,51 @@ For every new external asset, record:
 - Local path: assets/periwinkle_plant_2k.blend/
 - Original files: Blender project with PBR textures
 - Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and opacity textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.
+
+### Shrub 02
+- Source: https://polyhaven.com/a/shrub_02
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/shrub_02_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and alpha textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.
+
+### Nettle Plant
+- Source: https://polyhaven.com/a/nettle_plant
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/nettle_plant_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and alpha textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.
+
+### Weed Plant 02
+- Source: https://polyhaven.com/a/weed_plant_02
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/weed_plant_02_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD0 objects only); diffuse and alpha textures converted to P6 PPM for the renderer; MTL rewritten for the renderer. The Blender project itself is kept locally and not committed.
+
+### Island Tree 02
+- Source: https://polyhaven.com/a/island_tree_02
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/island_tree_02_2k.blend/
+- Original files: Blender project with PBR textures
+- Modifications: Mesh objects exported to OBJ with the headless Blender script tools/export_blend_obj.py (LOD1 objects only, keeping the file under the repository size limit); trunk, branch and leaf textures converted to P6 PPM for the renderer (leaf alpha as opacity mask); MTL rewritten for the renderer; used as exterior background trees. The Blender project itself is kept locally and not committed.
+
+### Rainforest Trail (environment)
+- Source: https://polyhaven.com/a/rainforest_trail
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/environments/rainforest_trail_2k.hdr
+- Format: Radiance HDR, equirectangular environment map
+- Modifications: none; replaces the previous partly-cloudy sky as the scene environment.
+
+### Mossy Forest (environment, backup)
+- Source: https://polyhaven.com/a/mossy_forest
+- Author: Rico Cilliers
+- License: CC0 1.0 Universal
+- Local path: assets/environments/mossy_forest_2k.hdr
+- Format: Radiance HDR, equirectangular environment map
+- Modifications: none; kept as an alternative environment.

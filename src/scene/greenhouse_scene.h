@@ -1679,8 +1679,8 @@ inline HittableList make_greenhouse_scene() {
 
     // Exterior landscape surrounding the conservatory.
     auto exterior_ground_texture = std::make_shared<PerlinNoiseTexture>(
-        Vec3(0.055, 0.082, 0.030),
-        Vec3(0.19, 0.24, 0.095),
+        Vec3(0.042, 0.064, 0.024),
+        Vec3(0.15, 0.20, 0.075),
         0.22,
         6,
         913
@@ -2765,6 +2765,72 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
+    const auto add_shrub02 = [&](
+        const std::string& variant,
+        double x,
+        double z,
+        double height,
+        double base_y
+    ) {
+        TriangleMesh plant = greenhouse_load_plant_obj(
+            "assets/shrub_02_2k.blend/shrub_02_2k.obj",
+            shrub_fallback,
+            height,
+            Vec3(x, base_y, z),
+            { "shrub_02_" + variant + "_LOD0" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
+    const auto add_nettle = [&](
+        const std::string& variant,
+        double x,
+        double z,
+        double height,
+        double base_y
+    ) {
+        TriangleMesh plant = greenhouse_load_plant_obj(
+            "assets/nettle_plant_2k.blend/nettle_plant_2k.obj",
+            shrub_fallback,
+            height,
+            Vec3(x, base_y, z),
+            { "nettle_plant_" + variant + "_LOD0" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
+    const auto add_weed = [&](
+        const std::string& variant,
+        double x,
+        double z,
+        double height,
+        double base_y
+    ) {
+        TriangleMesh plant = greenhouse_load_plant_obj(
+            "assets/weed_plant_02_2k.blend/weed_plant_02_2k.obj",
+            shrub_fallback,
+            height,
+            Vec3(x, base_y, z),
+            { "weed_plant_02_" + variant + "_LOD0" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(plant)
+            )
+        );
+    };
+
     const auto add_periwinkle = [&](
         const std::string& variant,
         double x,
@@ -3087,6 +3153,94 @@ inline HittableList make_greenhouse_scene() {
     add_periwinkle("04", -1.20, -4.20, 0.38, 0.02);
     add_periwinkle("03", 1.30, -5.30, 0.36, 0.02);
 
+    // Wall-to-wall understory: nettle, shrub 02 and weed tufts pack
+    // every remaining gap so the beds read as continuous jungle
+    // ground rather than spaced-out specimens.
+    // Left bed, rear half.
+    add_nettle("tall_a", -1.30, -5.10, 1.00, 0.02);
+    add_nettle("tall_b", -2.10, -6.10, 1.10, 0.02);
+    add_nettle("medium_a", -3.15, -6.10, 0.80, 0.02);
+    add_nettle("medium_b", -1.60, -4.85, 0.75, 0.02);
+    add_shrub02("a", -3.25, -3.90, 0.95, 0.02);
+    add_shrub02("b", -1.75, -3.85, 0.85, 0.02);
+    add_shrub02("c", -2.35, -6.35, 1.05, 0.02);
+    add_shrub02("d", -1.30, -6.30, 0.90, 0.02);
+    add_weed("a", -1.45, -4.35, 0.35, 0.02);
+    add_weed("b", -2.65, -2.75, 0.30, 0.02);
+    add_weed("c", -1.55, -5.55, 0.32, 0.02);
+    add_weed("d", -3.25, -4.60, 0.30, 0.02);
+    // Left bed, mid strip between pond and rear border.
+    add_nettle("medium_b", -3.30, -1.60, 0.75, 0.02);
+    add_nettle("tall_a", -1.25, -1.90, 1.00, 0.02);
+    add_weed("e", -1.30, -2.90, 0.30, 0.02);
+    add_ground_fern(-2.30, -1.55, 1.15, 0.02);
+    add_moss("moss_01_c_LOD0", -3.35, 0.02, 0.35, 0.08);
+    add_weed("b", -1.15, -0.95, 0.30, 0.02);
+    // Right bed, rear and mid.
+    add_nettle("tall_a", 2.85, -0.70, 1.05, 0.02);
+    add_nettle("tall_b", 1.30, -4.10, 1.00, 0.02);
+    add_nettle("medium_a", 3.25, -1.30, 0.75, 0.02);
+    add_nettle("small_a", 1.15, 0.40, 0.50, 0.02);
+    add_shrub02("b", 3.20, 0.30, 0.90, 0.02);
+    add_shrub02("c", 1.15, -5.85, 1.00, 0.02);
+    add_shrub02("d", 2.95, -6.10, 0.95, 0.02);
+    add_weed("c", 1.30, -5.35, 0.30, 0.02);
+    add_weed("d", 3.30, -4.90, 0.30, 0.02);
+    add_weed("e", 1.20, -6.35, 0.30, 0.02);
+    add_weed("a", 1.10, -3.60, 0.30, 0.02);
+    add_moss("moss_01_tall_a_LOD0", 1.10, 0.02, -2.10, 0.085);
+    add_moss("moss_01_d_LOD0", 2.95, 0.02, -2.95, 0.09);
+    // Right bed, front and entrance.
+    add_nettle("medium_b", 1.15, 2.60, 0.75, 0.02);
+    add_weed("b", 1.75, 3.20, 0.30, 0.02);
+    add_ground_fern(1.25, -0.20, 0.95, 0.02);
+    // Rear bed fill between the pachira and the shrubs.
+    add_nettle("medium_a", -0.55, -7.15, 0.75, 0.02);
+    add_nettle("small_a", 0.55, -7.30, 0.50, 0.02);
+    add_weed("a", -0.85, -6.60, 0.30, 0.02);
+    add_weed("e", -1.60, -6.50, 0.30, 0.02);
+
+    // Final ground-cover fill over the remaining bare patches.
+    add_weed("b", 1.95, -2.55, 0.30, 0.02);
+    add_weed("c", 2.45, -1.60, 0.30, 0.02);
+    add_weed("d", 2.65, -0.35, 0.30, 0.02);
+    add_weed("e", -1.60, -2.15, 0.30, 0.02);
+    add_nettle("small_a", -1.30, -3.75, 0.50, 0.02);
+    add_nettle("small_b", 2.30, 2.85, 0.50, 0.02);
+    add_periwinkle("01", 1.15, -1.70, 0.36, 0.02);
+    add_periwinkle("04", -1.35, -3.35, 0.36, 0.02);
+    add_moss("moss_01_g_LOD0", -3.10, 0.02, -1.25, 0.085);
+    add_moss("moss_01_h_LOD0", -1.45, 0.02, -3.10, 0.085);
+    add_moss("moss_01_i_LOD0", 2.15, 0.02, -3.05, 0.085);
+    add_moss("moss_01_j_LOD0", 1.60, 0.02, -0.35, 0.085);
+    add_moss("moss_01_a_LOD0", 2.55, 0.02, 1.45, 0.085);
+    add_moss("moss_01_b_LOD0", -1.55, 0.02, -5.95, 0.085);
+    add_moss("moss_01_c_LOD0", 1.05, 0.02, 2.45, 0.085);
+    add_moss("moss_01_d_LOD0", 3.25, 0.02, 2.75, 0.08);
+
+    // Island trees outside the glazing give the background a real
+    // forest canopy instead of open lawn.
+    const auto add_exterior_tree = [&](double x, double z, double height) {
+        TriangleMesh tree = ObjLoader::load_file(
+            "assets/island_tree_02_2k.blend/island_tree_02_2k.obj",
+            exterior_foliage,
+            height,
+            Vec3(x, 0.0, z),
+            { "island_tree_02_LOD1" }
+        );
+
+        world.add(
+            std::make_shared<TriangleMesh>(
+                std::move(tree)
+            )
+        );
+    };
+
+    add_exterior_tree(-5.80, 0.20, 5.00);
+    add_exterior_tree(5.90, -1.50, 4.60);
+    add_exterior_tree(-1.50, -10.50, 5.20);
+    add_exterior_tree(4.20, -9.80, 4.40);
+
     // Climbing vines wind up the wall columns, growing inward so
     // they stay clear of the glazing.
     const auto add_column_vine = [&](
@@ -3167,36 +3321,6 @@ inline HittableList make_greenhouse_scene() {
         Vec3(2.4, 0.0, 0.0),
         Vec3(0.0, 0.0, 2.0),
         emitter
-    ));
-
-    // Low-lying mist drifts through the planted beds, softening the
-    // far end of the house into a hazy jungle depth.
-    auto mist_boundary = std::make_shared<TriangleMesh>(
-        std::vector<Vec3>{
-            Vec3(-3.85, 2.15, -8.00),
-            Vec3(3.85, 2.15, -8.00),
-            Vec3(3.85, 2.15, 3.75),
-            Vec3(-3.85, 2.15, 3.75),
-            Vec3(-3.85, 0.04, -8.00),
-            Vec3(3.85, 0.04, -8.00),
-            Vec3(3.85, 0.04, 3.75),
-            Vec3(-3.85, 0.04, 3.75)
-        },
-        std::vector<TriangleMesh::Face>{
-            {0, 2, 1}, {0, 3, 2},   // top
-            {4, 5, 6}, {4, 6, 7},   // bottom
-            {0, 1, 5}, {0, 5, 4},   // z -8 wall
-            {2, 3, 7}, {2, 7, 6},   // z 3.75 wall
-            {3, 0, 4}, {3, 4, 7},   // x -3.85 wall
-            {1, 2, 6}, {1, 6, 5}    // x 3.85 wall
-        },
-        nullptr
-    );
-
-    world.add(std::make_shared<ConstantMedium>(
-        mist_boundary,
-        0.04,
-        Vec3(0.72, 0.78, 0.74)
     ));
 
     return world;
