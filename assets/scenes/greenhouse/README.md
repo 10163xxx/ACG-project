@@ -33,32 +33,42 @@ results/renders/greenhouse_scene.jpg
 ### Planting
 
 - Imported botanical assets (see `assets/ASSET_CREDITS.md`):
-  anthurium on the side exhibition plinth, six ferns in tapered pots
-  forming staggered bands along the walkway, a potted monstera in
-  the foreground, a pachira as the rear focal tree, and calathea
+  anthurium on the side exhibition plinth, a potted monstera in the
+  foreground, a pachira as the rear focal tree, and calathea
   orbifolias as broad-leaf accents.
-- Naturalistic rear planting bed with a wandering stone curb,
+- In-ground jungle beds line both walls from the rear border to the
+  entrance corners, edged with low stone curbs: ground layer (moss
+  tufts, periwinkle), mid layer (ferns, calatheas, shrub 01
+  variants) and canopy anchors (shrubs, the pachira) layer
+  vertically in each bed. The display bench backs onto the left bed
+  and the water trough sits inside the right bed.
+- A wandering mulch bed with a stone curb runs along the rear wall,
   layered irregularly with shrubs, low ferns and calatheas;
   weathered stones line the edge.
-- Nine shrub 01 variants knit the bed into a continuous deep
-  understory, wall-base ferns rise over the moss layer on both
-  sides, and periwinkle clusters edge the walkway with two
-  flowering pots on the bench lower shelf.
+- Climbing vines wind up the four wall columns, growing inward.
 - Four hanging baskets suspended from the transverse ties with
   trailing procedural vines.
 - Wooden specimen display bench along the front-left wall holding
   potted fern and calathea specimens with tilted species-label
   plaques facing the walkway.
 
+### Walkway
+
+- Irregular flagstones run from the outside approach, through the
+  doorway threshold, deep into the interior; three granite Perlin
+  variants alternate across slabs and a dark substrate shows
+  through the joints.
+
 ### Water and stone
 
 - A round stone cistern on the open floor left of the walkway and a
-  rectangular coping-capped trough in the front-right corner, both
-  holding still-water sheets rendered as thin glass over dark basin
-  floors with partly submerged pebbles.
+  rectangular coping-capped trough in the front-right corner hold
+  closed dielectric water bodies (IOR 1.33, green-cyan tint,
+  absorption) with submerged pebbles, Fresnel sky reflections and
+  refraction.
 - Six mossy boulders from the imported rock set along the bed edges,
   wall bases and water features, with moss tufts layered through the
-  bed, at the pachira base, along the wall bases and over the stone
+  beds, at the pachira base, along the wall bases and over the stone
   rims.
 
 ### Environment and lighting
@@ -69,6 +79,9 @@ results/renders/greenhouse_scene.jpg
   cast directional shadows across the floor.
 - A soft downward fill panel under the ridge, sized to stay inside
   the roof envelope.
+- Thin-glass glazing with IOR 1.58, a green tint and alternating
+  weathered panes; invalid dielectric medium transitions from
+  foliage intersecting a water boundary scatter without aborting.
 - Exterior shrubs and ferns outside both side walls and behind the
   rear wall, so views through the glass meet garden foliage instead
   of bare lawn.
