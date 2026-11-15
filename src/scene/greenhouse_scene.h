@@ -19,8 +19,10 @@
 #include "materials/principled.h"
 #include "materials/bump_mapped_material.h"
 #include "materials/procedural_texture.h"
+#include "materials/rippled_water_material.h"
 #include "materials/texture_transform.h"
 #include "materials/thin_glass.h"
+#include "materials/tinted_material.h"
 
 inline const AABB& greenhouse_plant_bounds() {
     static const AABB bounds(
@@ -151,12 +153,18 @@ inline void greenhouse_add_stone_slab_path(
     double top_y,
     int seed
 ) {
-    constexpr int SIDES = 6;
+    // Irregular four-sided flagstones: per-corner jitter on both
+    // axes plus a random rotation, so the walkway reads as dressed
+    // stone slabs rather than stamped tiles.
+    constexpr int SIDES = 4;
     constexpr double BOTTOM_Y = 0.008;
-    constexpr double PI = 3.14159265358979323846;
 
     std::vector<Vec3> vertices;
+    std::vector<Vec3> texcoords;
     std::vector<TriangleMesh::Face> faces;
+    std::vector<TriangleMesh::FaceUV> face_texcoords;
+    std::vector<bool> face_has_uv;
+    std::vector<std::shared_ptr<const Material>> face_materials;
 
     const int slab_count = rows * columns;
 
@@ -165,7 +173,27 @@ inline void greenhouse_add_stone_slab_path(
         * (2 * SIDES + 2)
     );
 
+    texcoords.reserve(
+        static_cast<std::size_t>(slab_count)
+        * (2 * SIDES + 2)
+    );
+
     faces.reserve(
+        static_cast<std::size_t>(slab_count)
+        * (4 * SIDES)
+    );
+
+    face_texcoords.reserve(
+        static_cast<std::size_t>(slab_count)
+        * (4 * SIDES)
+    );
+
+    face_has_uv.reserve(
+        static_cast<std::size_t>(slab_count)
+        * (4 * SIDES)
+    );
+
+    face_materials.reserve(
         static_cast<std::size_t>(slab_count)
         * (4 * SIDES)
     );
@@ -209,6 +237,11 @@ inline void greenhouse_add_stone_slab_path(
         joint_material
     ));
 
+    // Slab-top UVs span one texture tile per slab so the shared
+    // bump map keeps a constant physical scale on every flagstone.
+    const double uv_half_width = 2.0 * half_width;
+    const double uv_half_length = 2.0 * half_length;
+
     for (int row = 0; row < rows; ++row) {
         for (int column = 0; column < columns; ++column) {
             const double row_shift =
@@ -248,6 +281,25 @@ inline void greenhouse_add_stone_slab_path(
             const double cos_rotation = std::cos(rotation);
             const double sin_rotation = std::sin(rotation);
 
+            std::size_t material_index = 0;
+
+            if (!stone_materials.empty()) {
+                const double pick = variation(row, column, 20);
+
+                material_index =
+                    static_cast<std::size_t>(
+                        pick * static_cast<double>(
+                            stone_materials.size())
+                    );
+
+                material_index %= stone_materials.size();
+            }
+
+            const std::shared_ptr<const Material>& slab_material =
+                stone_materials.empty()
+                    ? nullptr
+                    : stone_materials[material_index];
+
             const std::size_t base =
                 vertices.size();
 
@@ -263,27 +315,23 @@ inline void greenhouse_add_stone_slab_path(
                 center_z
             );
 
+            texcoords.emplace_back(0.5, 0.5, 0.0);
+            texcoords.emplace_back(0.5, 0.5, 0.0);
+
             for (int side = 0; side < SIDES; ++side) {
-                const double angle =
-                    -2.0 * PI * side / SIDES;
+                // Clockwise corner walk (matching the previous
+                // winding): (+,+) → (+,-) → (-,-) → (-,+).
+                const double x_sign =
+                    (side == 0 || side == 1) ? 1.0 : -1.0;
+
+                const double z_sign =
+                    (side == 0 || side == 3) ? 1.0 : -1.0;
 
                 const double corner_x =
-                    std::cos(angle)
-                    * half_width
-                    * width_variation;
+                    x_sign * half_width * width_variation;
 
                 const double corner_z =
-                    std::sin(angle)
-                    * half_length
-                    * length_variation;
-
-                const double local_x =
-                    corner_x * cos_rotation
-                    - corner_z * sin_rotation;
-
-                const double local_z =
-                    corner_x * sin_rotation
-                    + corner_z * cos_rotation;
+                    z_sign * half_length * length_variation;
 
                 const double edge_variation =
                     0.82 + 0.30 * variation(
@@ -292,16 +340,32 @@ inline void greenhouse_add_stone_slab_path(
                         side + 4
                     );
 
+                const double local_x =
+                    corner_x * edge_variation;
+
+                const double local_z =
+                    corner_z * edge_variation;
+
                 const double x =
-                    center_x + local_x * edge_variation;
+                    center_x
+                    + local_x * cos_rotation
+                    - local_z * sin_rotation;
 
                 const double z =
-                    center_z + local_z * edge_variation;
+                    center_z
+                    + local_x * sin_rotation
+                    + local_z * cos_rotation;
 
                 const double top_offset =
                     0.014 * (
                         variation(row, column, side + 12) - 0.5
                     );
+
+                const double corner_u =
+                    0.5 + local_x / uv_half_width;
+
+                const double corner_v =
+                    0.5 + local_z / uv_half_length;
 
                 vertices.emplace_back(
                     x,
@@ -314,10 +378,26 @@ inline void greenhouse_add_stone_slab_path(
                     top_y + top_offset,
                     z
                 );
+
+                // Bottom corners sit lower in UV so the side walls
+                // keep a non-degenerate parameterization.
+                texcoords.emplace_back(corner_u, corner_v - 0.18, 0.0);
+                texcoords.emplace_back(corner_u, corner_v, 0.0);
             }
 
             const std::size_t bottom_center = base;
             const std::size_t top_center = base + 1;
+
+            const auto push_face = [&](
+                std::size_t a,
+                std::size_t b,
+                std::size_t c
+            ) {
+                faces.push_back({a, b, c});
+                face_texcoords.push_back({a, b, c});
+                face_has_uv.push_back(true);
+                face_materials.push_back(slab_material);
+            };
 
             for (int side = 0; side < SIDES; ++side) {
                 const int next = (side + 1) % SIDES;
@@ -335,31 +415,15 @@ inline void greenhouse_add_stone_slab_path(
                     bottom_b + 1;
 
                 // Top surface.
-                faces.push_back({
-                    top_center,
-                    top_a,
-                    top_b
-                });
+                push_face(top_center, top_a, top_b);
 
                 // Bottom surface.
-                faces.push_back({
-                    bottom_center,
-                    bottom_b,
-                    bottom_a
-                });
+                push_face(bottom_center, bottom_b, bottom_a);
 
                 // Two triangles close each side wall.
-                faces.push_back({
-                    top_b,
-                    bottom_b,
-                    bottom_a
-                });
+                push_face(top_b, bottom_b, bottom_a);
 
-                faces.push_back({
-                    top_b,
-                    bottom_a,
-                    top_a
-                });
+                push_face(top_b, bottom_a, top_a);
             }
         }
     }
@@ -367,11 +431,11 @@ inline void greenhouse_add_stone_slab_path(
     world.add(std::make_shared<TriangleMesh>(
         vertices,
         faces,
-        stone_materials.empty()
-            ? nullptr
-            : stone_materials[static_cast<std::size_t>(
-                (seed + 7) % static_cast<int>(stone_materials.size())
-            )]
+        nullptr,
+        texcoords,
+        face_texcoords,
+        face_has_uv,
+        face_materials
     ));
 }
 
@@ -1601,62 +1665,91 @@ inline HittableList make_greenhouse_scene() {
         1.6
     );
 
-    // Flagstone palette: three weathered granite variants so the
-    // path reads as pieced-together stone rather than stamped tiles.
-    auto stone_path_material_a = std::make_shared<Lambertian>(
-        std::make_shared<PerlinNoiseTexture>(
-            Vec3(0.26, 0.24, 0.21),
-            Vec3(0.40, 0.385, 0.35),
-            9.0,
-            5,
-            2026
-        )
+    // Shared stone height map: the kerb stone uses a coarser tile,
+    // the walkway flags a finer one.
+    auto stone_bump_image = std::make_shared<ImageTexture>(
+        "assets/textures/stone_bump.ppm",
+        true,
+        false,
+        TextureAddressMode::Repeat
     );
-
-    auto stone_path_material_b = std::make_shared<Lambertian>(
-        std::make_shared<PerlinNoiseTexture>(
-            Vec3(0.23, 0.215, 0.19),
-            Vec3(0.375, 0.36, 0.33),
-            7.0,
-            5,
-            2027
-        )
-    );
-
-    auto stone_path_material_c = std::make_shared<Lambertian>(
-        std::make_shared<PerlinNoiseTexture>(
-            Vec3(0.28, 0.255, 0.215),
-            Vec3(0.43, 0.41, 0.37),
-            11.0,
-            5,
-            2028
-        )
-    );
-
-    const std::vector<std::shared_ptr<const Material>>
-        stone_path_materials = {
-            stone_path_material_a,
-            stone_path_material_b,
-            stone_path_material_c
-        };
-
-    auto stone_joint_material =
-        std::make_shared<Lambertian>(
-            Vec3(0.062, 0.052, 0.038)
-        );
 
     auto stone_bump_texture = std::make_shared<TextureTransform>(
-        std::make_shared<ImageTexture>(
-            "assets/textures/stone_bump.ppm",
-            true,
-            false,
-            TextureAddressMode::Repeat
-        ),
+        stone_bump_image,
         6.0,
         6.0,
         0.0,
         0.0
     );
+
+    auto slab_bump_texture = std::make_shared<TextureTransform>(
+        stone_bump_image,
+        3.0,
+        3.0,
+        0.0,
+        0.0
+    );
+
+    // Flagstone palette: four weathered granite albedos crossed with
+    // two slab-level tints, all sharing the stone bump. Individual
+    // slabs pick from the palette, so the walkway reads as
+    // pieced-together dressed stone. The tones sit darker than the
+    // surrounding concrete so plants and pale joints read against
+    // the path.
+    const std::array<Vec3, 4> granite_lo = {
+        Vec3(0.105, 0.098, 0.088),
+        Vec3(0.092, 0.088, 0.080),
+        Vec3(0.118, 0.108, 0.092),
+        Vec3(0.098, 0.094, 0.086)
+    };
+
+    const std::array<Vec3, 4> granite_hi = {
+        Vec3(0.205, 0.192, 0.172),
+        Vec3(0.175, 0.168, 0.155),
+        Vec3(0.230, 0.215, 0.185),
+        Vec3(0.185, 0.176, 0.160)
+    };
+
+    const std::array<double, 4> granite_scale = {
+        8.0, 6.5, 10.5, 7.5
+    };
+
+    const std::array<Vec3, 2> granite_tints = {
+        Vec3(1.0, 1.0, 1.0),
+        Vec3(0.82, 0.84, 0.88)
+    };
+
+    std::vector<std::shared_ptr<const Material>> stone_path_materials;
+
+    for (int variant = 0; variant < 4; ++variant) {
+        for (int tint = 0; tint < 2; ++tint) {
+            auto albedo = std::make_shared<Lambertian>(
+                std::make_shared<PerlinNoiseTexture>(
+                    granite_lo[variant],
+                    granite_hi[variant],
+                    granite_scale[variant],
+                    5,
+                    2026 + variant
+                )
+            );
+
+            stone_path_materials.push_back(
+                std::make_shared<BumpMappedMaterial>(
+                    std::make_shared<TintedMaterial>(
+                        albedo,
+                        granite_tints[tint]
+                    ),
+                    slab_bump_texture,
+                    0.85
+                )
+            );
+        }
+    }
+
+    auto stone_joint_material =
+        std::make_shared<Lambertian>(
+            Vec3(0.062, 0.052, 0.038)
+        );
 
     auto stone = std::make_shared<BumpMappedMaterial>(
         std::make_shared<PrincipledBSDF>(
@@ -2723,12 +2816,44 @@ inline HittableList make_greenhouse_scene() {
     // reflections and absorption all behave like real water.
     auto water_surface = std::make_shared<Dielectric>(
         1.33,
-        Vec3(0.92, 0.98, 0.96),
+        Vec3(0.78, 0.93, 0.88),
         Vec3(0.9, 0.25, 0.15)
     );
 
+    // The open pond gets wind-ruffled water: two slow swells plus
+    // four chop waves perturb the surface normal, so reflections and
+    // refractions break up like a real pond. The cistern and trough
+    // keep still water on purpose.
+    std::vector<RippledWaterMaterial::Wave> pond_waves = {
+        {Vec3(1.0, 0.0, 0.30), 0.90, 0.034, 0.8},
+        {Vec3(-0.55, 0.0, 0.90), 0.55, 0.020, 2.1},
+        {Vec3(0.95, 0.0, -0.55), 0.34, 0.0120, 4.2},
+        {Vec3(-0.30, 0.0, -1.0), 0.21, 0.0065, 1.3},
+        {Vec3(1.0, 0.0, 0.10), 0.13, 0.0034, 5.4},
+        {Vec3(-0.80, 0.0, 0.60), 0.08, 0.0018, 3.0}
+    };
+
+    auto pond_water = std::make_shared<RippledWaterMaterial>(
+        water_surface,
+        pond_waves,
+        1.2
+    );
+
+    // Pond basin: dark sandy sediment mottled with silt. A darker
+    // bottom keeps the sky sheen from washing the surface out, so
+    // the pads and stones read against the water.
+    // Pond basin: dark silt. A dark bottom shifts the surface
+    // balance toward Fresnel reflection, so the ripple-distorted
+    // reflections of the glazing read on the water instead of the
+    // bottom washing everything out.
     auto basin_floor = std::make_shared<Lambertian>(
-        Vec3(0.05, 0.045, 0.038)
+        std::make_shared<PerlinNoiseTexture>(
+            Vec3(0.028, 0.026, 0.022),
+            Vec3(0.095, 0.085, 0.068),
+            12.0,
+            5,
+            4171
+        )
     );
 
     auto rock_fallback = std::make_shared<PrincipledBSDF>(
@@ -2979,7 +3104,7 @@ inline HittableList make_greenhouse_scene() {
     add_shrub01("i", 1.78, -7.22, 0.50, 0.02);
 
     // Side wall bases: ferns rise over the moss layer.
-    add_bed_fern(-3.25, -0.10, 0.72);
+    add_bed_fern(-3.55, -0.30, 0.72);
     add_bed_fern(-3.25, -5.70, 0.66);
     add_bed_fern(3.25, -0.15, 0.72);
     add_bed_fern(3.30, -4.60, 0.68);
@@ -3095,11 +3220,25 @@ inline HittableList make_greenhouse_scene() {
     add_side_bed_segment(1.55, 3.45, 1.04, 1, true);
 
     // Artificial pond: an irregular man-made lake sunk into the
-    // left bed, ringed with stone and dotted with lily pads.
-    const std::vector<double> pond_radii = {
+    // left bed, ringed with stone and dotted with lily pads. The
+    // basin sits slightly back from the walkway so the whole water
+    // surface reads from the entrance view.
+    constexpr double POND_SCALE = 1.08;
+
+    const std::vector<double> pond_base_radii = {
         0.88, 0.95, 1.05, 0.82, 0.95, 1.05,
         1.30, 1.20, 1.15, 1.10, 1.02, 0.92
     };
+
+    std::vector<double> pond_radii;
+    pond_radii.reserve(pond_base_radii.size());
+
+    for (double radius : pond_base_radii) {
+        pond_radii.push_back(radius * POND_SCALE);
+    }
+
+    const double pond_center_x = -2.05;
+    const double pond_center_z = 0.00;
 
     const auto pond_offset = [&pond_radii](double delta) {
         std::vector<double> result;
@@ -3114,44 +3253,47 @@ inline HittableList make_greenhouse_scene() {
 
     greenhouse_add_polygon_ring(
         world,
-        -2.00,
-        0.35,
+        pond_center_x,
+        pond_center_z,
         0.0,
         0.095,
-        pond_offset(0.01),
-        pond_offset(0.20),
+        pond_offset(0.01 * POND_SCALE),
+        pond_offset(0.20 * POND_SCALE),
         stone
     );
 
     greenhouse_add_polygon_disc(
         world,
-        -2.00,
+        pond_center_x,
         0.03,
-        0.35,
-        pond_offset(-0.02),
+        pond_center_z,
+        pond_offset(-0.02 * POND_SCALE),
         basin_floor
     );
 
     greenhouse_add_polygon_prism(
         world,
-        -2.00,
-        0.35,
+        pond_center_x,
+        pond_center_z,
         0.02,
         0.085,
         pond_radii,
-        water_surface
+        pond_water
     );
 
     // A few stones lie just under the water surface.
-    add_bed_stone(-2.35, 0.15, 0.07);
-    add_bed_stone(-1.70, 0.15, 0.055);
-    add_bed_stone(-2.05, 0.55, 0.06);
+    add_bed_stone(-2.45, -0.20, 0.07);
+    add_bed_stone(-1.75, -0.15, 0.055);
+    add_bed_stone(-2.10, 0.20, 0.06);
+    add_bed_stone(-2.65, -0.45, 0.06);
+    add_bed_stone(-1.95, 0.45, 0.05);
+    add_bed_stone(-2.30, -0.05, 0.045);
 
     // Lily pads float on the pond surface.
     auto lily_pad = std::make_shared<PrincipledBSDF>(
-        Vec3(0.14, 0.30, 0.10),
+        Vec3(0.165, 0.335, 0.115),
         0.0,
-        0.45
+        0.42
     );
 
     const auto add_lily_pad = [&](double x, double z, double radius) {
@@ -3181,12 +3323,17 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    add_lily_pad(-2.35, 0.60, 0.11);
-    add_lily_pad(-1.75, 0.10, 0.14);
-    add_lily_pad(-1.55, 0.55, 0.10);
-    add_lily_pad(-2.05, 0.15, 0.13);
-    add_lily_pad(-2.45, 0.05, 0.09);
-    add_lily_pad(-1.80, 0.65, 0.12);
+    add_lily_pad(-2.45, 0.25, 0.12);
+    add_lily_pad(-1.80, -0.28, 0.19);
+    add_lily_pad(-1.58, 0.22, 0.10);
+    add_lily_pad(-2.10, -0.22, 0.17);
+    add_lily_pad(-2.52, -0.32, 0.09);
+    add_lily_pad(-1.88, 0.32, 0.12);
+    add_lily_pad(-2.30, -0.65, 0.12);
+    add_lily_pad(-1.45, -0.15, 0.085);
+    add_lily_pad(-2.75, 0.05, 0.13);
+    add_lily_pad(-2.20, 0.55, 0.07);
+    add_lily_pad(-1.70, -0.60, 0.075);
 
     // Left bed planting: ferns rising out of the ground layer.
     add_ground_fern(-3.15, 0.55, 0.75, 0.02);
@@ -3195,14 +3342,14 @@ inline HittableList make_greenhouse_scene() {
     add_ground_fern(-3.20, -5.05, 0.95, 0.02);
     add_ground_fern(-3.15, 2.60, 0.85, 0.02);
     add_shrub01("c", -1.45, -1.85, 0.65, 0.02);
-    add_moss("moss_01_f_LOD0", -3.35, 0.02, 0.10, 0.08);
+    add_moss("moss_01_f_LOD0", -3.50, 0.02, 0.28, 0.08);
     add_moss("moss_01_d_LOD0", -1.35, 0.02, -1.90, 0.08);
     add_moss("moss_01_j_LOD0", -2.45, 0.02, -3.15, 0.075);
     add_moss("moss_01_g_LOD0", -1.55, 0.02, -4.40, 0.085);
     add_moss("moss_01_a_LOD0", -3.25, 0.02, -5.60, 0.075);
     add_periwinkle("05", -1.15, -2.60, 0.36, 0.02);
     add_periwinkle("02", -1.30, 0.60, 0.34, 0.02);
-    add_periwinkle("04", -3.10, -0.45, 0.38, 0.02);
+    add_periwinkle("04", -3.45, -0.75, 0.38, 0.02);
 
     // Right bed planting.
     add_ground_fern(3.10, -1.95, 0.85, 0.02);
@@ -3257,7 +3404,7 @@ inline HittableList make_greenhouse_scene() {
         -5.60,
         1.30
     );
-    add_moss("moss_01_a_LOD0", -3.15, 0.02, -0.20, 0.085);
+    add_moss("moss_01_a_LOD0", -3.60, 0.02, -0.60, 0.085);
     add_moss("moss_01_c_LOD0", -1.55, 0.02, -2.35, 0.09);
     add_moss("moss_01_e_LOD0", -2.80, 0.02, -4.70, 0.09);
     add_moss("moss_01_g_LOD0", -1.25, 0.02, -3.30, 0.085);
@@ -3354,11 +3501,11 @@ inline HittableList make_greenhouse_scene() {
                     z + (pick_b - 0.5) * 0.30;
 
                 // Keep-out: pond and its stone kerb.
-                const double pond_dx = px + 2.00;
-                const double pond_dz = pz - 0.35;
+                const double pond_dx = px + 2.05;
+                const double pond_dz = pz;
 
                 if (pond_dx * pond_dx
-                        + pond_dz * pond_dz < 2.40) {
+                        + pond_dz * pond_dz < 2.80) {
                     continue;
                 }
 

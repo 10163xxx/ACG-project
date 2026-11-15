@@ -30,12 +30,16 @@ The project focuses on physically based light transport, material evaluation, te
 - Lambertian diffuse reflection
 - Metal reflection
 - Dielectric transmission and refraction
+- Dielectric reflection and refraction resolved through perturbed shading normals, so bump and ripple decorators affect water surfaces
+- Procedural ripple normal perturbation for wind-ruffled water (`RippledWaterMaterial`)
 - Principled BSDF material support
 - Emissive materials and area lights
 - Solid-color and procedural textures
 - UV-coordinate checker and gradient textures
 - Procedural UV-based normal textures
 - Tangent-space normal mapping with transformation into world space
+- Per-face material assignment on triangle meshes
+- Constant per-instance tinting of any material (`TintedMaterial`)
 - Texture filtering and mipmap support
 - MTL texture options for UV scaling (`-s`), offset (`-o`), and clamp/repeat addressing (`-clamp`)
 - Configurable bump-map strength through the MTL `-bm` option
@@ -154,8 +158,12 @@ Render the greenhouse conservatory scene:
 ```
 
 The greenhouse scene assembles imported botanical models (recorded
-in `assets/ASSET_CREDITS.md`) with procedural architecture. `-Draft`
-and `-Preview` produce reduced-quality variants for quick iteration.
+in `assets/ASSET_CREDITS.md`) with procedural architecture. Its
+walkway is built from irregular flagstones with per-slab granite
+materials and bump mapping, and the pond is a closed dielectric
+volume whose surface is ruffled by the procedural ripple material.
+`-Draft` and `-Preview` produce reduced-quality variants for quick
+iteration.
 The default output files are:
 
 ```text

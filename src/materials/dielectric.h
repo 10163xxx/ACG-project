@@ -76,9 +76,30 @@ public:
         const Vec3 unit_direction =
             normalize(incoming.direction);
 
+        // Ripple and bump decorators resolve a perturbed shading
+        // normal. The geometric normal stays authoritative for
+        // front/back orientation, so the perturbation is accepted
+        // only when it remains in the geometric hemisphere and still
+        // faces the incoming ray.
+        Vec3 surface_normal = normalize_or_fallback(
+            hit.normal, Vec3(0.0, 1.0, 0.0));
+
+        if (hit.has_resolved_shading_normal) {
+            const Vec3 perturbed =
+                normalize_or_fallback(
+                    hit.get_shading_normal(),
+                    surface_normal
+                );
+
+            if (dot(perturbed, surface_normal) > 0.0 &&
+                    dot(perturbed, unit_direction) < 0.0) {
+                surface_normal = perturbed;
+            }
+        }
+
         const double cos_theta =
             std::min(
-                dot(-unit_direction, hit.normal),
+                dot(-unit_direction, surface_normal),
                 1.0
             );
 
@@ -100,11 +121,11 @@ public:
             reflectance(cos_theta, refraction_ratio)
                 > Random::random_double()
         ) {
-            direction = reflect(unit_direction, hit.normal);
+            direction = reflect(unit_direction, surface_normal);
         } else {
             direction = refract(
                 unit_direction,
-                hit.normal,
+                surface_normal,
                 refraction_ratio
             );
 
@@ -176,6 +197,20 @@ private:
     double ir_;
     Vec3 tint_;
     Vec3 absorption_;
+
+    static Vec3 normalize_or_fallback(
+        const Vec3& value,
+        const Vec3& fallback
+    ) {
+        const double length_squared = value.length_squared();
+
+        if (!std::isfinite(length_squared) ||
+            length_squared < 1e-20) {
+            return fallback;
+        }
+
+        return value / std::sqrt(length_squared);
+    }
 
     static double reflectance(
         double cosine,
