@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "geometry/mesh.h"
+#include "geometry/constant_medium.h"
 #include "geometry/hittable_list.h"
 #include "geometry/quad.h"
 #include "geometry/sphere.h"
@@ -942,6 +943,224 @@ inline void greenhouse_add_octagon_disc(
 
 // Closed octagonal prism used as the water body: a real volume so
 // refraction, Fresnel reflections and absorption behave correctly.
+// Closed polygon prism with per-vertex radii: the general water
+// body shape used by the pond.
+inline void greenhouse_add_polygon_prism(
+    HittableList& world,
+    double center_x,
+    double center_z,
+    double bottom_y,
+    double top_y,
+    const std::vector<double>& radii,
+    const std::shared_ptr<const Material>& material
+) {
+    const int sides = static_cast<int>(radii.size());
+    constexpr double PI = 3.14159265358979323846;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.reserve(2 * static_cast<std::size_t>(sides) + 2);
+
+    vertices.emplace_back(center_x, top_y, center_z);
+    vertices.emplace_back(center_x, bottom_y, center_z);
+
+    for (int side = 0; side < sides; ++side) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side) / sides;
+
+        vertices.emplace_back(
+            center_x + std::cos(angle) * radii[side],
+            top_y,
+            center_z + std::sin(angle) * radii[side]
+        );
+    }
+
+    for (int side = 0; side < sides; ++side) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side) / sides;
+
+        vertices.emplace_back(
+            center_x + std::cos(angle) * radii[side],
+            bottom_y,
+            center_z + std::sin(angle) * radii[side]
+        );
+    }
+
+    const std::size_t top_center = 0;
+    const std::size_t bottom_center = 1;
+
+    for (int side = 0; side < sides; ++side) {
+        const int next = (side + 1) % sides;
+
+        const std::size_t top_a =
+            2 + static_cast<std::size_t>(side);
+
+        const std::size_t top_b =
+            2 + static_cast<std::size_t>(next);
+
+        const std::size_t bottom_a =
+            2 + static_cast<std::size_t>(sides + side);
+
+        const std::size_t bottom_b =
+            2 + static_cast<std::size_t>(sides + next);
+
+        // Top cap fan (outward up).
+        faces.push_back({top_center, top_b, top_a});
+
+        // Bottom cap fan (outward down).
+        faces.push_back({bottom_center, bottom_a, bottom_b});
+
+        // Side wall.
+        faces.push_back({top_a, top_b, bottom_b});
+        faces.push_back({top_a, bottom_b, bottom_a});
+    }
+}
+
+// Open polygon ring used as the pond's stone kerb.
+inline void greenhouse_add_polygon_ring(
+    HittableList& world,
+    double center_x,
+    double center_z,
+    double y_bottom,
+    double y_top,
+    const std::vector<double>& inner_radii,
+    const std::vector<double>& outer_radii,
+    const std::shared_ptr<const Material>& material
+) {
+    const int sides = static_cast<int>(inner_radii.size());
+    constexpr double PI = 3.14159265358979323846;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.reserve(4 * static_cast<std::size_t>(sides));
+
+    for (int ring = 0; ring < 2; ++ring) {
+        const bool inner = (ring == 0);
+
+        for (int side = 0; side < sides; ++side) {
+            const double angle =
+                2.0 * PI * static_cast<double>(side) / sides;
+
+            const double radius =
+                inner ? inner_radii[side] : outer_radii[side];
+
+            vertices.emplace_back(
+                center_x + std::cos(angle) * radius,
+                y_bottom,
+                center_z + std::sin(angle) * radius
+            );
+        }
+    }
+
+    for (int ring = 2; ring < 4; ++ring) {
+        const bool inner = (ring == 2);
+
+        for (int side = 0; side < sides; ++side) {
+            const double angle =
+                2.0 * PI * static_cast<double>(side) / sides;
+
+            const double radius =
+                inner ? inner_radii[side] : outer_radii[side];
+
+            vertices.emplace_back(
+                center_x + std::cos(angle) * radius,
+                y_top,
+                center_z + std::sin(angle) * radius
+            );
+        }
+    }
+
+    for (int side = 0; side < sides; ++side) {
+        const int next = (side + 1) % sides;
+
+        const std::size_t inner_bottom =
+            static_cast<std::size_t>(side);
+
+        const std::size_t outer_bottom =
+            static_cast<std::size_t>(sides + side);
+
+        const std::size_t inner_top =
+            static_cast<std::size_t>(2 * sides + side);
+
+        const std::size_t outer_top =
+            static_cast<std::size_t>(3 * sides + side);
+
+        const std::size_t inner_bottom_next =
+            static_cast<std::size_t>(next);
+
+        const std::size_t outer_bottom_next =
+            static_cast<std::size_t>(sides + next);
+
+        const std::size_t inner_top_next =
+            static_cast<std::size_t>(2 * sides + next);
+
+        const std::size_t outer_top_next =
+            static_cast<std::size_t>(3 * sides + next);
+
+        faces.push_back({inner_top, inner_top_next, inner_bottom_next});
+        faces.push_back({inner_top, inner_bottom_next, inner_bottom});
+
+        faces.push_back({outer_top, outer_bottom_next, outer_top_next});
+        faces.push_back({outer_top, outer_bottom, outer_bottom_next});
+
+        faces.push_back({inner_top, outer_top, outer_top_next});
+        faces.push_back({inner_top, outer_top_next, inner_top_next});
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        material
+    ));
+}
+
+// Fan disc with per-vertex radii: pond basin and lily pads.
+inline void greenhouse_add_polygon_disc(
+    HittableList& world,
+    double center_x,
+    double y,
+    double center_z,
+    const std::vector<double>& radii,
+    const std::shared_ptr<const Material>& material
+) {
+    const int sides = static_cast<int>(radii.size());
+    constexpr double PI = 3.14159265358979323846;
+
+    std::vector<Vec3> vertices;
+    std::vector<TriangleMesh::Face> faces;
+
+    vertices.emplace_back(center_x, y, center_z);
+
+    for (int side = 0; side < sides; ++side) {
+        const double angle =
+            2.0 * PI * static_cast<double>(side) / sides;
+
+        vertices.emplace_back(
+            center_x + std::cos(angle) * radii[side],
+            y,
+            center_z + std::sin(angle) * radii[side]
+        );
+    }
+
+    for (int side = 0; side < sides; ++side) {
+        const int next = (side + 1) % sides;
+
+        faces.push_back({
+            static_cast<std::size_t>(0),
+            static_cast<std::size_t>(side) + 1,
+            static_cast<std::size_t>(next) + 1
+        });
+    }
+
+    world.add(std::make_shared<TriangleMesh>(
+        vertices,
+        faces,
+        material
+    ));
+}
+
 inline void greenhouse_add_octagon_prism(
     HittableList& world,
     double center_x,
@@ -1854,7 +2073,7 @@ inline HittableList make_greenhouse_scene() {
     };
 
     // A few taller ferns anchor the bed openings.
-    add_ground_fern(-2.45, 0.95, 1.55, 0.02);
+    add_ground_fern(-2.20, -5.30, 1.55, 0.02);
     add_ground_fern(2.45, -0.55, 1.35, 0.02);
 
     // Foreground Monstera: the source model includes its own planter.
@@ -2421,16 +2640,6 @@ inline HittableList make_greenhouse_scene() {
         0.85
     );
 
-    // Round cistern on the open floor left of the walkway.
-    greenhouse_add_cistern(
-        world,
-        -1.45,
-        1.55,
-        stone,
-        water_surface,
-        basin_floor
-    );
-
     // Rectangular trough tucked into the front-right corner.
     greenhouse_add_stone_trough(
         world,
@@ -2468,7 +2677,7 @@ inline HittableList make_greenhouse_scene() {
     };
 
     add_rock("rock_moss_set_01_rock03", -1.10, 2.45, 0.50, 0.0);
-    add_rock("rock_moss_set_01_rock01", -2.05, 0.30, 0.62, 0.0);
+    add_rock("rock_moss_set_01_rock01", 2.30, 3.10, 0.55, 0.0);
     add_rock("rock_moss_set_01_rock02", -2.85, -6.80, 0.45, 0.02);
     add_rock("rock_moss_set_01_rock04", 0.95, -6.90, 0.55, 0.02);
     add_rock("rock_moss_set_01_rock05", 2.60, -6.72, 0.42, 0.02);
@@ -2498,12 +2707,6 @@ inline HittableList make_greenhouse_scene() {
     };
 
     // Around the cistern.
-    add_moss("moss_01_c_LOD0", -1.90, 0.365, 1.25, 0.05);
-    add_moss("moss_01_e_LOD0", -1.05, 0.365, 1.95, 0.045);
-    add_moss("moss_01_tall_b_LOD0", -1.80, 0.365, 1.90, 0.055);
-    add_moss("moss_01_a_LOD0", -1.90, 0.005, 2.10, 0.07);
-    add_moss("moss_01_b_LOD0", -0.95, 0.005, 1.05, 0.06);
-    add_moss("moss_01_d_LOD0", -2.05, 0.005, 1.75, 0.075);
 
     // At the pachira base.
     add_moss("moss_01_d_LOD0", -0.45, 0.02, -5.80, 0.08);
@@ -2706,26 +2909,115 @@ inline HittableList make_greenhouse_scene() {
     add_side_bed_segment(-0.45, 1.55, 0.96, 1, true);
     add_side_bed_segment(1.55, 3.45, 0.90, 1, true);
 
+    // Artificial pond: an irregular man-made lake sunk into the
+    // left bed, ringed with stone and dotted with lily pads.
+    const std::vector<double> pond_radii = {
+        0.88, 0.95, 1.05, 0.82, 0.95, 1.05,
+        1.30, 1.20, 1.15, 1.10, 1.02, 0.92
+    };
+
+    const auto pond_offset = [&pond_radii](double delta) {
+        std::vector<double> result;
+        result.reserve(pond_radii.size());
+
+        for (double radius : pond_radii) {
+            result.push_back(radius + delta);
+        }
+
+        return result;
+    };
+
+    greenhouse_add_polygon_ring(
+        world,
+        -2.00,
+        0.35,
+        0.0,
+        0.095,
+        pond_offset(0.01),
+        pond_offset(0.20),
+        stone
+    );
+
+    greenhouse_add_polygon_disc(
+        world,
+        -2.00,
+        0.03,
+        0.35,
+        pond_offset(-0.02),
+        basin_floor
+    );
+
+    greenhouse_add_polygon_prism(
+        world,
+        -2.00,
+        0.35,
+        0.02,
+        0.085,
+        pond_radii,
+        water_surface
+    );
+
+    // A few stones lie just under the water surface.
+    add_bed_stone(-2.35, 0.15, 0.07);
+    add_bed_stone(-1.70, 0.15, 0.055);
+    add_bed_stone(-2.05, 0.55, 0.06);
+
+    // Lily pads float on the pond surface.
+    auto lily_pad = std::make_shared<PrincipledBSDF>(
+        Vec3(0.14, 0.30, 0.10),
+        0.0,
+        0.45
+    );
+
+    const auto add_lily_pad = [&](double x, double z, double radius) {
+        std::vector<double> pad_radii;
+
+        for (int side = 0; side < 10; ++side) {
+            const double value = std::sin(
+                (x + z) * 12.9898
+                + side * 37.719
+            ) * 43758.5453;
+
+            const double fraction =
+                value - std::floor(value);
+
+            pad_radii.push_back(
+                radius * (0.82 + 0.18 * fraction)
+            );
+        }
+
+        greenhouse_add_polygon_disc(
+            world,
+            x,
+            0.089,
+            z,
+            pad_radii,
+            lily_pad
+        );
+    };
+
+    add_lily_pad(-2.35, 0.60, 0.11);
+    add_lily_pad(-1.75, 0.10, 0.14);
+    add_lily_pad(-1.55, 0.55, 0.10);
+    add_lily_pad(-2.05, 0.15, 0.13);
+    add_lily_pad(-2.45, 0.05, 0.09);
+    add_lily_pad(-1.80, 0.65, 0.12);
+
     // Left bed planting: ferns rising out of the ground layer.
     add_ground_fern(-3.15, 0.55, 0.75, 0.02);
-    add_ground_fern(-3.05, -1.05, 0.90, 0.02);
     add_ground_fern(-3.15, -2.20, 0.70, 0.02);
     add_ground_fern(-2.85, -3.55, 0.80, 0.02);
     add_ground_fern(-3.20, -5.05, 0.95, 0.02);
     add_ground_fern(-3.15, 2.60, 0.85, 0.02);
-    add_calathea(-1.60, -0.80, 0.02);
-    add_calathea(-1.55, 0.15, 0.02);
-    add_shrub01("c", -2.20, -0.55, 0.65, 0.02);
-    add_shrub01("a", -2.75, 0.35, 0.60, 0.02);
+    add_shrub01("c", -1.45, -1.85, 0.65, 0.02);
     add_moss("moss_01_f_LOD0", -3.35, 0.02, 0.10, 0.08);
-    add_moss("moss_01_b_LOD0", -2.35, 0.02, -1.60, 0.09);
     add_moss("moss_01_d_LOD0", -1.35, 0.02, -1.90, 0.08);
     add_moss("moss_01_j_LOD0", -2.45, 0.02, -3.15, 0.075);
     add_moss("moss_01_g_LOD0", -1.55, 0.02, -4.40, 0.085);
     add_moss("moss_01_a_LOD0", -3.25, 0.02, -5.60, 0.075);
     add_periwinkle("05", -1.15, -2.60, 0.36, 0.02);
-    add_periwinkle("02", -1.20, 0.35, 0.34, 0.02);
-    add_periwinkle("04", -2.90, -0.30, 0.38, 0.02);
+    add_periwinkle("02", -1.02, 0.60, 0.34, 0.02);
+    add_periwinkle("04", -3.10, -0.45, 0.38, 0.02);
 
     // Right bed planting.
     add_ground_fern(3.10, -1.95, 0.85, 0.02);
@@ -2751,6 +3043,49 @@ inline HittableList make_greenhouse_scene() {
     add_ground_fern(3.15, 3.30, 0.80, 0.02);
     add_moss("moss_01_tall_b_LOD0", -2.60, 0.02, 3.00, 0.075);
     add_moss("moss_01_i_LOD0", -3.30, 0.02, 1.60, 0.08);
+
+    // Jungle packing pass: clumps overlap their neighbours so the
+    // beds read as one continuous canopy instead of single plants.
+    add_ground_fern(-3.25, -2.80, 1.15, 0.02);
+    add_ground_fern(-3.30, 0.30, 0.95, 0.02);
+    add_ground_fern(-3.05, 0.90, 1.05, 0.02);
+    add_ground_fern(-2.60, -4.85, 1.30, 0.02);
+    add_ground_fern(-2.55, -5.85, 1.35, 0.02);
+    add_ground_fern(2.95, -4.10, 1.20, 0.02);
+    add_ground_fern(3.20, -5.75, 1.25, 0.02);
+    add_shrub01("e", -2.90, -2.20, 0.75, 0.02);
+    add_shrub01("f", -1.15, -1.60, 0.70, 0.005);
+    add_shrub01("i", -1.35, -3.30, 0.72, 0.02);
+    add_shrub01("h", 3.15, -3.30, 0.75, 0.02);
+    add_calathea(-2.20, -4.40, 0.02);
+    add_calathea(2.30, -5.60, 0.02);
+    add_shrub(
+        "assets/shrub_03_2k.blend/shrub_03_2k.obj",
+        -2.70,
+        -5.60,
+        1.50
+    );
+
+    add_shrub(
+        "assets/shrub_04_2k.blend/shrub_04_2k.obj",
+        2.70,
+        -5.60,
+        1.30
+    );
+    add_moss("moss_01_a_LOD0", -3.15, 0.02, -0.20, 0.085);
+    add_moss("moss_01_c_LOD0", -1.55, 0.02, -2.35, 0.09);
+    add_moss("moss_01_e_LOD0", -2.80, 0.02, -4.70, 0.09);
+    add_moss("moss_01_g_LOD0", -1.25, 0.02, -3.30, 0.085);
+    add_moss("moss_01_h_LOD0", -2.15, 0.02, -5.35, 0.08);
+    add_moss("moss_01_j_LOD0", -1.30, 0.02, -4.60, 0.085);
+    add_moss("moss_01_b_LOD0", 1.10, 0.02, -2.10, 0.085);
+    add_moss("moss_01_d_LOD0", 2.95, 0.02, -2.95, 0.09);
+    add_moss("moss_01_f_LOD0", 1.20, 0.02, -3.70, 0.08);
+    add_moss("moss_01_a_LOD0", 3.25, 0.02, -3.60, 0.08);
+    add_periwinkle("06", -1.10, -1.55, 0.36, 0.02);
+    add_periwinkle("02", 0.98, -3.35, 0.36, 0.02);
+    add_periwinkle("04", -1.20, -4.20, 0.38, 0.02);
+    add_periwinkle("03", 1.30, -5.30, 0.36, 0.02);
 
     // Climbing vines wind up the wall columns, growing inward so
     // they stay clear of the glazing.
@@ -2832,6 +3167,36 @@ inline HittableList make_greenhouse_scene() {
         Vec3(2.4, 0.0, 0.0),
         Vec3(0.0, 0.0, 2.0),
         emitter
+    ));
+
+    // Low-lying mist drifts through the planted beds, softening the
+    // far end of the house into a hazy jungle depth.
+    auto mist_boundary = std::make_shared<TriangleMesh>(
+        std::vector<Vec3>{
+            Vec3(-3.85, 2.15, -8.00),
+            Vec3(3.85, 2.15, -8.00),
+            Vec3(3.85, 2.15, 3.75),
+            Vec3(-3.85, 2.15, 3.75),
+            Vec3(-3.85, 0.04, -8.00),
+            Vec3(3.85, 0.04, -8.00),
+            Vec3(3.85, 0.04, 3.75),
+            Vec3(-3.85, 0.04, 3.75)
+        },
+        std::vector<TriangleMesh::Face>{
+            {0, 2, 1}, {0, 3, 2},   // top
+            {4, 5, 6}, {4, 6, 7},   // bottom
+            {0, 1, 5}, {0, 5, 4},   // z -8 wall
+            {2, 3, 7}, {2, 7, 6},   // z 3.75 wall
+            {3, 0, 4}, {3, 4, 7},   // x -3.85 wall
+            {1, 2, 6}, {1, 6, 5}    // x 3.85 wall
+        },
+        nullptr
+    );
+
+    world.add(std::make_shared<ConstantMedium>(
+        mist_boundary,
+        0.04,
+        Vec3(0.72, 0.78, 0.74)
     ));
 
     return world;
