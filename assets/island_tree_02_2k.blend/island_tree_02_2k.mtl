@@ -1,34 +1,34 @@
-# Blender 5.4.0 Alpha MTL File: 'island_tree_02_2k.blend'
-# www.blender.org
+# Converted for ACG Path Tracer.
+# Original asset: Poly Haven - Island Tree 02
+# License: CC0 1.0
 
 newmtl island_tree_02
+Ns 45.000000
 Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.040000 0.040000 0.040000
 Ni 1.450000
 d 1.000000
 illum 2
-map_Kd C:/Users/15821/Desktop/ACG project/assets/island_tree_02_2k.blend/textures/island_tree_02_diff_2k.jpg
-map_Ns C:/Users/15821/Desktop/ACG project/assets/island_tree_02_2k.blend/textures/island_tree_02_rough_2k.exr
-map_Bump -bm 1.000000 C:/Users/15821/Desktop/ACG project/assets/island_tree_02_2k.blend/textures/island_tree_02_nor_gl_2k.exr
+map_Kd textures/island_tree_02_diffuse.ppm
 
 newmtl island_tree_02_branches
+Ns 45.000000
 Ka 1.000000 1.000000 1.000000
-Ks 0.205000 0.205000 0.205000
-Ke 0.000000 0.000000 0.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.040000 0.040000 0.040000
 Ni 1.450000
 d 1.000000
 illum 2
-map_Kd C:/Users/15821/Desktop/ACG project/assets/island_tree_02_2k.blend/textures/island_tree_02_branches_diff_2k.png
-map_Ns C:/Users/15821/Desktop/ACG project/assets/island_tree_02_2k.blend/textures/island_tree_02_branches_rough_2k.png
-map_Bump -bm 0.500000 C:/Users/15821/Desktop/ACG project/assets/island_tree_02_2k.blend/textures/island_tree_02_branches_nor_gl_2k.png
+map_Kd textures/island_tree_02_branches_diffuse.ppm
 
 newmtl island_tree_02_leaves
-Ns 360.000000
+Ns 80.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.464639 0.800000 0.187849
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.040000 0.040000 0.040000
 Ni 1.000000
 d 1.000000
 illum 2
+map_Kd textures/island_tree_02_leaves_diffuse.ppm
+map_d textures/island_tree_02_leaves_alpha.ppm
