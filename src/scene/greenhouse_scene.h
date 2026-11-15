@@ -1547,10 +1547,10 @@ inline HittableList make_greenhouse_scene() {
     HittableList world;
 
     auto floor_texture = std::make_shared<PerlinNoiseTexture>(
-        Vec3(0.20, 0.195, 0.175),
-        Vec3(0.33, 0.315, 0.275),
-        0.72,
-        5,
+        Vec3(0.155, 0.15, 0.135),
+        Vec3(0.295, 0.285, 0.255),
+        5.5,
+        6,
         417
     );
 
@@ -2522,10 +2522,10 @@ inline HittableList make_greenhouse_scene() {
     // planting inside is layered and irregular so it reads as a
     // curated garden border rather than a nursery row.
     auto bed_soil_texture = std::make_shared<PerlinNoiseTexture>(
-        Vec3(0.10, 0.07, 0.045),
-        Vec3(0.21, 0.15, 0.10),
-        3.0,
-        4,
+        Vec3(0.075, 0.052, 0.034),
+        Vec3(0.185, 0.13, 0.085),
+        7.0,
+        5,
         731
     );
 
@@ -3153,6 +3153,266 @@ inline HittableList make_greenhouse_scene() {
     add_periwinkle("04", -1.20, -4.20, 0.38, 0.02);
     add_periwinkle("03", 1.30, -5.30, 0.36, 0.02);
 
+    // Zone fill: a deterministic jittered grid packs each display
+    // bed so densely that the ground reads as pure foliage. Every
+    // cell picks a species from the zone palette and skips the
+    // keep-out areas (pond, plinth, trough, bench, walkway).
+    const auto fill_bed = [&](
+        double x0,
+        double x1,
+        double z0,
+        double z1,
+        double spacing,
+        int seed,
+        int zone
+    ) {
+        int column_index = 0;
+
+        for (double z = z0; z <= z1 + 1e-9; z += spacing) {
+            int row_index = 0;
+
+            for (double x = x0; x <= x1 + 1e-9; x += spacing) {
+                const double pick_a = [](
+                    double seed_v,
+                    double i,
+                    double j
+                ) {
+                    const double value = std::sin(
+                        seed_v * 12.9898
+                        + i * 127.1
+                        + j * 311.7
+                    ) * 43758.5453;
+
+                    return value - std::floor(value);
+                }(
+                    static_cast<double>(seed),
+                    static_cast<double>(column_index),
+                    static_cast<double>(row_index)
+                );
+
+                const double pick_b = [](
+                    double seed_v,
+                    double i,
+                    double j
+                ) {
+                    const double value = std::sin(
+                        seed_v * 26.5432
+                        + i * 269.5
+                        + j * 183.3
+                    ) * 43758.5453;
+
+                    return value - std::floor(value);
+                }(
+                    static_cast<double>(seed),
+                    static_cast<double>(column_index),
+                    static_cast<double>(row_index)
+                );
+
+                const double pick_c = [](
+                    double seed_v,
+                    double i,
+                    double j
+                ) {
+                    const double value = std::sin(
+                        seed_v * 39.8712
+                        + i * 419.2
+                        + j * 137.9
+                    ) * 43758.5453;
+
+                    return value - std::floor(value);
+                }(
+                    static_cast<double>(seed),
+                    static_cast<double>(column_index),
+                    static_cast<double>(row_index)
+                );
+
+                ++row_index;
+
+                const double px =
+                    x + (pick_a - 0.5) * 0.30;
+
+                const double pz =
+                    z + (pick_b - 0.5) * 0.30;
+
+                // Keep-out: pond and its stone kerb.
+                const double pond_dx = px + 2.00;
+                const double pond_dz = pz - 0.35;
+
+                if (pond_dx * pond_dx
+                        + pond_dz * pond_dz < 2.40) {
+                    continue;
+                }
+
+                // Keep-out: exhibition plinth.
+                if (px > 1.15 && px < 2.65 &&
+                    pz > -3.45 && pz < -1.95) {
+                    continue;
+                }
+
+                // Keep-out: water trough.
+                if (px > 2.60 && px < 3.62 &&
+                    pz > 2.20 && pz < 3.42) {
+                    continue;
+                }
+
+                // Keep-out: display bench.
+                if (px > -3.55 && px < -2.05 &&
+                    pz > 1.15 && pz < 3.30) {
+                    continue;
+                }
+
+                // Keep-out: monstera planter and pachira pot.
+                const double monstera_dx = px - 2.35;
+                const double monstera_dz = pz - 1.35;
+
+                if (monstera_dx * monstera_dx
+                        + monstera_dz * monstera_dz < 0.81) {
+                    continue;
+                }
+
+                const double pachira_dz = pz + 6.15;
+
+                if (px * px + pachira_dz * pachira_dz < 0.60) {
+                    continue;
+                }
+
+                // Keep-out: walkway and stone curbs.
+                if (std::abs(px) < 1.08) {
+                    continue;
+                }
+
+                const bool near_wall =
+                    std::abs(px) > 2.70;
+
+                if (zone == 0) {
+                    // Fern bed: ferns dominate, nettle and weed
+                    // knit the ground between them.
+                    if (pick_c < 0.50) {
+                        const double height =
+                            near_wall
+                                ? 0.75 + 0.20 * pick_b
+                                : 0.80 + 0.45 * pick_b;
+
+                        add_ground_fern(
+                            px,
+                            pz,
+                            height,
+                            0.02
+                        );
+                    } else if (pick_c < 0.75) {
+                        add_nettle(
+                            (pick_a < 0.5)
+                                ? "small_a"
+                                : "small_b",
+                            px,
+                            pz,
+                            0.50 + 0.30 * pick_b,
+                            0.02
+                        );
+                    } else {
+                        add_weed(
+                            (pick_a < 0.25)
+                                ? "a"
+                                : (pick_a < 0.5)
+                                    ? "b"
+                                    : (pick_a < 0.75)
+                                        ? "c"
+                                        : "e",
+                            px,
+                            pz,
+                            0.30 + 0.12 * pick_b,
+                            0.02
+                        );
+                    }
+                } else if (zone == 1) {
+                    // Broadleaf bed: calatheas and shrubs build a
+                    // continuous paddle-leaf canopy.
+                    if (pick_c < 0.32 && !near_wall) {
+                        add_calathea(px, pz, 0.02);
+                    } else if (pick_c < 0.58) {
+                        add_shrub02(
+                            (pick_a < 0.25)
+                                ? "a"
+                                : (pick_a < 0.5)
+                                    ? "b"
+                                    : (pick_a < 0.75)
+                                        ? "c"
+                                        : "d",
+                            px,
+                            pz,
+                            near_wall
+                                ? 0.80 + 0.15 * pick_b
+                                : 0.85 + 0.30 * pick_b,
+                            0.02
+                        );
+                    } else if (pick_c < 0.80) {
+                        add_nettle(
+                            (pick_a < 0.33)
+                                ? "medium_a"
+                                : (pick_a < 0.66)
+                                    ? "medium_b"
+                                    : "small_a",
+                            px,
+                            pz,
+                            0.55 + 0.30 * pick_b,
+                            0.02
+                        );
+                    } else {
+                        add_weed(
+                            (pick_a < 0.25)
+                                ? "a"
+                                : (pick_a < 0.5)
+                                    ? "c"
+                                    : (pick_a < 0.75)
+                                        ? "d"
+                                        : "e",
+                            px,
+                            pz,
+                            0.30 + 0.12 * pick_b,
+                            0.02
+                        );
+                    }
+                } else {
+                    // Shrub border along the rear wall.
+                    if (pick_c < 0.40) {
+                        add_shrub02(
+                            (pick_a < 0.25)
+                                ? "b"
+                                : (pick_a < 0.5)
+                                    ? "c"
+                                    : (pick_a < 0.75)
+                                        ? "d"
+                                        : "a",
+                            px,
+                            pz,
+                            0.90 + 0.35 * pick_b,
+                            0.02
+                        );
+                    } else if (pick_c < 0.70) {
+                        add_ground_fern(
+                            px,
+                            pz,
+                            0.85 + 0.35 * pick_b,
+                            0.02
+                        );
+                    } else {
+                        add_nettle(
+                            (pick_a < 0.5)
+                                ? "medium_a"
+                                : "tall_a",
+                            px,
+                            pz,
+                            0.75 + 0.30 * pick_b,
+                            0.02
+                        );
+                    }
+                }
+            }
+
+            ++column_index;
+        }
+    };
+
     // Wall-to-wall understory: nettle, shrub 02 and weed tufts pack
     // every remaining gap so the beds read as continuous jungle
     // ground rather than spaced-out specimens.
@@ -3293,6 +3553,13 @@ inline HittableList make_greenhouse_scene() {
     add_column_vine(-3.78, 3.00, 1.0, 67);
     add_column_vine(3.78, -6.00, -1.0, 83);
     add_column_vine(-3.78, -6.00, 1.0, 97);
+
+    // Zone fills: left bed fern zone, right bed broadleaf zone,
+    // rear shrub border. Spacing is tight enough that canopies
+    // merge into continuous masses.
+    fill_bed(-3.10, -1.15, -6.30, -0.85, 0.44, 11, 0);
+    fill_bed(1.12, 3.38, -6.30, 3.30, 0.50, 23, 1);
+    fill_bed(-3.05, 3.05, -7.30, -6.55, 0.42, 37, 2);
 
     // Side exhibition plinth.
     greenhouse_box(

@@ -133,6 +133,7 @@ int main(int argc, char* argv[]) {
                 "assets/environments/"
                 "rainforest_trail_2k.hdr"
             );
+            environment.set_intensity(setup.environment_intensity);
             active_environment = &environment;
         }
 

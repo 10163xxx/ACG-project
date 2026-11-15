@@ -50,11 +50,17 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         s.point_lights.clear();
         // A high warm sun acts as the directional key light; its
         // shadow rays rake through the roof glazing and cast the
-        // frame pattern onto the floor.
+        // frame pattern onto the floor. Strong enough to give the
+        // dappled light/shadow contrast real photographs have.
         s.point_lights.emplace_back(
             Vec3(14.0, 22.0, 16.0),
-            Vec3(5200.0, 4900.0, 4300.0)
+            Vec3(9800.0, 9200.0, 8000.0)
         );
+        // The forest sky only fills the shadows; the sun carries
+        // the highlights. A slight aperture gives photographic DOF.
+        s.environment_intensity = 0.68;
+        aperture = 0.06;
+        focus = 11.0;
     } else {
         switch (request.test) {
         case TestKind::Mipmap:

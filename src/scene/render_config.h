@@ -31,4 +31,5 @@ struct RenderSetup {
     std::string output;
     std::vector<PointLight> point_lights;
     bool use_environment = true;
+    double environment_intensity = 1.0;
 };

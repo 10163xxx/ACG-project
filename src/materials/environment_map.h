@@ -134,6 +134,16 @@ public:
         return height_;
     }
 
+    void set_intensity(double intensity) {
+        if (!std::isfinite(intensity) || intensity < 0.0) {
+            throw std::invalid_argument(
+                "Environment intensity must be finite and non-negative."
+            );
+        }
+
+        intensity_ = intensity;
+    }
+
     Vec3 evaluate(const Vec3& direction) const {
         if (empty()) {
             return Vec3(0.0, 0.0, 0.0);
@@ -170,7 +180,7 @@ public:
 
         return pixels_[
             static_cast<std::size_t>(y) * width_ + x
-        ];
+        ] * intensity_;
     }
 
     // Sample a direction according to luminance * sin(theta).
@@ -322,6 +332,8 @@ private:
     int height_ = 0;
 
     std::vector<Vec3> pixels_;
+
+    double intensity_ = 1.0;
     std::vector<double> cdf_;
     std::vector<double> weights_;
 

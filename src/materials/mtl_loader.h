@@ -324,13 +324,40 @@ public:
                 const auto texture_path =
                     resolve_path(map.filename);
 
-                std::shared_ptr<const Texture> texture =
-                    std::make_shared<ImageTexture>(
+                // Dense scenes load the same plant texture hundreds
+                // of times; share one texture object per resolved
+                // path instead of allocating a private copy per
+                // instance (scene building is single-threaded).
+                static std::map<
+                    std::string,
+                    std::shared_ptr<const Texture>
+                > texture_cache;
+
+                const std::string cache_key =
+                    texture_path.string()
+                    + "|"
+                    + (decode_srgb ? "srgb" : "linear")
+                    + "|"
+                    + std::to_string(
+                        static_cast<int>(map.address_mode)
+                    );
+
+                std::shared_ptr<const Texture> texture;
+
+                const auto cached = texture_cache.find(cache_key);
+
+                if (cached != texture_cache.end()) {
+                    texture = cached->second;
+                } else {
+                    texture = std::make_shared<ImageTexture>(
                         texture_path.string(),
                         true,
                         decode_srgb,
                         map.address_mode
                     );
+
+                    texture_cache.emplace(cache_key, texture);
+                }
 
                 if (map.scale_u != 1.0 ||
                     map.scale_v != 1.0 ||
