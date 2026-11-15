@@ -17,7 +17,9 @@
 #include "materials/diffuse_light.h"
 #include "materials/lambertian.h"
 #include "materials/principled.h"
+#include "materials/bump_mapped_material.h"
 #include "materials/procedural_texture.h"
+#include "materials/texture_transform.h"
 #include "materials/thin_glass.h"
 
 inline const AABB& greenhouse_plant_bounds() {
@@ -65,13 +67,36 @@ inline void greenhouse_validate_plant_bounds(
     }
 }
 
+inline Vec3 greenhouse_plant_tint(double x, double z, double seed) {
+    // Deterministic per-plant color variation: repeated models get
+    // slightly different tones so beds do not read as clones.
+    const double value_a = std::sin(
+        x * 12.9898 + z * 78.233 + seed
+    ) * 43758.5453;
+
+    const double value_b = std::sin(
+        x * 39.719 + z * 12.131 + seed * 2.0
+    ) * 43758.5453;
+
+    const double value_c = std::sin(
+        x * 91.311 + z * 47.819 + seed * 3.0
+    ) * 43758.5453;
+
+    return Vec3(
+        0.88 + 0.22 * (value_a - std::floor(value_a)),
+        0.90 + 0.20 * (value_b - std::floor(value_b)),
+        0.86 + 0.22 * (value_c - std::floor(value_c))
+    );
+}
+
 inline TriangleMesh greenhouse_load_plant_obj(
     const std::string& filename,
     std::shared_ptr<const Material> fallback_material,
     double target_height,
     const Vec3& base_position,
     const std::vector<std::string>& object_names = {},
-    double target_width = 0.0
+    double target_width = 0.0,
+    const Vec3& tint = Vec3(1.0, 1.0, 1.0)
 ) {
     TriangleMesh mesh = ObjLoader::load_file(
         filename,
@@ -80,7 +105,8 @@ inline TriangleMesh greenhouse_load_plant_obj(
         base_position,
         object_names,
         target_width,
-        &greenhouse_plant_bounds()
+        &greenhouse_plant_bounds(),
+        tint
     );
 
     return mesh;
@@ -1554,8 +1580,25 @@ inline HittableList make_greenhouse_scene() {
         417
     );
 
-    auto floor = std::make_shared<Lambertian>(
-        floor_texture
+    // Worn-concrete bump: a tileable height map drives normal
+    // perturbation so the paving catches light like real stone.
+    auto floor_bump_texture = std::make_shared<TextureTransform>(
+        std::make_shared<ImageTexture>(
+            "assets/textures/floor_bump.ppm",
+            true,
+            false,
+            TextureAddressMode::Repeat
+        ),
+        9.0,
+        13.0,
+        0.0,
+        0.0
+    );
+
+    auto floor = std::make_shared<BumpMappedMaterial>(
+        std::make_shared<Lambertian>(floor_texture),
+        floor_bump_texture,
+        1.6
     );
 
     // Flagstone palette: three weathered granite variants so the
@@ -1602,8 +1645,25 @@ inline HittableList make_greenhouse_scene() {
             Vec3(0.062, 0.052, 0.038)
         );
 
-    auto stone = std::make_shared<PrincipledBSDF>(
-        Vec3(0.36, 0.31, 0.23), 0.0, 0.72);
+    auto stone_bump_texture = std::make_shared<TextureTransform>(
+        std::make_shared<ImageTexture>(
+            "assets/textures/stone_bump.ppm",
+            true,
+            false,
+            TextureAddressMode::Repeat
+        ),
+        6.0,
+        6.0,
+        0.0,
+        0.0
+    );
+
+    auto stone = std::make_shared<BumpMappedMaterial>(
+        std::make_shared<PrincipledBSDF>(
+            Vec3(0.36, 0.31, 0.23), 0.0, 0.72),
+        stone_bump_texture,
+        0.9
+    );
 
     auto iron = std::make_shared<PrincipledBSDF>(
         Vec3(0.045, 0.095, 0.065), 0.45, 0.48);
@@ -2062,7 +2122,10 @@ inline HittableList make_greenhouse_scene() {
             "assets/fern_02_2k.blend/fern_02_2k.obj",
             fern_fallback,
             height,
-            Vec3(x, base_y, z)
+            Vec3(x, base_y, z),
+            {},
+            0.0,
+            greenhouse_plant_tint(x, z, height)
         );
 
         world.add(
@@ -2239,7 +2302,8 @@ inline HittableList make_greenhouse_scene() {
                 "calathea_orbifolia_01_d",
                 "calathea_orbifolia_01_e"
             },
-            1.25
+            1.25,
+            greenhouse_plant_tint(x, z, 7.0)
         );
 
         world.add(
@@ -2529,8 +2593,23 @@ inline HittableList make_greenhouse_scene() {
         731
     );
 
-    auto bed_soil = std::make_shared<Lambertian>(
-        bed_soil_texture
+    auto soil_bump_texture = std::make_shared<TextureTransform>(
+        std::make_shared<ImageTexture>(
+            "assets/textures/soil_bump.ppm",
+            true,
+            false,
+            TextureAddressMode::Repeat
+        ),
+        3.0,
+        3.0,
+        0.0,
+        0.0
+    );
+
+    auto bed_soil = std::make_shared<BumpMappedMaterial>(
+        std::make_shared<Lambertian>(bed_soil_texture),
+        soil_bump_texture,
+        1.4
     );
 
     const auto add_bed_segment = [&](
@@ -2696,7 +2775,9 @@ inline HittableList make_greenhouse_scene() {
             moss_fallback,
             size,
             Vec3(x, y, z),
-            { clump_name }
+            { clump_name },
+            0.0,
+            greenhouse_plant_tint(x, z, size)
         );
 
         world.add(
@@ -2755,7 +2836,9 @@ inline HittableList make_greenhouse_scene() {
             shrub_fallback,
             height,
             Vec3(x, base_y, z),
-            { "shrub_01_" + variant + "_LOD0" }
+            { "shrub_01_" + variant + "_LOD0" },
+            0.0,
+            greenhouse_plant_tint(x, z, 13.0)
         );
 
         world.add(
@@ -2777,7 +2860,9 @@ inline HittableList make_greenhouse_scene() {
             shrub_fallback,
             height,
             Vec3(x, base_y, z),
-            { "shrub_02_" + variant + "_LOD0" }
+            { "shrub_02_" + variant + "_LOD0" },
+            0.0,
+            greenhouse_plant_tint(x, z, 17.0)
         );
 
         world.add(
@@ -2799,7 +2884,9 @@ inline HittableList make_greenhouse_scene() {
             shrub_fallback,
             height,
             Vec3(x, base_y, z),
-            { "nettle_plant_" + variant + "_LOD0" }
+            { "nettle_plant_" + variant + "_LOD0" },
+            0.0,
+            greenhouse_plant_tint(x, z, 23.0)
         );
 
         world.add(
@@ -2821,7 +2908,9 @@ inline HittableList make_greenhouse_scene() {
             shrub_fallback,
             height,
             Vec3(x, base_y, z),
-            { "weed_plant_02_" + variant + "_LOD0" }
+            { "weed_plant_02_" + variant + "_LOD0" },
+            0.0,
+            greenhouse_plant_tint(x, z, 29.0)
         );
 
         world.add(
@@ -2844,7 +2933,9 @@ inline HittableList make_greenhouse_scene() {
             periwinkle_fallback,
             height,
             Vec3(x, base_y, z),
-            { "periwinkle_plant_" + variant + "_LOD0" }
+            { "periwinkle_plant_" + variant + "_LOD0" },
+            0.0,
+            greenhouse_plant_tint(x, z, 31.0)
         );
 
         world.add(

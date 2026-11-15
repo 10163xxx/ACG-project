@@ -17,6 +17,7 @@
 
 #include "geometry/mesh.h"
 #include "materials/mtl_loader.h"
+#include "materials/tinted_material.h"
 
 class ObjLoader {
 private:
@@ -1400,7 +1401,8 @@ public:
         const Vec3& base_position = Vec3(0.0, 0.0, 0.0),
         const std::vector<std::string>& object_names = {},
         double target_width = 0.0,
-        const AABB* allowed_bounds = nullptr
+        const AABB* allowed_bounds = nullptr,
+        const Vec3& tint = Vec3(1.0, 1.0, 1.0)
     ) {
         // Dense scenes place the same plant dozens of times; parse
         // each (file, object selection) combination once and reuse
@@ -1690,6 +1692,9 @@ public:
 
         MtlLoader::MaterialMap materials;
 
+        const bool has_tint =
+            tint.x != 1.0 || tint.y != 1.0 || tint.z != 1.0;
+
         for (const std::string& library :
              parsed.material_libraries) {
             const std::filesystem::path mtl_path =
@@ -1698,7 +1703,23 @@ public:
             MtlLoader::MaterialMap loaded =
                 MtlLoader::load_file(mtl_path.string());
 
+            for (auto& entry : loaded) {
+                if (entry.second && has_tint) {
+                    entry.second = std::make_shared<TintedMaterial>(
+                        entry.second,
+                        tint
+                    );
+                }
+            }
+
             materials.insert(loaded.begin(), loaded.end());
+        }
+
+        if (fallback_material && has_tint) {
+            fallback_material = std::make_shared<TintedMaterial>(
+                fallback_material,
+                tint
+            );
         }
 
         return build_mesh(
