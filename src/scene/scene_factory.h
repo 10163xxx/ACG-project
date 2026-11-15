@@ -40,11 +40,13 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         s.height = 360;
         s.samples = 192;
         s.max_depth = 24;
-        from = Vec3(2.8, 2.75, 10.5);
-        at = Vec3(0.30, 1.80, -2.7);
-        fov = 38;
+        // Eye-level interior view down the walkway: the tall glass
+        // walls and the deep planted vista carry the hall's scale.
+        from = Vec3(0.60, 1.70, 3.30);
+        at = Vec3(-0.10, 1.50, -7.50);
+        fov = 44;
         aperture = 0.0;
-        focus = 13.5;
+        focus = 13.0;
         s.geometry = make_greenhouse_scene();
         s.output = OutputPaths::RenderDirectory + "greenhouse_scene.ppm";
         s.point_lights.clear();
@@ -60,8 +62,8 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
         // The forest sky only fills the shadows; the sun carries
         // the highlights. A slight aperture gives photographic DOF.
         s.environment_intensity = 0.68;
-        aperture = 0.06;
-        focus = 11.0;
+        aperture = 0.05;
+        focus = 9.5;
     } else {
         switch (request.test) {
         case TestKind::Mipmap:

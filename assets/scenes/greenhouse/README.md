@@ -21,8 +21,10 @@ results/renders/greenhouse_scene.jpg
 
 ### Architecture (procedural)
 
-- Stone plinth walls and a paved interior floor with Perlin noise
-  shading, plus a stone slab walkway down the centre.
+- A 9.2 m x 15.5 m glasshouse: stone plinth walls and a paved
+  interior floor with Perlin shading and a bump-mapped worn-concrete
+  finish, plus a wide flagstone walkway running from the outside
+  approach deep into the interior.
 - Iron structural frame: side columns, transverse ties, ridge beam,
   roof rafters, wall mullions and glazing rails.
 - Thin-glass glazing: individual side-wall panes, roof slopes divided

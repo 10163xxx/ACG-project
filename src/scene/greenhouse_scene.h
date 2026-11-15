@@ -24,8 +24,8 @@
 
 inline const AABB& greenhouse_plant_bounds() {
     static const AABB bounds(
-        Vec3(-3.55, 0.0, -7.65),
-        Vec3(3.55, 4.0, 3.65)
+        Vec3(-4.08, 0.0, -11.10),
+        Vec3(4.08, 4.0, 3.70)
     );
 
     return bounds;
@@ -57,7 +57,7 @@ inline void greenhouse_validate_plant_bounds(
     );
 
     const double roof_height =
-        5.98 - 0.485 * maximum_abs_x;
+        5.98 - 0.4305 * maximum_abs_x;
 
     if (bounds.maximum.y > roof_height - 0.12 + EPSILON) {
         throw std::runtime_error(
@@ -1687,7 +1687,7 @@ inline HittableList make_greenhouse_scene() {
     );
 
     world.add(std::make_shared<Quad>(
-        Vec3(-4, 0, 4), Vec3(8, 0, 0), Vec3(0, 0, -12), floor));
+        Vec3(-4.6, 0, 4), Vec3(9.2, 0, 0), Vec3(0, 0, -15.5), floor));
 
     greenhouse_add_stone_slab_path(
         world,
@@ -1697,10 +1697,10 @@ inline HittableList make_greenhouse_scene() {
         3.40,
         8,
         2,
-        0.34,
+        0.42,
         0.88,
-        0.295,
-        0.375,
+        0.34,
+        0.42,
         0.105,
         3
     );
@@ -1715,8 +1715,8 @@ inline HittableList make_greenhouse_scene() {
         1,
         0.0,
         0.88,
-        0.30,
-        0.30,
+        0.34,
+        0.34,
         0.090,
         29
     );
@@ -1729,10 +1729,10 @@ inline HittableList make_greenhouse_scene() {
         12.60,
         9,
         3,
-        0.46,
+        0.56,
         1.02,
-        0.34,
-        0.42,
+        0.40,
+        0.46,
         0.075,
         17
     );
@@ -1872,52 +1872,52 @@ inline HittableList make_greenhouse_scene() {
         "assets/fern_02_2k.blend/fern_02_2k.obj",
         -0.20, -9.00, 1.00, 0.0);
 
-    greenhouse_box(world, Vec3(-4, 0, -8), Vec3(-3.72, .62, 4), stone);
-    greenhouse_box(world, Vec3(3.72, 0, -8), Vec3(4, .62, 4), stone);
+    greenhouse_box(world, Vec3(-4.6, 0, -11.5), Vec3(-4.278, .62, 4), stone);
+    greenhouse_box(world, Vec3(4.278, 0, -11.5), Vec3(4.6, .62, 4), stone);
 
     // Side columns and transverse ties.
-    for (int z = 3; z >= -6; z -= 3) {
-        greenhouse_box(world, Vec3(-3.88, .62, z - .11),
-            Vec3(-3.68, 4.05, z + .11), iron);
-        greenhouse_box(world, Vec3(3.68, .62, z - .11),
-            Vec3(3.88, 4.05, z + .11), iron);
-        greenhouse_box(world, Vec3(-3.82, 3.82, z - .075),
-            Vec3(3.82, 4.02, z + .075), iron);
+    for (int z = 3; z >= -9; z -= 3) {
+        greenhouse_box(world, Vec3(-4.462, .62, z - .11),
+            Vec3(-4.232, 4.05, z + .11), iron);
+        greenhouse_box(world, Vec3(4.232, .62, z - .11),
+            Vec3(4.462, 4.05, z + .11), iron);
+        greenhouse_box(world, Vec3(-4.393, 3.82, z - .075),
+            Vec3(4.393, 4.02, z + .075), iron);
     }
 
 
-    greenhouse_box(world, Vec3(-.10, 5.98, -8),
+    greenhouse_box(world, Vec3(-.10, 5.98, -11.5),
         Vec3(.10, 6.20, 4), copper);
-    greenhouse_box(world, Vec3(-4, 3.91, -8),
-        Vec3(-3.82, 4.12, 4), iron);
-    greenhouse_box(world, Vec3(3.82, 3.91, -8),
-        Vec3(4, 4.12, 4), iron);
+    greenhouse_box(world, Vec3(-4.6, 3.91, -11.5),
+        Vec3(-4.393, 4.12, 4), iron);
+    greenhouse_box(world, Vec3(4.393, 3.91, -11.5),
+        Vec3(4.6, 4.12, 4), iron);
 
     // Roof cross rafters.
-    for (int i = 0; i <= 5; ++i) {
+    for (int i = 0; i <= 6; ++i) {
         const double z = 3.85 - 2.4 * i;
         world.add(std::make_shared<Quad>(
-            Vec3(-4, 4.04, z), Vec3(4, 1.98, 0),
+            Vec3(-4.6, 4.04, z), Vec3(4.6, 1.98, 0),
             Vec3(0, 0, -.075), iron));
         world.add(std::make_shared<Quad>(
-            Vec3(0, 6.02, z), Vec3(4, -1.98, 0),
+            Vec3(0, 6.02, z), Vec3(4.6, -1.98, 0),
             Vec3(0, 0, -.075), iron));
     }
 
     // Rear glazed wall and mullions.
-    for (double x : {-2.4, -1.2, 0.0, 1.2, 2.4}) {
-        greenhouse_box(world, Vec3(x - .035, .72, -7.98),
-            Vec3(x + .035, 3.95, -7.82), iron);
+    for (double x : {-2.76, -1.38, 0.0, 1.38, 2.76}) {
+        greenhouse_box(world, Vec3(x - .035, .72, -11.48),
+            Vec3(x + .035, 3.95, -11.32), iron);
     }
 
     // Side-wall glazing: individual panes separated from metal frames.
     // The glass is slightly offset toward the interior to avoid
     // coplanar intersections with the structural mullions.
-    const double side_glass_left_x = -3.735;
-    const double side_glass_right_x = 3.735;
+    const double side_glass_left_x = -4.295;
+    const double side_glass_right_x = 4.295;
 
-    const std::array<double, 7> pane_z = {
-        3.82, 2.08, 0.08, -1.92, -3.92, -5.92, -7.82
+    const std::array<double, 10> pane_z = {
+        3.82, 2.14, 0.46, -1.22, -2.90, -4.58, -6.26, -7.94, -9.62, -11.30
     };
 
     const std::array<double, 4> pane_y = {
@@ -1954,18 +1954,18 @@ inline HittableList make_greenhouse_scene() {
     }
 
     // Vertical side-wall mullions.
-    for (int z = 2; z >= -6; z -= 2) {
+    for (int z = 2; z >= -10; z -= 2) {
         greenhouse_box(
             world,
-            Vec3(-3.86, 0.72, z - 0.035),
-            Vec3(-3.78, 3.90, z + 0.035),
+            Vec3(-4.439, 0.72, z - 0.035),
+            Vec3(-4.347, 3.90, z + 0.035),
             iron
         );
 
         greenhouse_box(
             world,
-            Vec3(3.78, 0.72, z - 0.035),
-            Vec3(3.86, 3.90, z + 0.035),
+            Vec3(4.347, 0.72, z - 0.035),
+            Vec3(4.439, 3.90, z + 0.035),
             iron
         );
     }
@@ -1974,97 +1974,120 @@ inline HittableList make_greenhouse_scene() {
     for (double y : {1.75, 2.85}) {
         greenhouse_box(
             world,
-            Vec3(-3.86, y, -8.0),
-            Vec3(-3.78, y + 0.055, 4.0),
+            Vec3(-4.439, y, -11.5),
+            Vec3(-4.347, y + 0.055, 4.0),
             iron
         );
 
         greenhouse_box(
             world,
-            Vec3(3.78, y, -8.0),
-            Vec3(3.86, y + 0.055, 4.0),
+            Vec3(4.347, y, -11.5),
+            Vec3(4.439, y + 0.055, 4.0),
             iron
         );
     }
 
     // Rear wall glazing.
     world.add(std::make_shared<Quad>(
-        Vec3(-3.78, 0.72, -7.82),
-        Vec3(7.56, 0.0, 0.0),
+        Vec3(-4.347, 0.72, -11.32),
+        Vec3(8.694, 0.0, 0.0),
         Vec3(0.0, 3.18, 0.0),
         glass_pane
     ));
 
     // Roof glazing: left slope.
     world.add(std::make_shared<Quad>(
-        Vec3(-3.96, 4.08, 3.82),
-        Vec3(3.92, 1.94, 0.0),
-        Vec3(0.0, 0.0, -11.64),
+        Vec3(-4.554, 4.08, 3.82),
+        Vec3(4.508, 1.94, 0.0),
+        Vec3(0.0, 0.0, -15.14),
         glass_pane
     ));
 
     // Roof glazing: right slope.
     world.add(std::make_shared<Quad>(
         Vec3(0.04, 5.98, 3.82),
-        Vec3(3.92, -1.94, 0.0),
-        Vec3(0.0, 0.0, -11.64),
+        Vec3(4.508, -1.94, 0.0),
+        Vec3(0.0, 0.0, -15.14),
         glass_pane
     ));
 
     // Slim pressure caps divide the roof glazing into believable panels.
     // These sit just above the glass and follow each roof pitch.
     for (double t : {0.25, 0.50, 0.75}) {
-        const double left_x = -3.96 + 3.92 * t;
+        const double left_x = -4.554 + 4.508 * t;
         const double left_y = 4.08 + 1.94 * t;
 
         world.add(std::make_shared<Quad>(
             Vec3(left_x, left_y + 0.018, 3.82),
             Vec3(0.035, 0.017, 0.0),
-            Vec3(0.0, 0.0, -11.64),
+            Vec3(0.0, 0.0, -15.14),
             iron
         ));
 
-        const double right_x = 0.04 + 3.92 * t;
+        const double right_x = 0.04 + 4.508 * t;
         const double right_y = 5.98 - 1.94 * t;
 
         world.add(std::make_shared<Quad>(
             Vec3(right_x, right_y + 0.018, 3.82),
             Vec3(0.035, -0.017, 0.0),
-            Vec3(0.0, 0.0, -11.64),
+            Vec3(0.0, 0.0, -15.14),
             iron
         ));
     }
 
     // Fine transverse glazing caps create smaller roof-light modules.
-    for (int i = 0; i <= 10; ++i) {
-        const double z = 3.82 - 1.16 * i;
+    for (int i = 0; i <= 13; ++i) {
+        const double z = 3.82 - 1.164 * i;
 
         world.add(std::make_shared<Quad>(
-            Vec3(-3.96, 4.105, z),
-            Vec3(3.92, 1.94, 0.0),
+            Vec3(-4.554, 4.105, z),
+            Vec3(4.508, 1.94, 0.0),
             Vec3(0.0, 0.025, 0.0),
             iron
         ));
 
         world.add(std::make_shared<Quad>(
             Vec3(0.04, 5.985, z),
-            Vec3(3.92, -1.94, 0.0),
+            Vec3(4.508, -1.94, 0.0),
             Vec3(0.0, -0.025, 0.0),
             iron
         ));
     }
 
+    // Gable glass fills the triangular wall-to-roof gap at the
+    // front and rear ends of the house.
+    auto add_gable_triangle = [&](double z) {
+        const std::vector<Vec3> vertices = {
+            Vec3(-4.347, 3.90, z),
+            Vec3(4.347, 3.90, z),
+            Vec3(0.0, 6.02, z)
+        };
+
+        const std::vector<TriangleMesh::Face> faces = {
+            {0, 1, 2}
+        };
+
+        world.add(std::make_shared<TriangleMesh>(
+            vertices,
+            faces,
+            glass_pane
+        ));
+    };
+
+    add_gable_triangle(3.82);
+    add_gable_triangle(-11.32);
+
     // Front entrance glazing, leaving a central doorway.
     world.add(std::make_shared<Quad>(
-        Vec3(-3.78, 0.72, 3.82),
-        Vec3(2.58, 0.0, 0.0),
+        Vec3(-4.347, 0.72, 3.82),
+        Vec3(2.967, 0.0, 0.0),
         Vec3(0.0, 3.18, 0.0),
         glass_pane
     ));
 
     world.add(std::make_shared<Quad>(
-        Vec3(1.20, 0.72, 3.82),
-        Vec3(2.58, 0.0, 0.0),
+        Vec3(1.38, 0.72, 3.82),
+        Vec3(2.967, 0.0, 0.0),
         Vec3(0.0, 3.18, 0.0),
         glass_pane
     ));
@@ -2090,7 +2113,7 @@ inline HittableList make_greenhouse_scene() {
         "anthurium_botany_01_2k.obj",
         anthurium_fallback,
         2.35,
-        Vec3(1.90, 0.82, -2.70)
+        Vec3(2.185, 0.82, -2.70)
     );
 
     world.add(
@@ -2151,7 +2174,7 @@ inline HittableList make_greenhouse_scene() {
         "assets/potted-split-leaf-monstera.obj",
         monstera_fallback,
         1.55,
-        Vec3(2.35, 0.0, 1.35)
+        Vec3(2.70, 0.0, 1.55)
     );
 
     world.add(
@@ -2418,14 +2441,14 @@ inline HittableList make_greenhouse_scene() {
         0.60
     );
 
-    constexpr double BENCH_MIN_X = -3.45;
-    constexpr double BENCH_MAX_X = -2.15;
+    constexpr double BENCH_MIN_X = -3.97;
+    constexpr double BENCH_MAX_X = -2.47;
     constexpr double BENCH_MIN_Z = 1.30;
     constexpr double BENCH_MAX_Z = 3.20;
     constexpr double BENCH_TOP_Y = 0.595;
 
     // Four iron legs, inset from the bench corners.
-    for (double leg_x : {-3.35, -2.25}) {
+    for (double leg_x : {-3.87, -2.57}) {
         for (double leg_z : {1.42, 3.08}) {
             greenhouse_box(
                 world,
@@ -2615,12 +2638,13 @@ inline HittableList make_greenhouse_scene() {
     const auto add_bed_segment = [&](
         double x0,
         double x1,
-        double front_z
+        double front_z,
+        double back_z
     ) {
         world.add(std::make_shared<Quad>(
             Vec3(x0, 0.012, front_z),
             Vec3(x1 - x0, 0.0, 0.0),
-            Vec3(0.0, 0.0, -7.55 - front_z),
+            Vec3(0.0, 0.0, back_z - front_z),
             bed_soil
         ));
 
@@ -2633,10 +2657,10 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    add_bed_segment(-3.45, -1.85, -6.55);
-    add_bed_segment(-1.85, -0.15, -6.40);
-    add_bed_segment(-0.15, 1.75, -6.62);
-    add_bed_segment(1.75, 3.45, -6.45);
+    add_bed_segment(-4.05, -2.35, -9.90, -11.00);
+    add_bed_segment(-2.35, -0.65, -9.75, -11.00);
+    add_bed_segment(-0.65, 1.35, -10.00, -11.00);
+    add_bed_segment(1.35, 4.05, -9.80, -11.00);
 
     // Weathered stones scattered along the bed edge.
     const auto add_bed_stone = [&](double x, double z, double radius) {
@@ -2722,9 +2746,9 @@ inline HittableList make_greenhouse_scene() {
     // Rectangular trough tucked into the front-right corner.
     greenhouse_add_stone_trough(
         world,
-        2.72,
+        3.128,
         2.32,
-        3.52,
+        4.048,
         3.32,
         stone,
         water_surface,
@@ -3025,7 +3049,7 @@ inline HittableList make_greenhouse_scene() {
         bool with_curb
     ) {
         const double soil_inner = side * walkway_edge;
-        const double soil_outer = side * 3.50;
+        const double soil_outer = side * 4.02;
 
         world.add(std::make_shared<Quad>(
             Vec3(soil_inner, 0.012, z1),
@@ -3053,18 +3077,22 @@ inline HittableList make_greenhouse_scene() {
     };
 
     // Left wall beds (the display bench backs onto the last strip).
-    add_side_bed_segment(-6.45, -4.45, 0.96, -1, true);
-    add_side_bed_segment(-4.45, -2.45, 0.90, -1, true);
-    add_side_bed_segment(-2.45, -0.45, 0.98, -1, true);
-    add_side_bed_segment(-0.45, 1.25, 0.92, -1, true);
-    add_side_bed_segment(1.25, 3.50, 2.15, -1, false);
+    add_side_bed_segment(-9.95, -8.05, 1.10, -1, true);
+    add_side_bed_segment(-8.05, -6.45, 1.10, -1, true);
+    add_side_bed_segment(-6.45, -4.45, 1.10, -1, true);
+    add_side_bed_segment(-4.45, -2.45, 1.04, -1, true);
+    add_side_bed_segment(-2.45, -0.45, 1.12, -1, true);
+    add_side_bed_segment(-0.45, 1.25, 1.06, -1, true);
+    add_side_bed_segment(1.25, 3.50, 2.47, -1, false);
 
     // Right wall beds (the water trough sits inside the bed).
-    add_side_bed_segment(-6.45, -4.45, 0.94, 1, true);
-    add_side_bed_segment(-4.45, -2.45, 1.00, 1, true);
-    add_side_bed_segment(-2.45, -0.45, 0.92, 1, true);
-    add_side_bed_segment(-0.45, 1.55, 0.96, 1, true);
-    add_side_bed_segment(1.55, 3.45, 0.90, 1, true);
+    add_side_bed_segment(-9.95, -8.05, 1.10, 1, true);
+    add_side_bed_segment(-8.05, -6.45, 1.08, 1, true);
+    add_side_bed_segment(-6.45, -4.45, 1.10, 1, true);
+    add_side_bed_segment(-4.45, -2.45, 1.16, 1, true);
+    add_side_bed_segment(-2.45, -0.45, 1.06, 1, true);
+    add_side_bed_segment(-0.45, 1.55, 1.10, 1, true);
+    add_side_bed_segment(1.55, 3.45, 1.04, 1, true);
 
     // Artificial pond: an irregular man-made lake sunk into the
     // left bed, ringed with stone and dotted with lily pads.
@@ -3173,7 +3201,7 @@ inline HittableList make_greenhouse_scene() {
     add_moss("moss_01_g_LOD0", -1.55, 0.02, -4.40, 0.085);
     add_moss("moss_01_a_LOD0", -3.25, 0.02, -5.60, 0.075);
     add_periwinkle("05", -1.15, -2.60, 0.36, 0.02);
-    add_periwinkle("02", -1.02, 0.60, 0.34, 0.02);
+    add_periwinkle("02", -1.30, 0.60, 0.34, 0.02);
     add_periwinkle("04", -3.10, -0.45, 0.38, 0.02);
 
     // Right bed planting.
@@ -3211,7 +3239,7 @@ inline HittableList make_greenhouse_scene() {
     add_ground_fern(2.95, -4.10, 1.20, 0.02);
     add_ground_fern(3.20, -5.75, 1.25, 0.02);
     add_shrub01("e", -2.90, -2.20, 0.75, 0.02);
-    add_shrub01("f", -1.15, -1.60, 0.70, 0.005);
+    add_shrub01("f", -1.40, -1.60, 0.70, 0.005);
     add_shrub01("i", -1.35, -3.30, 0.72, 0.02);
     add_shrub01("h", 3.15, -3.30, 0.75, 0.02);
     add_calathea(-2.20, -4.40, 0.02);
@@ -3239,8 +3267,8 @@ inline HittableList make_greenhouse_scene() {
     add_moss("moss_01_d_LOD0", 2.95, 0.02, -2.95, 0.09);
     add_moss("moss_01_f_LOD0", 1.20, 0.02, -3.70, 0.08);
     add_moss("moss_01_a_LOD0", 3.25, 0.02, -3.60, 0.08);
-    add_periwinkle("06", -1.10, -1.55, 0.36, 0.02);
-    add_periwinkle("02", 0.98, -3.35, 0.36, 0.02);
+    add_periwinkle("06", -1.32, -1.55, 0.36, 0.02);
+    add_periwinkle("02", 1.28, -3.35, 0.36, 0.02);
     add_periwinkle("04", -1.20, -4.20, 0.38, 0.02);
     add_periwinkle("03", 1.30, -5.30, 0.36, 0.02);
 
@@ -3335,29 +3363,29 @@ inline HittableList make_greenhouse_scene() {
                 }
 
                 // Keep-out: exhibition plinth.
-                if (px > 1.15 && px < 2.65 &&
+                if (px > 1.32 && px < 3.05 &&
                     pz > -3.45 && pz < -1.95) {
                     continue;
                 }
 
                 // Keep-out: water trough.
-                if (px > 2.60 && px < 3.62 &&
+                if (px > 2.99 && px < 4.16 &&
                     pz > 2.20 && pz < 3.42) {
                     continue;
                 }
 
                 // Keep-out: display bench.
-                if (px > -3.55 && px < -2.05 &&
+                if (px > -4.10 && px < -2.35 &&
                     pz > 1.15 && pz < 3.30) {
                     continue;
                 }
 
                 // Keep-out: monstera planter and pachira pot.
-                const double monstera_dx = px - 2.35;
-                const double monstera_dz = pz - 1.35;
+                const double monstera_dx = px - 2.70;
+                const double monstera_dz = pz - 1.55;
 
                 if (monstera_dx * monstera_dx
-                        + monstera_dz * monstera_dz < 0.81) {
+                        + monstera_dz * monstera_dz < 1.15) {
                     continue;
                 }
 
@@ -3368,12 +3396,12 @@ inline HittableList make_greenhouse_scene() {
                 }
 
                 // Keep-out: walkway and stone curbs.
-                if (std::abs(px) < 1.08) {
+                if (std::abs(px) < 1.25) {
                     continue;
                 }
 
                 const bool near_wall =
-                    std::abs(px) > 2.70;
+                    std::abs(px) > 3.10;
 
                 if (zone == 0) {
                     // Fern bed: ferns dominate, nettle and weed
@@ -3522,16 +3550,16 @@ inline HittableList make_greenhouse_scene() {
     add_weed("d", -3.25, -4.60, 0.30, 0.02);
     // Left bed, mid strip between pond and rear border.
     add_nettle("medium_b", -3.30, -1.60, 0.75, 0.02);
-    add_nettle("tall_a", -1.25, -1.90, 1.00, 0.02);
+    add_nettle("tall_a", -1.50, -1.90, 1.00, 0.02);
     add_weed("e", -1.30, -2.90, 0.30, 0.02);
     add_ground_fern(-2.30, -1.55, 1.15, 0.02);
     add_moss("moss_01_c_LOD0", -3.35, 0.02, 0.35, 0.08);
-    add_weed("b", -1.15, -0.95, 0.30, 0.02);
+    add_weed("b", -1.42, -0.95, 0.30, 0.02);
     // Right bed, rear and mid.
     add_nettle("tall_a", 2.85, -0.70, 1.05, 0.02);
     add_nettle("tall_b", 1.30, -4.10, 1.00, 0.02);
     add_nettle("medium_a", 3.25, -1.30, 0.75, 0.02);
-    add_nettle("small_a", 1.15, 0.40, 0.50, 0.02);
+    add_nettle("small_a", 1.32, 0.40, 0.50, 0.02);
     add_shrub02("b", 3.20, 0.30, 0.90, 0.02);
     add_shrub02("c", 1.15, -5.85, 1.00, 0.02);
     add_shrub02("d", 2.95, -6.10, 0.95, 0.02);
@@ -3539,7 +3567,7 @@ inline HittableList make_greenhouse_scene() {
     add_weed("d", 3.30, -4.90, 0.30, 0.02);
     add_weed("e", 1.20, -6.35, 0.30, 0.02);
     add_weed("a", 1.10, -3.60, 0.30, 0.02);
-    add_moss("moss_01_tall_a_LOD0", 1.10, 0.02, -2.10, 0.085);
+    add_moss("moss_01_tall_a_LOD0", 1.32, 0.02, -2.10, 0.085);
     add_moss("moss_01_d_LOD0", 2.95, 0.02, -2.95, 0.09);
     // Right bed, front and entrance.
     add_nettle("medium_b", 1.15, 2.60, 0.75, 0.02);
@@ -3558,7 +3586,7 @@ inline HittableList make_greenhouse_scene() {
     add_weed("e", -1.60, -2.15, 0.30, 0.02);
     add_nettle("small_a", -1.30, -3.75, 0.50, 0.02);
     add_nettle("small_b", 2.30, 2.85, 0.50, 0.02);
-    add_periwinkle("01", 1.15, -1.70, 0.36, 0.02);
+    add_periwinkle("01", 1.40, -1.70, 0.36, 0.02);
     add_periwinkle("04", -1.35, -3.35, 0.36, 0.02);
     add_moss("moss_01_g_LOD0", -3.10, 0.02, -1.25, 0.085);
     add_moss("moss_01_h_LOD0", -1.45, 0.02, -3.10, 0.085);
@@ -3588,7 +3616,7 @@ inline HittableList make_greenhouse_scene() {
     };
 
     add_exterior_tree(5.90, -1.50, 4.60);
-    add_exterior_tree(-1.50, -10.50, 5.20);
+    add_exterior_tree(-1.50, -13.30, 5.20);
 
     // Climbing vines wind up the wall columns, growing inward so
     // they stay clear of the glazing.
@@ -3638,30 +3666,30 @@ inline HittableList make_greenhouse_scene() {
         }
     };
 
-    add_column_vine(3.78, 3.00, -1.0, 51);
-    add_column_vine(-3.78, 3.00, 1.0, 67);
-    add_column_vine(3.78, -6.00, -1.0, 83);
-    add_column_vine(-3.78, -6.00, 1.0, 97);
+    add_column_vine(4.347, 3.00, -1.0, 51);
+    add_column_vine(-4.347, 3.00, 1.0, 67);
+    add_column_vine(4.347, -6.00, -1.0, 83);
+    add_column_vine(-4.347, -6.00, 1.0, 97);
 
     // Zone fills: left bed fern zone, right bed broadleaf zone,
     // rear shrub border. Spacing is tight enough that canopies
     // merge into continuous masses.
-    fill_bed(-3.10, -1.15, -6.30, -0.85, 0.44, 11, 0);
-    fill_bed(1.12, 3.38, -6.30, 3.30, 0.50, 23, 1);
-    fill_bed(-3.05, 3.05, -7.30, -6.55, 0.42, 37, 2);
+    fill_bed(-3.60, -1.30, -9.85, -0.85, 0.44, 11, 0);
+    fill_bed(1.28, 3.98, -9.85, 3.30, 0.50, 23, 1);
+    fill_bed(-3.60, 3.60, -10.85, -9.95, 0.42, 37, 2);
 
     // Side exhibition plinth.
     greenhouse_box(
         world,
-        Vec3(1.25, 0.0, -3.35),
-        Vec3(2.55, 0.72, -2.05),
+        Vec3(1.44, 0.0, -3.35),
+        Vec3(2.93, 0.72, -2.05),
         stone
     );
 
     greenhouse_box(
         world,
-        Vec3(1.18, 0.72, -3.42),
-        Vec3(2.62, 0.82, -1.98),
+        Vec3(1.357, 0.72, -3.42),
+        Vec3(3.013, 0.82, -1.98),
         stone
     );
 
@@ -3673,8 +3701,8 @@ inline HittableList make_greenhouse_scene() {
     );
 
     world.add(std::make_shared<Quad>(
-        Vec3(-1.2, 5.28, -4.0),
-        Vec3(2.4, 0.0, 0.0),
+        Vec3(-1.4, 5.28, -4.0),
+        Vec3(2.8, 0.0, 0.0),
         Vec3(0.0, 0.0, 2.0),
         emitter
     ));
