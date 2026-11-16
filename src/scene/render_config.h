@@ -32,4 +32,9 @@ struct RenderSetup {
     std::vector<PointLight> point_lights;
     bool use_environment = true;
     double environment_intensity = 1.0;
+
+    // Luminance cap applied to indirect environment and emission
+    // contributions. Tames firefly speckle from rare glossy rays
+    // that reach a very bright sky through the glazing; 0 disables.
+    double firefly_clamp = 8.0;
 };

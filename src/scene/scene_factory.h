@@ -38,7 +38,7 @@ inline RenderSetup make_render_setup(const SceneRequest& request) {
     } else if (request.scene == SceneKind::Greenhouse) {
         s.width = 640;
         s.height = 360;
-        s.samples = 192;
+        s.samples = 288;
         s.max_depth = 24;
         // Eye-level interior view from the entrance: pulled back and
         // widened so the left pond, both planted borders and the deep

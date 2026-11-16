@@ -143,7 +143,11 @@ int main(int argc, char* argv[]) {
             ).count() << " ms"
             << std::endl;
 
-        PathTracer tracer(setup.max_depth);
+        PathTracer tracer(
+            setup.max_depth,
+            5,
+            setup.firefly_clamp
+        );
 
         EnvironmentMap environment;
         const EnvironmentMap* active_environment = nullptr;

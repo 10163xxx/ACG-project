@@ -25,12 +25,14 @@ class PathTracer {
 public:
     explicit PathTracer(
         int max_depth = 20,
-        int russian_roulette_start_depth = 5
+        int russian_roulette_start_depth = 5,
+        double firefly_clamp = 0.0
     )
         : max_depth_(max_depth),
           russian_roulette_start_depth_(
               russian_roulette_start_depth
-          ) {
+          ),
+          firefly_clamp_(firefly_clamp) {
         if (max_depth_ <= 0) {
             throw std::invalid_argument(
                 "PathTracer max_depth must be positive."
@@ -112,10 +114,21 @@ public:
                             );
                 }
 
-                radiance = radiance
-                    + throughput
+                Vec3 environment_contribution =
+                    throughput
                     * environment_radiance
                     * environment_weight;
+
+                // Camera-visible sky stays exact; indirect rays that
+                // glance off a glossy lobe into a very bright sky are
+                // the classic firefly source, so cap them.
+                if (depth > 0) {
+                    environment_contribution =
+                        clamp_firefly(environment_contribution);
+                }
+
+                radiance = radiance
+                    + environment_contribution;
 
                 break;
             }
@@ -194,8 +207,15 @@ public:
                     );
             }
 
-            radiance = radiance
-                + throughput * emitted * emission_weight;
+            Vec3 emission_contribution =
+                throughput * emitted * emission_weight;
+
+            if (depth > 0) {
+                emission_contribution =
+                    clamp_firefly(emission_contribution);
+            }
+
+            radiance = radiance + emission_contribution;
 
             const Vec3 direct_lighting =
                 hit.is_volume
@@ -378,6 +398,29 @@ public:
 private:
     int max_depth_;
     int russian_roulette_start_depth_;
+    double firefly_clamp_;
+
+    // Scales a sample contribution down to the luminance cap while
+    // preserving its color. Rare high-radiance paths would otherwise
+    // surface as bright speckle in the average of many samples.
+    Vec3 clamp_firefly(const Vec3& contribution) const {
+        if (firefly_clamp_ <= 0.0) {
+            return contribution;
+        }
+
+        const double luminance =
+            0.2126 * contribution.x
+            + 0.7152 * contribution.y
+            + 0.0722 * contribution.z;
+
+        if (!std::isfinite(luminance) ||
+            luminance <= firefly_clamp_ ||
+            luminance <= 0.0) {
+            return contribution;
+        }
+
+        return contribution * (firefly_clamp_ / luminance);
+    }
 
     static double russian_roulette_probability(
         const Vec3& throughput

@@ -170,32 +170,32 @@ inline void greenhouse_add_stone_slab_path(
 
     vertices.reserve(
         static_cast<std::size_t>(slab_count)
-        * (2 * SIDES + 2)
+        * (4 * SIDES + 6)
     );
 
     texcoords.reserve(
         static_cast<std::size_t>(slab_count)
-        * (2 * SIDES + 2)
+        * (4 * SIDES + 6)
     );
 
     faces.reserve(
         static_cast<std::size_t>(slab_count)
-        * (4 * SIDES)
+        * (9 * SIDES)
     );
 
     face_texcoords.reserve(
         static_cast<std::size_t>(slab_count)
-        * (4 * SIDES)
+        * (9 * SIDES)
     );
 
     face_has_uv.reserve(
         static_cast<std::size_t>(slab_count)
-        * (4 * SIDES)
+        * (9 * SIDES)
     );
 
     face_materials.reserve(
         static_cast<std::size_t>(slab_count)
-        * (4 * SIDES)
+        * (9 * SIDES)
     );
 
     const auto variation = [&](
@@ -321,6 +321,11 @@ inline void greenhouse_add_stone_slab_path(
             texcoords.emplace_back(0.5, 0.5, 0.0);
             texcoords.emplace_back(0.5, 0.5, 0.0);
 
+            double corner_local_x[SIDES];
+            double corner_local_z[SIDES];
+            std::size_t corner_top[SIDES];
+            std::size_t corner_bottom[SIDES];
+
             for (int side = 0; side < SIDES; ++side) {
                 // Clockwise corner walk (matching the previous
                 // winding): (+,+) → (+,-) → (-,-) → (-,+).
@@ -382,7 +387,7 @@ inline void greenhouse_add_stone_slab_path(
 
                 vertices.emplace_back(
                     x,
-                    top_y + top_offset,
+                    slab_top + top_offset,
                     z
                 );
 
@@ -390,6 +395,12 @@ inline void greenhouse_add_stone_slab_path(
                 // keep a non-degenerate parameterization.
                 texcoords.emplace_back(corner_u, corner_v - 0.18, 0.0);
                 texcoords.emplace_back(corner_u, corner_v, 0.0);
+
+                corner_local_x[side] = local_x;
+                corner_local_z[side] = local_z;
+                corner_bottom[side] = base + 2
+                    + static_cast<std::size_t>(side * 2);
+                corner_top[side] = corner_bottom[side] + 1;
             }
 
             const std::size_t bottom_center = base;
@@ -406,31 +417,104 @@ inline void greenhouse_add_stone_slab_path(
                 face_materials.push_back(slab_material);
             };
 
+            // Subdivision vertices: one midpoint per edge splits the
+            // side walls, one spoke midpoint per corner splits the
+            // top fan. Each carries its own height offset, so the
+            // top breaks into genuinely uneven facets whose shading
+            // changes across the slab like real dressed stone.
+            std::size_t mid_top[SIDES];
+            std::size_t mid_bottom[SIDES];
+            std::size_t spoke_top[SIDES];
+
             for (int side = 0; side < SIDES; ++side) {
                 const int next = (side + 1) % SIDES;
 
-                const std::size_t bottom_a =
-                    base + 2 + static_cast<std::size_t>(side * 2);
+                const std::size_t top_a = corner_top[side];
+                const std::size_t top_b = corner_top[next];
 
-                const std::size_t top_a =
-                    bottom_a + 1;
+                // The mid-edge point drifts radially, so joints
+                // widen and narrow between neighbouring slabs.
+                const double radial =
+                    0.90 + 0.20 * variation(row, column, side + 32);
 
-                const std::size_t bottom_b =
-                    base + 2 + static_cast<std::size_t>(next * 2);
+                const double mid_x =
+                    center_x
+                    + 0.5 * (vertices[top_a].x
+                             + vertices[top_b].x
+                             - 2.0 * center_x)
+                    * radial;
 
-                const std::size_t top_b =
-                    bottom_b + 1;
+                const double mid_z =
+                    center_z
+                    + 0.5 * (vertices[top_a].z
+                             + vertices[top_b].z
+                             - 2.0 * center_z)
+                    * radial;
 
-                // Top surface.
-                push_face(top_center, top_a, top_b);
+                const double mid_top_y =
+                    slab_top
+                    + 0.005
+                    + 0.005 * (variation(row, column, side + 36) - 0.5);
+
+                const double mid_u =
+                    0.5 * (texcoords[top_a].x + texcoords[top_b].x);
+
+                const double mid_v =
+                    0.5 * (texcoords[top_a].y + texcoords[top_b].y);
+
+                mid_bottom[side] = vertices.size();
+                vertices.emplace_back(mid_x, BOTTOM_Y, mid_z);
+                texcoords.emplace_back(mid_u, mid_v - 0.18, 0.0);
+
+                mid_top[side] = vertices.size();
+                vertices.emplace_back(mid_x, mid_top_y, mid_z);
+                texcoords.emplace_back(mid_u, mid_v, 0.0);
+
+                const double spoke_x =
+                    center_x
+                    + 0.5 * (vertices[top_a].x - center_x);
+
+                const double spoke_z =
+                    center_z
+                    + 0.5 * (vertices[top_a].z - center_z);
+
+                const double spoke_y =
+                    slab_top
+                    + 0.013
+                    + 0.005 * (variation(row, column, side + 40) - 0.5);
+
+                spoke_top[side] = vertices.size();
+                vertices.emplace_back(spoke_x, spoke_y, spoke_z);
+
+                texcoords.emplace_back(
+                    0.5 + 0.5 * corner_local_x[side] / uv_half_width,
+                    0.5 + 0.5 * corner_local_z[side] / uv_half_length,
+                    0.0
+                );
+            }
+
+            for (int side = 0; side < SIDES; ++side) {
+                const int next = (side + 1) % SIDES;
+
+                const std::size_t bottom_a = corner_bottom[side];
+                const std::size_t top_a = corner_top[side];
+                const std::size_t bottom_b = corner_bottom[next];
+                const std::size_t top_b = corner_top[next];
+
+                // Top surface: two facet rings instead of a flat fan.
+                push_face(top_center, spoke_top[side], spoke_top[next]);
+                push_face(spoke_top[side], top_a, mid_top[side]);
+                push_face(spoke_top[side], mid_top[side], spoke_top[next]);
+                push_face(mid_top[side], top_b, spoke_top[next]);
 
                 // Bottom surface.
                 push_face(bottom_center, bottom_b, bottom_a);
 
-                // Two triangles close each side wall.
-                push_face(top_b, bottom_b, bottom_a);
-
-                push_face(top_b, bottom_a, top_a);
+                // Four triangles close each side wall.
+                push_face(mid_top[side], bottom_b, mid_bottom[side]);
+                push_face(mid_top[side], mid_bottom[side], bottom_a);
+                push_face(top_b, bottom_b, mid_bottom[side]);
+                push_face(top_b, mid_bottom[side], mid_top[side]);
             }
         }
     }
@@ -3451,16 +3535,15 @@ inline HittableList make_greenhouse_scene() {
     add_lily_pad(-2.20, 0.55, 0.07);
     add_lily_pad(-1.70, -0.60, 0.075);
 
-    // Rockery: a clustered stack of mossy boulders on the far side
-    // of the pond, so the water is framed by stone instead of
-    // opening onto bare soil.
-    add_rock("rock_moss_set_01_rock03", -3.45, -1.35, 0.66, 0.005);
-    add_rock("rock_moss_set_01_rock01", -3.20, -1.06, 0.45, 0.005);
-    add_rock("rock_moss_set_01_rock05", -3.68, -1.10, 0.34, 0.005);
-    add_rock("rock_moss_set_01_rock06", -3.28, -1.58, 0.28, 0.005);
+    // Rockery: large mossy boulders massed behind the far rim of
+    // the pond, framed by the water from the entrance view.
+    add_rock("rock_moss_set_01_rock03", -2.85, -2.15, 1.10, 0.005);
+    add_rock("rock_moss_set_01_rock01", -2.20, -2.45, 0.85, 0.005);
+    add_rock("rock_moss_set_01_rock05", -3.45, -2.00, 0.60, 0.005);
+    add_rock("rock_moss_set_01_rock06", -3.15, -1.70, 0.45, 0.005);
 
-    add_moss("moss_01_c_LOD0", -3.42, 0.20, -1.32, 0.08);
-    add_moss("moss_01_f_LOD0", -3.20, 0.12, -1.06, 0.07);
+    add_moss("moss_01_c_LOD0", -2.80, 0.42, -2.10, 0.09);
+    add_moss("moss_01_f_LOD0", -2.25, 0.30, -2.42, 0.08);
 
     // Left bed planting: ferns rising out of the ground layer.
     add_ground_fern(-3.15, 0.55, 0.75, 0.02);
@@ -3468,7 +3551,6 @@ inline HittableList make_greenhouse_scene() {
     add_ground_fern(-2.85, -3.55, 0.80, 0.02);
     add_ground_fern(-3.20, -5.05, 0.95, 0.02);
     add_ground_fern(-3.15, 2.60, 0.85, 0.02);
-    add_shrub01("c", -2.90, -2.35, 0.65, 0.02);
     add_moss("moss_01_f_LOD0", -3.50, 0.02, 0.28, 0.08);
     add_moss("moss_01_d_LOD0", -1.35, 0.02, -1.90, 0.08);
     add_moss("moss_01_j_LOD0", -2.45, 0.02, -3.15, 0.075);
@@ -3636,15 +3718,15 @@ inline HittableList make_greenhouse_scene() {
                     continue;
                 }
 
-                // Keep-out: rockery framing the far pond edge.
-                if (px > -3.95 && px < -2.95 &&
-                    pz > -1.80 && pz < -0.80) {
+                // Keep-out: rockery massed behind the pond rim.
+                if (px > -3.90 && px < -1.72 &&
+                    pz > -3.00 && pz < -1.45) {
                     continue;
                 }
 
                 // Keep-out: stacked-stone sculpture pedestal.
-                const double sculpture_dx = px + 1.55;
-                const double sculpture_dz = pz + 2.40;
+                const double sculpture_dx = px - 1.42;
+                const double sculpture_dz = pz + 0.70;
 
                 if (sculpture_dx * sculpture_dx
                         + sculpture_dz * sculpture_dz < 0.42) {
@@ -3834,14 +3916,12 @@ inline HittableList make_greenhouse_scene() {
     add_shrub02("c", -2.35, -6.35, 1.05, 0.02);
     add_shrub02("d", -1.30, -6.30, 0.90, 0.02);
     add_weed("a", -1.45, -4.35, 0.35, 0.02);
-    add_weed("b", -2.65, -2.75, 0.30, 0.02);
     add_weed("c", -1.55, -5.55, 0.32, 0.02);
     add_weed("d", -3.25, -4.60, 0.30, 0.02);
     // Left bed, mid strip between pond and rear border.
-    add_nettle("medium_b", -3.30, -1.60, 0.75, 0.02);
     add_nettle("tall_a", -1.50, -1.90, 1.00, 0.02);
     add_weed("e", -1.30, -2.90, 0.30, 0.02);
-    add_ground_fern(-2.30, -1.55, 1.15, 0.02);
+    add_ground_fern(-2.75, -3.35, 1.15, 0.02);
     add_moss("moss_01_c_LOD0", -3.35, 0.02, 0.35, 0.08);
     add_weed("b", -1.42, -0.95, 0.30, 0.02);
     // Right bed, rear and mid.
@@ -3872,7 +3952,6 @@ inline HittableList make_greenhouse_scene() {
     add_weed("b", 1.95, -2.55, 0.30, 0.02);
     add_weed("c", 2.45, -1.60, 0.30, 0.02);
     add_weed("d", 2.65, -0.35, 0.30, 0.02);
-    add_weed("e", -1.60, -2.15, 0.30, 0.02);
     add_nettle("small_a", -1.30, -3.75, 0.50, 0.02);
     add_nettle("small_b", 2.30, 2.85, 0.50, 0.02);
     add_periwinkle("01", 1.40, -1.70, 0.36, 0.02);
@@ -3982,17 +4061,17 @@ inline HittableList make_greenhouse_scene() {
         stone
     );
 
-    // Stacked-stone sculpture on its own column in the right bed:
-    // an octagonal stone pedestal carrying three irregular discs
-    // balanced on top of each other, finished with a polished
-    // sphere finial.
+    // Stacked-stone sculpture on its own column at the inner edge
+    // of the right bed, framed by the walkway: an octagonal stone
+    // pedestal carrying four irregular discs balanced on top of
+    // each other, finished with a polished sphere finial.
     greenhouse_add_octagon_prism(
         world,
-        -1.55,
+        1.42,
         0.012,
-        1.00,
-        -2.40,
-        0.155,
+        1.15,
+        -0.70,
+        0.190,
         stone
     );
 
@@ -4029,14 +4108,14 @@ inline HittableList make_greenhouse_scene() {
         );
     };
 
-    add_cairn_disc(-1.55, -2.40, 1.000, 0.075, 0.215, 57);
-    add_cairn_disc(-1.55, -2.40, 1.075, 0.095, 0.150, 61);
-    add_cairn_disc(-1.535, -2.385, 1.170, 0.085, 0.120, 67);
-    add_cairn_disc(-1.56, -2.390, 1.255, 0.075, 0.095, 71);
+    add_cairn_disc(1.42, -0.70, 1.150, 0.080, 0.260, 57);
+    add_cairn_disc(1.42, -0.70, 1.230, 0.100, 0.190, 61);
+    add_cairn_disc(1.435, -0.685, 1.330, 0.090, 0.150, 67);
+    add_cairn_disc(1.410, -0.695, 1.420, 0.080, 0.115, 71);
 
     world.add(std::make_shared<Sphere>(
-        Vec3(-1.55, 1.380, -2.39),
-        0.065,
+        Vec3(1.42, 1.565, -0.69),
+        0.095,
         stone
     ));
 
