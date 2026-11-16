@@ -160,8 +160,10 @@ Render the greenhouse conservatory scene:
 The greenhouse scene assembles imported botanical models (recorded
 in `assets/ASSET_CREDITS.md`) with procedural architecture. Its
 walkway is built from irregular flagstones with per-slab granite
-materials and bump mapping, and the pond is a closed dielectric
-volume whose surface is ruffled by the procedural ripple material.
+materials and bump mapping, the pond is a closed dielectric volume
+whose surface is ruffled by the procedural ripple material and
+dressed with clefted lily pads and submerged rockwork, and the beds
+are enriched with a boulder rockery and a stacked-stone sculpture.
 `-Draft` and `-Preview` produce reduced-quality variants for quick
 iteration.
 The default output files are:
